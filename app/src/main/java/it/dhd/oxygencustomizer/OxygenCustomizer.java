@@ -14,9 +14,16 @@ public class OxygenCustomizer extends Application {
     private static OxygenCustomizer instance;
     private static WeakReference<Context> contextReference;
 
+    @Override
+    protected void attachBaseContext(Context base) {
+        super.attachBaseContext(base);
+        instance = this;
+        contextReference = new WeakReference<>(base.getApplicationContext());
+    }
+
+    @Override
     public void onCreate() {
         super.onCreate();
-        instance = this;
         contextReference = new WeakReference<>(getApplicationContext());
         DynamicColors.applyToActivitiesIfAvailable(this);
     }
@@ -34,7 +41,7 @@ public class OxygenCustomizer extends Application {
 
     public static OxygenCustomizer get() {
         if (instance == null) {
-            instance = new OxygenCustomizer();
+            throw new IllegalStateException("OxygenCustomizer Application is not attached yet");
         }
         return instance;
     }

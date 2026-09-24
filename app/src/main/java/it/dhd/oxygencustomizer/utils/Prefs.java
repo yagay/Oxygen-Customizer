@@ -12,23 +12,22 @@ public class Prefs {
     // Preference files
     public static final String SharedPref = BuildConfig.APPLICATION_ID;
     public static SharedPreferences prefs = OxygenCustomizer.getAppContext().getSharedPreferences(SharedPref, Context.MODE_PRIVATE);
-    static SharedPreferences.Editor editor = prefs.edit();
 
     // Save sharedPref config
     public static void putBoolean(String key, boolean val) {
-        editor.putBoolean(key, val).apply();
+        prefs.edit().putBoolean(key, val).apply();
     }
 
     public static void putInt(String key, int val) {
-        editor.putInt(key, val).apply();
+        prefs.edit().putInt(key, val).apply();
     }
 
     public static void putLong(String key, long val) {
-        editor.putLong(key, val).apply();
+        prefs.edit().putLong(key, val).apply();
     }
 
     public static void putString(String key, String val) {
-        editor.putString(key, val).apply();
+        prefs.edit().putString(key, val).apply();
     }
 
     // Load sharedPref config
@@ -66,17 +65,19 @@ public class Prefs {
 
     // Clear specific sharedPref config
     public static void clearPref(String key) {
-        editor.remove(key).apply();
+        prefs.edit().remove(key).apply();
     }
 
     public static void clearPrefs(String... keys) {
+        SharedPreferences.Editor editor = prefs.edit();
         for (String key : keys) {
-            editor.remove(key).apply();
+            editor.remove(key);
         }
+        editor.apply();
     }
 
     // Clear all sharedPref config
     public static void clearAllPrefs() {
-        editor.clear().apply();
+        prefs.edit().clear().apply();
     }
 }

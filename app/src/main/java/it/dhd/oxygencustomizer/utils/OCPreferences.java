@@ -14,7 +14,6 @@ public class OCPreferences {
     private static final ExtendedSharedPreferences prefs = ExtendedSharedPreferences.from(OxygenCustomizer.get()
             .createDeviceProtectedStorageContext()
             .getSharedPreferences(BuildConfig.APPLICATION_ID + "_preferences", Context.MODE_PRIVATE));
-    private static final ExtendedSharedPreferences.Editor editor = prefs.edit();
 
     public static ExtendedSharedPreferences getPrefs() {
         return prefs;
@@ -22,23 +21,23 @@ public class OCPreferences {
 
     // Basic put methods
     public static void putBoolean(String key, boolean value) {
-        editor.putBoolean(key, value).apply();
+        prefs.edit().putBoolean(key, value).apply();
     }
 
     public static void putInt(String key, int value) {
-        editor.putInt(key, value).apply();
+        prefs.edit().putInt(key, value).apply();
     }
 
     public static void putFloat(String key, float value) {
-        editor.putFloat(key, value).apply();
+        prefs.edit().putFloat(key, value).apply();
     }
 
     public static void putLong(String key, long value) {
-        editor.putLong(key, value).apply();
+        prefs.edit().putLong(key, value).apply();
     }
 
     public static void putString(String key, String value) {
-        editor.putString(key, value).apply();
+        prefs.edit().putString(key, value).apply();
     }
 
     // Basic get methods
@@ -97,13 +96,15 @@ public class OCPreferences {
 
     // Clear methods
     public static void clear(String... keys) {
+        ExtendedSharedPreferences.Editor editor = prefs.edit();
         for (String key : keys) {
-            editor.remove(key).apply();
+            editor.remove(key);
         }
+        editor.apply();
     }
 
     public static void clearAll() {
-        editor.clear().apply();
+        prefs.edit().clear().apply();
     }
 }
 
