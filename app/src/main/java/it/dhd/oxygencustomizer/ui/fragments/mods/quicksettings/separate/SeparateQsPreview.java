@@ -135,6 +135,7 @@ public class SeparateQsPreview extends BaseFragment {
     }};
 
     private List<String> mSelectableWidgets = new ArrayList();
+    private boolean mFeatureReceiverRegistered = false;
 
     final BroadcastReceiver mFeatureReceiver = new BroadcastReceiver() {
         @Override
@@ -172,6 +173,18 @@ public class SeparateQsPreview extends BaseFragment {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         binding = FragmentSeparateBinding.inflate(inflater, container, false);
         return binding.getRoot();
+    }
+
+    @Override
+    public void onDestroyView() {
+        if (mFeatureReceiverRegistered) {
+            try {
+                requireContext().unregisterReceiver(mFeatureReceiver);
+            } catch (Throwable ignored) {
+            }
+            mFeatureReceiverRegistered = false;
+        }
+        super.onDestroyView();
     }
 
     @Override
@@ -213,7 +226,14 @@ public class SeparateQsPreview extends BaseFragment {
             }
         }, getViewLifecycleOwner(), Lifecycle.State.RESUMED);
         setupMediaPanel();
-        requireContext().registerReceiver(mFeatureReceiver, new IntentFilter(BuildConfig.APPLICATION_ID + ".DEVICE_PROFILE_POST"), Context.RECEIVER_EXPORTED);
+        if (!mFeatureReceiverRegistered) {
+            requireContext().registerReceiver(
+                    mFeatureReceiver,
+                    new IntentFilter(BuildConfig.APPLICATION_ID + ".DEVICE_PROFILE_POST"),
+                    Context.RECEIVER_EXPORTED
+            );
+            mFeatureReceiverRegistered = true;
+        }
         Intent intent = new Intent(BuildConfig.APPLICATION_ID + ".DEVICE_PROFILE_GET");
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         requireContext().sendBroadcast(intent);
