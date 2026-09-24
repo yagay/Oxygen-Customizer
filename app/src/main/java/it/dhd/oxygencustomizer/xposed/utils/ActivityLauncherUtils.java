@@ -214,7 +214,7 @@ public class ActivityLauncherUtils {
     public void launchAudioRecorder(boolean fromQs) {
         Intent launchIntent = new Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION);
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        launchAppIfAvailable(launchIntent, R.string.audio_recorder, fromQs);
+        launchAppIfAvailable(launchIntent, R.string.plusKey_action_recorder, fromQs);
     }
 
     public void launchBrowser(boolean fromQs) {
