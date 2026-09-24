@@ -70,7 +70,7 @@ public class WeatherWork extends ListenableWorker {
         return CallbackToFutureAdapter.getFuture(completer -> {
             Log.d("WeatherWork", "startWork: " + forceUpdate);
             if (!forceUpdate && !WeatherConfig.isEnabled(mContext)) {
-                handleError(completer, EXTRA_ERROR_DISABLED, "Service started, but not enabled ... stopping");
+                handleError(completer, EXTRA_ERROR_DISABLED, "Service started, but not enabled ... stopping", false);
                 return completer;
             }
 
@@ -78,12 +78,12 @@ public class WeatherWork extends ListenableWorker {
                 // Check permissions and location enabled
                 // only if not using custom location
                 if (!checkPermissions()) {
-                    handleError(completer, EXTRA_ERROR_NO_PERMISSIONS, "Location permissions are not granted");
+                    handleError(completer, EXTRA_ERROR_NO_PERMISSIONS, "Location permissions are not granted", false);
                     return completer;
                 }
 
                 if (!doCheckLocationEnabled()) {
-                    handleError(completer, EXTRA_ERROR_NETWORK, "Location services are disabled");
+                    handleError(completer, EXTRA_ERROR_NETWORK, "Location services are disabled", false);
                     return completer;
                 }
             }
@@ -97,7 +97,7 @@ public class WeatherWork extends ListenableWorker {
                         Log.d(TAG, "Using custom location configuration");
                         updateWeather(null, completer);
                     } else {
-                        handleError(completer, EXTRA_ERROR_LOCATION, "Failed to retrieve location");
+                        handleError(completer, EXTRA_ERROR_LOCATION, "Failed to retrieve location", true);
                     }
                 });
             });
@@ -106,12 +106,17 @@ public class WeatherWork extends ListenableWorker {
         });
     }
 
-    private void handleError(CallbackToFutureAdapter.Completer<Result> completer, int errorExtra, String logMessage) {
+    private void handleError(
+            CallbackToFutureAdapter.Completer<Result> completer,
+            int errorExtra,
+            String logMessage,
+            boolean retry) {
         Log.e(TAG, logMessage);
         Intent errorIntent = new Intent(ACTION_ERROR);
         errorIntent.putExtra(EXTRA_ERROR, errorExtra);
+        errorIntent.setPackage(mContext.getPackageName());
         mContext.sendBroadcast(errorIntent);
-        completer.set(Result.retry());
+        completer.set(retry ? Result.retry() : Result.success());
     }
 
     private boolean doCheckLocationEnabled() {
@@ -240,6 +245,7 @@ public class WeatherWork extends ListenableWorker {
                 completer.set(Result.retry());
             }
             Intent updateIntent = new Intent(ACTION_BROADCAST);
+            updateIntent.setPackage(mContext.getPackageName());
             mContext.sendBroadcast(updateIntent);
         }
     }
