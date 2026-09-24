@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletableFuture;\nimport java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -44,6 +44,9 @@ public class XPLauncher implements ServiceConnection {
 
     private static IRootProviderProxy rootProxyIPC;
     private static final Queue<ProxyRunnable> proxyQueue = new LinkedList<>();
+    private static final AtomicBoolean rootConnectInProgress = new AtomicBoolean(false);
+    private static final int XPREFS_LOAD_MAX_ATTEMPTS = 15;
+    private static final int ROOT_CONNECT_MAX_ATTEMPTS = 6;
     @SuppressLint("StaticFieldLeak")
     static XPLauncher instance;
 
@@ -150,37 +153,55 @@ public class XPLauncher implements ServiceConnection {
     }
 
     private void waitForXprefsLoad(XC_LoadPackage.LoadPackageParam lpparam) {
-        while (true) {
+        for (int attempt = 1; attempt <= XPREFS_LOAD_MAX_ATTEMPTS; attempt++) {
             try {
                 Xprefs.getBoolean("LoadTestBooleanValue", false);
-                break;
-            } catch (Throwable ignored) {
+                log("Oxygen Customizer Version: " + BuildConfig.VERSION_NAME + " package: " + lpparam.packageName + " loaded");
+                onXPrefsReady(lpparam);
+                return;
+            } catch (Throwable t) {
+                if (attempt == XPREFS_LOAD_MAX_ATTEMPTS) {
+                    log("Oxygen Customizer: preferences unavailable for " + lpparam.packageName
+                            + " after " + XPREFS_LOAD_MAX_ATTEMPTS + " attempts; skipping hooks for this process");
+                    return;
+                }
                 try {
-                    //noinspection BusyWait
                     Thread.sleep(1000);
-                } catch (Throwable ignored1) {}
+                } catch (InterruptedException interruptedException) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
         }
-
-        log("Oxygen Customizer Version: " + BuildConfig.VERSION_NAME + " package: " + lpparam.packageName + " loaded");
-
-        onXPrefsReady(lpparam);
     }
 
     private void forceConnectRootService() {
-        new Thread(() -> {
-            while (SystemUtils.UserManager() == null
-                    || !SystemUtils.UserManager().isUserUnlocked()) //device is still CE encrypted
-            {
-                sleep(2000);
-            }
-            sleep(5000); //wait for the unlocked account to settle down a bit
+        if (rootProxyIPC != null || !rootConnectInProgress.compareAndSet(false, true)) {
+            return;
+        }
 
-            while (rootProxyIPC == null) {
-                connectRootService();
-                sleep(5000);
+        new Thread(() -> {
+            try {
+                while (SystemUtils.UserManager() == null
+                        || !SystemUtils.UserManager().isUserUnlocked()) {
+                    sleep(2000);
+                }
+                sleep(3000);
+
+                long retryDelayMs = 3000;
+                for (int attempt = 1; attempt <= ROOT_CONNECT_MAX_ATTEMPTS && rootProxyIPC == null; attempt++) {
+                    connectRootService();
+                    sleep(retryDelayMs);
+                    retryDelayMs = Math.min(retryDelayMs * 2, 30000);
+                }
+
+                if (rootProxyIPC == null) {
+                    log("Oxygen Customizer: root proxy connection timed out; will retry on the next request");
+                }
+            } finally {
+                rootConnectInProgress.set(false);
             }
-        }).start();
+        }, "OC-RootProxyConnect").start();
     }
 
     private void connectRootService() {
