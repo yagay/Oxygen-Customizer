@@ -60,8 +60,13 @@ public class RootProviderProxy extends Service {
         public void applyTheme(String theme) throws RemoteException {
             ensureEnvironment();
 
+            if (theme == null || !theme.matches("[A-Za-z0-9._]+")) {
+                throw new RemoteException("Invalid overlay package name");
+            }
+
             try {
-                Shell.cmd("cmd overlay enable --user current " + theme, "cmd overlay set-priority " + theme + " highest").submit();
+                Shell.cmd("cmd overlay enable --user current " + theme,
+                        "cmd overlay set-priority " + theme + " highest").submit();
             } catch (Throwable t) {
                 Log.e(TAG, "applyTheme: ", t);
             }
@@ -80,14 +85,18 @@ public class RootProviderProxy extends Service {
 
                             Log.d(TAG,"DepthWallpaper extractSubject: " + tempFile.getAbsolutePath() + " -> " + resultPath);
 
-                            FileOutputStream outputStream = new FileOutputStream(tempFile);
-                            result.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+                            try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+                                result.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+                            } finally {
+                                result.recycle();
+                            }
 
-                            outputStream.close();
-                            result.recycle();
-
-                            Shell.cmd("cp -F " + tempFile.getAbsolutePath() + " " + resultPath).exec();
-                            Shell.cmd("chmod 644 " + resultPath).exec();
+                            String quotedTemp = shellQuote(tempFile.getAbsolutePath());
+                            String quotedResult = shellQuote(resultPath);
+                            Shell.cmd("cp -F " + quotedTemp + " " + quotedResult).exec();
+                            Shell.cmd("chmod 644 " + quotedResult).exec();
+                            //noinspection ResultOfMethodCallIgnored
+                            tempFile.delete();
                             Log.d(TAG, "DepthWallpaper onSuccess: BitmapSubjectSegmenter " + resultPath);
                         } catch (Throwable t) {
                             Log.e(TAG, "onSuccess: BitmapSubjectSegmenter", t);
@@ -102,6 +111,13 @@ public class RootProviderProxy extends Service {
             } catch (Throwable t) {
                 Log.e(TAG, "extractSubject: BitmapSubjectSegmenter", t);
             }
+        }
+
+        private String shellQuote(String value) throws RemoteException {
+            if (value == null || value.indexOf('\0') >= 0) {
+                throw new RemoteException("Invalid shell path");
+            }
+            return "'" + value.replace("'", "'\\''") + "'";
         }
 
         private void ensureEnvironment() throws RemoteException {

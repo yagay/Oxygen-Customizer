@@ -8,6 +8,8 @@ import androidx.core.content.pm.ShortcutInfoCompat;
 import androidx.core.content.pm.ShortcutManagerCompat;
 import androidx.core.graphics.drawable.IconCompat;
 
+import java.util.UUID;
+
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.ui.activity.ShortcutActivity;
 
@@ -27,6 +29,12 @@ public class ShortcutUtils {
      * Add starred dynamic shortcut
      */
     public void setupShortcut() {
+        String shortcutToken = Prefs.getString("launcher_shortcut_token", "");
+        if (shortcutToken.isEmpty()) {
+            shortcutToken = UUID.randomUUID().toString();
+            Prefs.putString("launcher_shortcut_token", shortcutToken);
+        }
+
         ShortcutInfoCompat shortcut = new ShortcutInfoCompat.Builder(mContext, "shortcut_1")
                 .setShortLabel(mContext.getString(R.string.lsposed))
                 .setLongLabel(mContext.getString(R.string.open_lsposed))
@@ -36,7 +44,8 @@ public class ShortcutUtils {
                         ShortcutActivity.class)
                         .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK)
                         .setAction(Intent.ACTION_VIEW)
-                        .putExtra("shortcutId", "shortcut_1"))
+                        .putExtra("shortcutId", "shortcut_1")
+                        .putExtra("shortcutToken", shortcutToken))
                 .setRank(0)
                 .build();
 
