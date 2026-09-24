@@ -349,8 +349,8 @@ public class NowBarHolder extends LinearLayout {
         mPagerAdapter.notifyDataSetChanged();
         if (mNowBarMusic != null) mPages.add(mNowBarMusic);
         if (mNowBarBattery != null) mPages.add(mNowBarBattery);
-        if (mWeatherEnabled) mPages.add(mNowBarWeather);
-        if (mNotificationEnabled) mPages.add(mNowBarNotification);
+        if (mWeatherEnabled && mNowBarWeather != null) mPages.add(mNowBarWeather);
+        if (mNotificationEnabled && mNowBarNotification != null) mPages.add(mNowBarNotification);
         mPagerAdapter.notifyDataSetChanged();
         mViewPager.setAdapter(mPagerAdapter);
         if (mWeatherEnabled) mViewPager.setCurrentItem(2);
@@ -364,7 +364,9 @@ public class NowBarHolder extends LinearLayout {
 
     public void setNotificationEnabled(boolean enabled) {
         mNotificationEnabled = enabled;
-        mNowBarNotification.setNotificationEnabled(enabled);
+        if (mNowBarNotification != null) {
+            mNowBarNotification.setNotificationEnabled(enabled);
+        }
         refreshViewPager();
     }
 
