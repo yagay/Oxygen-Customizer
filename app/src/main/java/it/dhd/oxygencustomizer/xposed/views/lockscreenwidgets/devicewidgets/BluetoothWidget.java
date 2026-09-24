@@ -73,7 +73,9 @@ public class BluetoothWidget extends BaseDeviceWidget {
         }
     };
 
-    private ControllersProvider.OnBluetoothChanged mBluetoothCallback = this::updateBatteries;
+    private final ControllersProvider.OnBluetoothChanged mBluetoothCallback = this::updateBatteries;
+    private boolean mReceiversRegistered = false;
+    private boolean mBluetoothCallbackRegistered = false;
 
     private void updateBatteries(boolean enabled) {
         removeAllViews();
@@ -266,14 +268,45 @@ public class BluetoothWidget extends BaseDeviceWidget {
 
     public BluetoothWidget(Context context, boolean settingsInterface) {
         super(context, settingsInterface);
-        if (!mSettingsInterface) {
-            ControllersProvider.registerBluetoothCallback(mBluetoothCallback);
-        }
-        mContext.registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-        mContext.registerReceiver(bluetoothBatteryReceiver, new IntentFilter("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"));
-
         setupLayout();
         onWidgetModeChanged();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (!mSettingsInterface && !mBluetoothCallbackRegistered) {
+            ControllersProvider.registerBluetoothCallback(mBluetoothCallback);
+            mBluetoothCallbackRegistered = true;
+        }
+        if (!mReceiversRegistered) {
+            mContext.registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            mContext.registerReceiver(
+                    bluetoothBatteryReceiver,
+                    new IntentFilter("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
+            );
+            mReceiversRegistered = true;
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (mBluetoothCallbackRegistered) {
+            ControllersProvider.unRegisterBluetoothCallback(mBluetoothCallback);
+            mBluetoothCallbackRegistered = false;
+        }
+        if (mReceiversRegistered) {
+            try {
+                mContext.unregisterReceiver(batteryReceiver);
+            } catch (Throwable ignored) {
+            }
+            try {
+                mContext.unregisterReceiver(bluetoothBatteryReceiver);
+            } catch (Throwable ignored) {
+            }
+            mReceiversRegistered = false;
+        }
+        super.onDetachedFromWindow();
     }
 
     private void setupLayout() {
