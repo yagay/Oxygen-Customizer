@@ -37,11 +37,13 @@ import androidx.core.content.FileProvider;
 import com.topjohnwu.superuser.Shell;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.zip.ZipFile;
 
@@ -109,21 +111,29 @@ public class UpdateFragment extends BaseFragment {
             boolean successful = false;
             if (DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction()) && intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadID) {
                 try (Cursor downloadData = downloadManager.query(
-                        new DownloadManager.Query()
-                                .setFilterById(downloadID))) {
-                    downloadData.moveToFirst();
+                        new DownloadManager.Query().setFilterById(downloadID))) {
+                    if (downloadData != null && downloadData.moveToFirst()) {
+                        int statusIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                        int uriColIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
+                        boolean downloadSucceeded = statusIndex >= 0
+                                && downloadData.getInt(statusIndex) == DownloadManager.STATUS_SUCCESSFUL;
+                        String localUri = uriColIndex >= 0 ? downloadData.getString(uriColIndex) : null;
 
-                    int uriColIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
-
-                    File downloadedFile = new File(URI.create(downloadData.getString(uriColIndex)));
-
-                    if (downloadedFile.exists()) {
-                        downloadedFilePath = new File(URI.create(downloadData.getString(uriColIndex))).getAbsolutePath();
-
-                        notifyInstall();
-                        successful = true;
+                        if (downloadSucceeded && !TextUtils.isEmpty(localUri)) {
+                            File downloadedFile = new File(URI.create(localUri));
+                            if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
+                                downloadedFilePath = downloadedFile.getAbsolutePath();
+                                notifyInstall();
+                                successful = true;
+                            } else if (downloadedFile.exists()) {
+                                Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
+                                //noinspection ResultOfMethodCallIgnored
+                                downloadedFile.delete();
+                            }
+                        }
                     }
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    Log.e("UpdateFragment", "Unable to validate downloaded update", t);
                 }
             }
 
@@ -418,6 +428,38 @@ public class UpdateFragment extends BaseFragment {
 
     public void checkUpdates(Flavor flavor, TaskDoneCallback callback) {
         new updateChecker(callback, flavor).start();
+    }
+
+    private boolean verifyDownloadedFile(File file) {
+        if (mNightlyDownloaded || latestVersion == null) {
+            return true;
+        }
+
+        Object expectedValue = latestVersion.get("sha256");
+        if (!(expectedValue instanceof String expectedHash) || TextUtils.isEmpty(expectedHash)) {
+            // Stable/upstream metadata may not provide a checksum yet.
+            return true;
+        }
+
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream inputStream = new FileInputStream(file)) {
+                byte[] buffer = new byte[64 * 1024];
+                int read;
+                while ((read = inputStream.read(buffer)) != -1) {
+                    digest.update(buffer, 0, read);
+                }
+            }
+
+            StringBuilder actualHash = new StringBuilder(64);
+            for (byte value : digest.digest()) {
+                actualHash.append(String.format("%02x", value & 0xff));
+            }
+            return expectedHash.equalsIgnoreCase(actualHash.toString());
+        } catch (Throwable t) {
+            Log.e("UpdateFragment", "Failed to calculate update SHA-256", t);
+            return false;
+        }
     }
 
     public void startDownload(String zipURL, HashMap<String, Object> versionInfo) {
