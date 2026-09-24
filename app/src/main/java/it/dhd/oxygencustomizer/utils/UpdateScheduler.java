@@ -8,7 +8,10 @@ import android.util.Log;
 
 import androidx.work.BackoffPolicy;
 import androidx.work.Configuration;
+import androidx.work.Constraints;
 import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
@@ -19,6 +22,7 @@ import it.dhd.oxygencustomizer.BuildConfig;
 
 public class UpdateScheduler {
     private static final String UPDATE_WORK_NAME = BuildConfig.APPLICATION_ID + ".UpdateSchedule";
+    private static final String UPDATE_NOW_WORK_NAME = BuildConfig.APPLICATION_ID + ".UpdateNow";
 
     public static void scheduleUpdates(Context context)
     {
@@ -35,11 +39,20 @@ public class UpdateScheduler {
         SharedPreferences prefs = getDefaultSharedPreferences(context.createDeviceProtectedStorageContext());
 
         boolean autoUpdate = prefs.getBoolean("autoUpdate", true);
+        boolean UpdateWifiOnly = prefs.getBoolean("checkOnWifi", true);
 
         if(autoUpdate)
         {
-            PeriodicWorkRequest.Builder builder = new PeriodicWorkRequest.Builder(UpdateWorker.class, 12, TimeUnit.HOURS)
-                    .setBackoffCriteria(BackoffPolicy.LINEAR, 1, TimeUnit.HOURS);
+            Constraints constraints = new Constraints.Builder()
+                    .setRequiredNetworkType(UpdateWifiOnly
+                            ? NetworkType.UNMETERED
+                            : NetworkType.CONNECTED)
+                    .build();
+
+            PeriodicWorkRequest.Builder builder =
+                    new PeriodicWorkRequest.Builder(UpdateWorker.class, 12, TimeUnit.HOURS)
+                            .setConstraints(constraints)
+                            .setBackoffCriteria(BackoffPolicy.LINEAR, 1, TimeUnit.HOURS);
 
             workManager.enqueueUniquePeriodicWork(
                     UPDATE_WORK_NAME,
@@ -64,8 +77,16 @@ public class UpdateScheduler {
 
         WorkManager workManager = WorkManager.getInstance(context);
 
-        OneTimeWorkRequest.Builder builder = new OneTimeWorkRequest.Builder(UpdateWorker.class);
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(UpdateWorker.class)
+                .setConstraints(new Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build())
+                .build();
 
-        workManager.enqueue(builder.build());
+        workManager.enqueueUniqueWork(
+                UPDATE_NOW_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                request
+        );
     }
 }

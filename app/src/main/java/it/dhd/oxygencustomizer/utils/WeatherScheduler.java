@@ -5,8 +5,11 @@ import android.util.Log;
 
 import androidx.work.BackoffPolicy;
 import androidx.work.Configuration;
+import androidx.work.Constraints;
 import androidx.work.Data;
 import androidx.work.ExistingPeriodicWorkPolicy;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.NetworkType;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
@@ -19,6 +22,7 @@ import it.dhd.oxygencustomizer.weather.WeatherWork;
 
 public class WeatherScheduler {
     private static final String UPDATE_WORK_NAME = BuildConfig.APPLICATION_ID + ".WeatherSchedule";
+    private static final String UPDATE_NOW_WORK_NAME = BuildConfig.APPLICATION_ID + ".WeatherNow";
 
     public static void scheduleUpdates(Context context) {
         Log.d("WeatherScheduler", "Updating update schedule...");
@@ -35,8 +39,16 @@ public class WeatherScheduler {
 
         if (weatherEnabled) {
             Log.d("WeatherScheduler", "Scheduling updates");
-            PeriodicWorkRequest.Builder builder = new PeriodicWorkRequest.Builder(WeatherWork.class, WeatherConfig.getUpdateInterval(context), TimeUnit.HOURS)
-                    .setBackoffCriteria(BackoffPolicy.LINEAR, 1, TimeUnit.HOURS);
+            PeriodicWorkRequest.Builder builder =
+                    new PeriodicWorkRequest.Builder(
+                            WeatherWork.class,
+                            WeatherConfig.getUpdateInterval(context),
+                            TimeUnit.HOURS
+                    )
+                            .setConstraints(new Constraints.Builder()
+                                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                                    .build())
+                            .setBackoffCriteria(BackoffPolicy.LINEAR, 1, TimeUnit.HOURS);
 
             workManager.enqueueUniquePeriodicWork(
                     UPDATE_WORK_NAME,
@@ -75,8 +87,17 @@ public class WeatherScheduler {
                 .build();
         WorkManager workManager = WorkManager.getInstance(context);
 
-        OneTimeWorkRequest.Builder builder = new OneTimeWorkRequest.Builder(WeatherWork.class);
-        workManager.enqueue(builder.setInputData(inputData).build());
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(WeatherWork.class)
+                .setInputData(inputData)
+                .setConstraints(new Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build())
+                .build();
+        workManager.enqueueUniqueWork(
+                UPDATE_NOW_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                request
+        );
     }
 
 }
