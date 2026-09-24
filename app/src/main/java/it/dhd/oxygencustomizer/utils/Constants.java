@@ -32,6 +32,9 @@ public final class Constants {
         public static class General {
             public static final List<String> PREF_UPDATE_EXCLUSIONS = Arrays.asList(BootLoopProtector.LOAD_TIME_KEY_KEY, BootLoopProtector.PACKAGE_STRIKE_KEY_KEY);
             public static final String PREF_MORE_LOGGING = "moreLogging";
+            public static final String PREF_INTERNAL_BROADCAST_TOKEN = "internal_broadcast_token";
+            public static final String EXTRA_INTERNAL_BROADCAST_TOKEN =
+                    BuildConfig.APPLICATION_ID + ".extra.INTERNAL_BROADCAST_TOKEN";
             public static final String APP_LANGUAGE = "appLanguage";
         }
 

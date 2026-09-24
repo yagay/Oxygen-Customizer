@@ -6,8 +6,11 @@ import android.content.Context;
 import com.google.android.material.color.DynamicColors;
 
 import java.lang.ref.WeakReference;
+import java.util.UUID;
 
+import it.dhd.oxygencustomizer.utils.Constants;
 import it.dhd.oxygencustomizer.utils.LocaleHelper;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 
 public class OxygenCustomizer extends Application {
 
@@ -25,7 +28,16 @@ public class OxygenCustomizer extends Application {
     public void onCreate() {
         super.onCreate();
         contextReference = new WeakReference<>(getApplicationContext());
+        ensureInternalBroadcastToken();
         DynamicColors.applyToActivitiesIfAvailable(this);
+    }
+
+    private void ensureInternalBroadcastToken() {
+        String key = Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN;
+        String token = OCPreferences.getString(key, "");
+        if (token == null || token.isEmpty()) {
+            OCPreferences.putString(key, UUID.randomUUID().toString());
+        }
     }
 
     public static Context getAppContext() {

@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.utils.overlay.OverlayUtil;
@@ -45,6 +46,9 @@ public class PrefManager {
 
             JSONObject values = new JSONObject();
             for (Map.Entry<String, ?> entry : preferences.getAll().entrySet()) {
+                if (Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN.equals(entry.getKey())) {
+                    continue;
+                }
                 JSONObject item = encodeValue(entry.getValue());
                 if (item != null) {
                     values.put(entry.getKey(), item);
@@ -139,8 +143,13 @@ public class PrefManager {
             return false;
         }
 
+        String internalToken = getOrCreateInternalBroadcastToken(sharedPreferences);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.clear();
+        editor.putString(
+                Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN,
+                internalToken
+        );
 
         Iterator<String> keys = values.keys();
         while (keys.hasNext()) {
@@ -236,10 +245,18 @@ public class PrefManager {
     @SuppressWarnings("unchecked")
     private static boolean applyLegacyMap(SharedPreferences sharedPreferences,
                                           Map<String, Object> map) {
+        String internalToken = getOrCreateInternalBroadcastToken(sharedPreferences);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.clear();
+        editor.putString(
+                Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN,
+                internalToken
+        );
 
         for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN.equals(entry.getKey())) {
+                continue;
+            }
             Object value = entry.getValue();
             if (value instanceof Boolean) {
                 editor.putBoolean(entry.getKey(), (Boolean) value);
@@ -265,7 +282,20 @@ public class PrefManager {
         }
     }
 
+    private static String getOrCreateInternalBroadcastToken(SharedPreferences preferences) {
+        String key = Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN;
+        String token = preferences.getString(key, "");
+        return token == null || token.isEmpty() ? UUID.randomUUID().toString() : token;
+    }
+
     public static void clearPrefs(SharedPreferences preferences) {
-        preferences.edit().clear().commit();
+        String token = getOrCreateInternalBroadcastToken(preferences);
+        preferences.edit()
+                .clear()
+                .putString(
+                        Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN,
+                        token
+                )
+                .commit();
     }
 }
