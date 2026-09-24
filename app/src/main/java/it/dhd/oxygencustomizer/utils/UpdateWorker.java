@@ -35,29 +35,41 @@ public class UpdateWorker extends ListenableWorker {
     @NonNull
     @Override
     public ListenableFuture<Result> startWork() {
-        SharedPreferences prefs = getDefaultSharedPreferences(mContext.createDeviceProtectedStorageContext());
-
-        boolean UpdateWifiOnly = prefs.getBoolean("checkOnWifi", true);
-
-        ConnectivityManager connectivityManager = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-
-        boolean isGoodNetwork =
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                        && !UpdateWifiOnly
-                        || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
-
-        if(isGoodNetwork)
-            checkForUpdates();
-
         return CallbackToFutureAdapter.getFuture(completer -> {
-            completer.set(isGoodNetwork ? Result.success() : Result.retry());
-            return completer;
-        });
-    }
+            try {
+                SharedPreferences prefs = getDefaultSharedPreferences(mContext.createDeviceProtectedStorageContext());
+                boolean updateWifiOnly = prefs.getBoolean("checkOnWifi", true);
 
-    private void checkForUpdates() {
-        new UpdateFragment.updateChecker(onCheckedCallback, UpdateFragment.Flavor.ALL).start();
+                ConnectivityManager connectivityManager =
+                        (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+                NetworkCapabilities capabilities =
+                        connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+
+                boolean isGoodNetwork = capabilities != null
+                        && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        && (!updateWifiOnly
+                        || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED));
+
+                if (!isGoodNetwork) {
+                    completer.set(Result.retry());
+                    return "OxygenCustomizer update check waiting for network";
+                }
+
+                new UpdateFragment.updateChecker(result -> {
+                    try {
+                        onCheckedCallback.onFinished(result);
+                        completer.set(Result.success());
+                    } catch (Throwable t) {
+                        Log.e("OxygenCustomizer", "Background update check failed", t);
+                        completer.set(Result.retry());
+                    }
+                }, UpdateFragment.Flavor.ALL).start();
+            } catch (Throwable t) {
+                Log.e("OxygenCustomizer", "Unable to start background update check", t);
+                completer.set(Result.retry());
+            }
+            return "OxygenCustomizer background update check";
+        });
     }
 
     private void showUpdateNotification() {
