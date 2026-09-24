@@ -121,11 +121,14 @@ public class RoundnessCompiler {
             if (mForce) {
                 // Move to system overlay dir
                 SystemUtil.mountRW();
-                for (String overlayName : mOverlayName) {
-                    Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
-                    RootUtil.setPermissions(644, "/system/product/overlay/OxygenCustomizerComponent" + overlayName + ".apk");
+                try {
+                    for (String overlayName : mOverlayName) {
+                        Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
+                        RootUtil.setPermissions(644, "/system/product/overlay/OxygenCustomizerComponent" + overlayName + ".apk");
+                    }
+                } finally {
+                    SystemUtil.mountRO();
                 }
-                SystemUtil.mountRO();
 
                 // Enable the overlays
                 String[] overlayNames = new String[mOverlayName.length];

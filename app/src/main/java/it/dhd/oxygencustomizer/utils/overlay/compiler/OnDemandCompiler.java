@@ -116,9 +116,12 @@ public class OnDemandCompiler {
 
                 // Move to system overlay dir
                 SystemUtil.mountRW();
-                Shell.cmd("cp -rf " + SIGNED_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk " + SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
-                RootUtil.setPermissions(644, "/system/product/overlay/OxygenCustomizerComponent" + mOverlayName + ".apk");
-                SystemUtil.mountRO();
+                try {
+                    Shell.cmd("cp -rf " + SIGNED_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk " + SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
+                    RootUtil.setPermissions(644, "/system/product/overlay/OxygenCustomizerComponent" + mOverlayName + ".apk");
+                } finally {
+                    SystemUtil.mountRO();
+                }
 
                 // Enable the overlay
                 OverlayUtil.enableOverlay("OxygenCustomizerComponent" + mOverlayName + ".overlay");

@@ -177,13 +177,16 @@ public class SettingsIconsCompiler {
             if (mForce) {
                 // Move to system overlay dir
                 mountRW();
-                for (int i = 1; i <= mPackages.size(); i++) {
-                    Shell.cmd(
-                            "cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                    ).exec();
-                    setPermissions(644, "/system/product/overlay/OxygenCustomizerComponentSIP" + i + ".apk");
+                try {
+                    for (int i = 1; i <= mPackages.size(); i++) {
+                        Shell.cmd(
+                                "cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
+                        ).exec();
+                        setPermissions(644, "/system/product/overlay/OxygenCustomizerComponentSIP" + i + ".apk");
+                    }
+                } finally {
+                    mountRO();
                 }
-                mountRO();
 
                 // Enable the overlays
                 String[] overlayNames = new String[mPackages.size()];
