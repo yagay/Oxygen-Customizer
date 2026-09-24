@@ -4,15 +4,23 @@ import android.Manifest;
 import android.content.ContentProvider;
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.Context;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Binder;
+import android.os.Process;
 import android.provider.CalendarContract;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
 import it.dhd.oxygencustomizer.BuildConfig;
+import it.dhd.oxygencustomizer.R;
 
 public class CalendarProvider extends ContentProvider {
 
@@ -26,11 +34,18 @@ public class CalendarProvider extends ContentProvider {
 
     @Override
     public Cursor query(@NonNull Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
-        if (getContext().checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) {
+        final Context context = getContext();
+        if (context == null) {
+            throw new SecurityException("Provider context unavailable");
+        }
+        if (!isTrustedCaller(context, Binder.getCallingUid())) {
+            throw new SecurityException("Caller is not allowed to query calendar data");
+        }
+        if (context.checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) {
             throw new SecurityException("Permission READ_CALENDAR not granted");
         }
-        ContentResolver resolver = getContext().getContentResolver();
 
+        ContentResolver resolver = context.getContentResolver();
         return resolver.query(
                 CalendarContract.Events.CONTENT_URI,
                 projection,
@@ -38,6 +53,25 @@ public class CalendarProvider extends ContentProvider {
                 selectionArgs,
                 sortOrder
         );
+    }
+
+    private boolean isTrustedCaller(Context context, int callingUid) {
+        if (callingUid == Process.myUid()) {
+            return true;
+        }
+        String[] callerPackages = context.getPackageManager().getPackagesForUid(callingUid);
+        if (callerPackages == null || callerPackages.length == 0) {
+            return false;
+        }
+        Set<String> allowedReaders = new HashSet<>(
+                Arrays.asList(context.getResources().getStringArray(R.array.xposed_scope))
+        );
+        for (String packageName : callerPackages) {
+            if (allowedReaders.contains(packageName)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Nullable
