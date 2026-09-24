@@ -19,12 +19,12 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.RemoteException;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -40,7 +40,8 @@ public class XPLauncher implements ServiceConnection {
     public static boolean isChildProcess = false;
     public static String processName = "";
 
-    public static ArrayList<XposedMods> runningMods = new ArrayList<>();
+    public static final CopyOnWriteArrayList<XposedMods> runningMods =
+            new CopyOnWriteArrayList<>();
     public Context mContext = null;
 
     private static IRootProviderProxy rootProxyIPC;
@@ -142,7 +143,8 @@ public class XPLauncher implements ServiceConnection {
                 if (!instance.listensTo(lpparam.packageName)) continue;
                 try {
                     instance.updatePrefs();
-                } catch (Throwable ignored) {
+                } catch (Throwable throwable) {
+                    instance.log(throwable);
                 }
                 instance.initResources();
                 instance.handleLoadPackageInternal(lpparam);
