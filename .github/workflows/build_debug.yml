@@ -11,9 +11,9 @@ jobs:
     name: Build Nightly APK
     runs-on: ubuntu-latest
     env:
-      TELEGRAM_TK: ${{ env.TELEGRAM_TK }}
-      OC_NIGHTLY_BUILDS: ${{ env.OC_NIGHTLY_BUILDS }}
-      OC_NIGHTLY_BUILDS_THREAD: ${{ env.OC_NIGHTLY_BUILDS_THREAD }}
+      TELEGRAM_TK: ${{ secrets.TELEGRAM_TK }}
+      OC_NIGHTLY_BUILDS: ${{ secrets.OC_NIGHTLY_BUILDS }}
+      OC_NIGHTLY_BUILDS_THREAD: ${{ secrets.OC_NIGHTLY_BUILDS_THREAD }}
     steps:
       - uses: actions/checkout@v4
       - name: set up JDK 21
