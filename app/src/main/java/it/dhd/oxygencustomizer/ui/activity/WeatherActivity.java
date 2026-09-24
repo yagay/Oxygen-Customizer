@@ -178,15 +178,22 @@ public class WeatherActivity extends AppCompatActivity implements OmniJawsClient
             return;
         }
         mWeatherClient.queryWeather();
-        if (mWeatherClient.getWeatherInfo().hourlyForecasts.size() >= 2) {
-            mForecastHourAdapter.updateList(mWeatherClient.getWeatherInfo().hourlyForecasts);
+        OmniJawsClient.WeatherInfo weatherInfo = mWeatherClient.getWeatherInfo();
+        if (weatherInfo == null) {
+            binding.hourlyForecastCard.setVisibility(View.GONE);
+            binding.dailyForecastCard.setVisibility(View.GONE);
+            binding.currentLocation.setText(R.string.omnijaws_service_disabled);
+            return;
+        }
+        if (weatherInfo.hourlyForecasts != null && weatherInfo.hourlyForecasts.size() >= 2) {
+            mForecastHourAdapter.updateList(weatherInfo.hourlyForecasts);
             binding.hourlyForecastCard.setVisibility(View.VISIBLE);
             binding.hourlyForecastRecycler.scrollToPosition(0);
         } else {
             binding.hourlyForecastCard.setVisibility(View.GONE);
         }
-        if (!mWeatherClient.getWeatherInfo().dayForecasts.isEmpty()) {
-            mForecastDayAdapter.updateList(mWeatherClient.getWeatherInfo().dayForecasts);
+        if (weatherInfo.dayForecasts != null && !weatherInfo.dayForecasts.isEmpty()) {
+            mForecastDayAdapter.updateList(weatherInfo.dayForecasts);
             binding.dailyForecastCard.setVisibility(View.VISIBLE);
         } else {
             binding.dailyForecastCard.setVisibility(View.GONE);
