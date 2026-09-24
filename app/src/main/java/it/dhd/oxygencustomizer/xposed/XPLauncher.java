@@ -25,6 +25,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -44,6 +45,10 @@ public class XPLauncher implements ServiceConnection {
 
     private static IRootProviderProxy rootProxyIPC;
     private static final Queue<ProxyRunnable> proxyQueue = new LinkedList<>();
+    private static final AtomicBoolean rootConnectWorkerRunning = new AtomicBoolean(false);
+    private static final AtomicBoolean bindInProgress = new AtomicBoolean(false);
+    private static final int XPREFS_LOAD_RETRIES = 20;
+    private static final long XPREFS_LOAD_RETRY_DELAY_MS = 100;
     @SuppressLint("StaticFieldLeak")
     static XPLauncher instance;
 
@@ -150,51 +155,82 @@ public class XPLauncher implements ServiceConnection {
     }
 
     private void waitForXprefsLoad(XC_LoadPackage.LoadPackageParam lpparam) {
-        while (true) {
+        for (int attempt = 0; attempt < XPREFS_LOAD_RETRIES; attempt++) {
             try {
-                Xprefs.getBoolean("LoadTestBooleanValue", false);
-                break;
+                if (Xprefs != null) {
+                    Xprefs.getBoolean("LoadTestBooleanValue", false);
+                    log("Oxygen Customizer Version: " + BuildConfig.VERSION_NAME
+                            + " package: " + lpparam.packageName + " loaded");
+                    onXPrefsReady(lpparam);
+                    return;
+                }
             } catch (Throwable ignored) {
-                try {
-                    //noinspection BusyWait
-                    Thread.sleep(1000);
-                } catch (Throwable ignored1) {}
+                // Provider may not be ready during early boot. Retry briefly, but
+                // never stall a host process indefinitely.
+            }
+
+            try {
+                //noinspection BusyWait
+                Thread.sleep(XPREFS_LOAD_RETRY_DELAY_MS);
+            } catch (InterruptedException interruptedException) {
+                Thread.currentThread().interrupt();
+                break;
             }
         }
 
-        log("Oxygen Customizer Version: " + BuildConfig.VERSION_NAME + " package: " + lpparam.packageName + " loaded");
-
-        onXPrefsReady(lpparam);
+        log("[ Oxygen Customizer ] Preferences unavailable for " + lpparam.packageName
+                + "; skipping hooks for this process instead of blocking startup");
     }
 
     private void forceConnectRootService() {
-        new Thread(() -> {
-            while (SystemUtils.UserManager() == null
-                    || !SystemUtils.UserManager().isUserUnlocked()) //device is still CE encrypted
-            {
-                sleep(2000);
-            }
-            sleep(5000); //wait for the unlocked account to settle down a bit
+        if (!rootConnectWorkerRunning.compareAndSet(false, true)) {
+            return;
+        }
 
-            while (rootProxyIPC == null) {
-                connectRootService();
-                sleep(5000);
+        new Thread(() -> {
+            try {
+                while (rootProxyIPC == null) {
+                    if (SystemUtils.UserManager() == null
+                            || !SystemUtils.UserManager().isUserUnlocked()) {
+                        sleep(2000);
+                        continue;
+                    }
+
+                    connectRootService();
+                    sleep(5000);
+                }
+            } finally {
+                rootConnectWorkerRunning.set(false);
             }
-        }).start();
+        }, "OC-RootProxy-Connector").start();
     }
 
     private void connectRootService() {
+        if (mContext == null || rootProxyIPC != null
+                || !bindInProgress.compareAndSet(false, true)) {
+            return;
+        }
+
         try {
             Intent intent = new Intent();
             intent.setComponent(new ComponentName(APPLICATION_ID, APPLICATION_ID + ".services.RootProviderProxy"));
-            mContext.bindService(intent, instance, Context.BIND_AUTO_CREATE | Context.BIND_ADJUST_WITH_ACTIVITY);
+            boolean bound = mContext.bindService(
+                    intent,
+                    instance,
+                    Context.BIND_AUTO_CREATE | Context.BIND_ADJUST_WITH_ACTIVITY
+            );
+            if (!bound) {
+                bindInProgress.set(false);
+            }
         } catch (Throwable t) {
+            bindInProgress.set(false);
             log(t);
         }
     }
 
     @Override
     public void onServiceConnected(ComponentName name, IBinder service) {
+        bindInProgress.set(false);
         rootProxyIPC = IRootProviderProxy.Stub.asInterface(service);
         synchronized (proxyQueue) {
             while (!proxyQueue.isEmpty()) {
@@ -209,7 +245,7 @@ public class XPLauncher implements ServiceConnection {
     @Override
     public void onServiceDisconnected(ComponentName name) {
         rootProxyIPC = null;
-
+        bindInProgress.set(false);
         forceConnectRootService();
     }
 

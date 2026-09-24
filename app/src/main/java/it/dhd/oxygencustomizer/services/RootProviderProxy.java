@@ -35,16 +35,9 @@ public class RootProviderProxy extends Service {
         String TAG = getClass().getSimpleName();
 
         private final List<String> rootAllowedPacks;
-        private final boolean rootGranted;
 
         private RootPoviderProxyIPC(Context context)
         {
-            try {
-                Shell.setDefaultBuilder(Shell.Builder.create().setFlags(Shell.FLAG_MOUNT_MASTER));
-            }
-            catch (Throwable ignored){}
-            rootGranted = Shell.getShell().isRoot();
-
             rootAllowedPacks = Arrays.asList(context.getResources().getStringArray(R.array.root_requirement));
         }
 
@@ -112,18 +105,32 @@ public class RootProviderProxy extends Service {
         }
 
         private void ensureEnvironment() throws RemoteException {
-            if(!rootGranted)
-            {
-                throw new RemoteException("Root permission denied");
-            }
-
+            // Verify the caller before touching libsu. Merely binding an exported
+            // service must never be enough to trigger a root prompt.
             ensureSecurity(Binder.getCallingUid());
+
+            try {
+                Shell.setDefaultBuilder(Shell.Builder.create().setFlags(Shell.FLAG_MOUNT_MASTER));
+                if (!Shell.getShell().isRoot()) {
+                    throw new RemoteException("Root permission denied");
+                }
+            } catch (RemoteException e) {
+                throw e;
+            } catch (Throwable t) {
+                RemoteException error = new RemoteException("Unable to initialize root shell");
+                error.initCause(t);
+                throw error;
+            }
         }
 
         private void ensureSecurity(int uid) throws RemoteException {
-            for (String packageName : getPackageManager().getPackagesForUid(uid)) {
-                if(rootAllowedPacks.contains(packageName))
-                    return;
+            String[] packages = getPackageManager().getPackagesForUid(uid);
+            if (packages != null) {
+                for (String packageName : packages) {
+                    if (rootAllowedPacks.contains(packageName)) {
+                        return;
+                    }
+                }
             }
             throw new RemoteException("You do know you're not supposed to use this service. So...");
         }
