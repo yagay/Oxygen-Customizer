@@ -37,11 +37,13 @@ import androidx.core.content.FileProvider;
 import com.topjohnwu.superuser.Shell;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.zip.ZipFile;
@@ -116,11 +118,15 @@ public class UpdateFragment extends BaseFragment {
 
                     File downloadedFile = new File(URI.create(downloadData.getString(uriColIndex)));
 
-                    if (downloadedFile.exists()) {
-                        downloadedFilePath = new File(URI.create(downloadData.getString(uriColIndex))).getAbsolutePath();
+                    if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
+                        downloadedFilePath = downloadedFile.getAbsolutePath();
 
                         notifyInstall();
                         successful = true;
+                    } else if (downloadedFile.exists()) {
+                        Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
+                        //noinspection ResultOfMethodCallIgnored
+                        downloadedFile.delete();
                     }
                 } catch (Throwable ignored) {
                 }
@@ -205,6 +211,33 @@ public class UpdateFragment extends BaseFragment {
         promptInstall.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         promptInstall.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         getContext().startActivity(promptInstall);
+    }
+
+    private boolean verifyDownloadedFile(File file) {
+        Object expectedValue = latestVersion != null ? latestVersion.get("sha256") : null;
+        String expected = expectedValue != null ? String.valueOf(expectedValue).trim() : "";
+        if (TextUtils.isEmpty(expected)) {
+            // Backward compatible with metadata generated before checksum support.
+            return true;
+        }
+
+        try (FileInputStream inputStream = new FileInputStream(file)) {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                digest.update(buffer, 0, read);
+            }
+
+            StringBuilder actual = new StringBuilder();
+            for (byte value : digest.digest()) {
+                actual.append(String.format("%02x", value & 0xff));
+            }
+            return expected.equalsIgnoreCase(actual.toString());
+        } catch (Exception e) {
+            Log.e("UpdateFragment", "Unable to verify update checksum", e);
+            return false;
+        }
     }
 
     private boolean isTrustedDownloadPath(String downloadPath) {

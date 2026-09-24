@@ -54,6 +54,23 @@ jobs:
       - name: Gradle Build
         run: ./gradlew assembleRelease
 
+      - name: Record APK SHA-256
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)
+          test -n "$APK_PATH"
+          APK_SHA256=$(sha256sum "$APK_PATH" | awk '{print $1}')
+          echo "APK_SHA256=$APK_SHA256" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import json, os
+          path = "latestBeta.json"
+          with open(path, "r", encoding="utf-8") as fh:
+              data = json.load(fh)
+          data["sha256"] = os.environ["APK_SHA256"]
+          with open(path, "w", encoding="utf-8") as fh:
+              json.dump(data, fh, indent=2)
+              fh.write("\n")
+          PY
+
       - name: Upload Xposed Artifact to Actions
         uses: actions/upload-artifact@v4.3.1
         with:
