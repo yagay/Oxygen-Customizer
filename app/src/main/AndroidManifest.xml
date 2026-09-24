@@ -109,6 +109,7 @@
             android:name=".ui.activity.AuthActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE"
             android:theme="@style/Theme.Traslucent" />
 
         <activity
@@ -189,7 +190,7 @@
 
         <receiver
             android:name=".receivers.SystemReceiver"
-            android:exported="true">
+            android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.USER_UNLOCKED" />
