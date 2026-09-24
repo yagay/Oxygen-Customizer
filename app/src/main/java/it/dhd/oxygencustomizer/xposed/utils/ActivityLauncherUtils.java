@@ -45,11 +45,17 @@ public class ActivityLauncherUtils {
     }
 
     public void launchAppIfAvailable(Intent launchIntent, @StringRes int appTypeResId, boolean fromQs) {
-        final List<ResolveInfo> apps = mPackageManager.queryIntentActivities(launchIntent, PackageManager.MATCH_DEFAULT_ONLY);
+        if (launchIntent == null) {
+            log("Launch intent is null");
+            if (appTypeResId != 0) showNoDefaultAppFoundToast(appTypeResId);
+            return;
+        }
         if (mActivityStarter == null) {
             log("ActivityStarter is null");
             return;
         }
+        final List<ResolveInfo> apps = mPackageManager.queryIntentActivities(
+                launchIntent, PackageManager.MATCH_DEFAULT_ONLY);
         if (!apps.isEmpty()) {
             callMethod(mActivityStarter, fromQs ? "postStartActivityDismissingKeyguard" : "startActivity", launchIntent, fromQs ? 0 : false);
         } else {
@@ -58,11 +64,17 @@ public class ActivityLauncherUtils {
     }
 
     public void launchAppIfAvailable(Intent launchIntent, String appName, boolean fromQs) {
-        final List<ResolveInfo> apps = mPackageManager.queryIntentActivities(launchIntent, PackageManager.MATCH_DEFAULT_ONLY);
+        if (launchIntent == null) {
+            log("Launch intent is null");
+            if (!TextUtils.isEmpty(appName)) showNoDefaultAppFoundToast(appName);
+            return;
+        }
         if (mActivityStarter == null) {
             log("ActivityStarter is null");
             return;
         }
+        final List<ResolveInfo> apps = mPackageManager.queryIntentActivities(
+                launchIntent, PackageManager.MATCH_DEFAULT_ONLY);
         if (!apps.isEmpty()) {
             callMethod(mActivityStarter, fromQs ? "postStartActivityDismissingKeyguard" : "startActivity", launchIntent, fromQs ? 0 : false);
         } else {
@@ -136,7 +148,7 @@ public class ActivityLauncherUtils {
             log("Launch intent is null for package: " + packageName);
             return;
         }
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(launchIntent, AppUtils.getAppName(mContext, packageName), fromQs);
     }
 
@@ -202,19 +214,19 @@ public class ActivityLauncherUtils {
     public void launchAudioRecorder(boolean fromQs) {
         Intent launchIntent = new Intent(android.provider.MediaStore.Audio.Media.RECORD_SOUND_ACTION);
         launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        callMethod(mActivityStarter, fromQs ? "postStartActivityDismissingKeyguard" : "startActivity", launchIntent, fromQs ? 0 : false);
+        launchAppIfAvailable(launchIntent, R.string.audio_recorder, fromQs);
     }
 
     public void launchBrowser(boolean fromQs) {
         Intent browser = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_BROWSER);
         browser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-        callMethod(mActivityStarter, fromQs ? "postStartActivityDismissingKeyguard" : "startActivity", browser, fromQs ? 0 : false);
+        launchAppIfAvailable(browser, R.string.plusKey_action_browser, fromQs);
     }
 
     public void launchTimer(boolean fromQs) {
         Intent intent = new Intent();
         intent.setAction("android.intent.action.SHOW_ALARMS");
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(intent, R.string.clock_timer, fromQs);
     }
 
@@ -247,13 +259,13 @@ public class ActivityLauncherUtils {
             launchIntent.addCategory(Intent.CATEGORY_APP_CALCULATOR);
         }
 
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(launchIntent, R.string.calculator, false);
     }
 
     public void launchWallet() {
         Intent launchIntent = mContext.getPackageManager().getLaunchIntentForPackage("com.google.android.apps.walletnfcrel");
-        if (launchIntent != null) launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        if (launchIntent != null) launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(launchIntent, R.string.wallet, false);
     }
 
@@ -276,19 +288,19 @@ public class ActivityLauncherUtils {
 
     public void launchWifiSettings() {
         final Intent launchIntent = new Intent(Settings.ACTION_WIFI_SETTINGS);
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(launchIntent, 0, false);
     }
 
     public void launchInternetSettings() {
         final Intent launchIntent = new Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS);
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(launchIntent, 0, false);
     }
 
     public void launchBluetoothSettings() {
         final Intent launchIntent = new Intent(Settings.ACTION_BLUETOOTH_SETTINGS);
-        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP + Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         launchAppIfAvailable(launchIntent, 0, false);
     }
 

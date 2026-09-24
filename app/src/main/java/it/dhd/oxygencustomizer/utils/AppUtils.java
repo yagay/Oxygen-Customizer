@@ -146,11 +146,12 @@ public class AppUtils {
         intent.setData(Uri.fromParts("package", BuildConfig.APPLICATION_ID, null));
         ((Activity) context).startActivityForResult(intent, 0);
 
-        ActivityCompat.requestPermissions((Activity) context, new String[]{
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                Manifest.permission.MANAGE_EXTERNAL_STORAGE
-        }, 0);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            ActivityCompat.requestPermissions((Activity) context, new String[]{
+                    Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+            }, 0);
+        }
     }
 
     public static boolean hasPermission(String permission) {
@@ -177,7 +178,11 @@ public class AppUtils {
                 Shell.cmd("kill $(pidof zygote64)").submit();
                 break;
             default:
-                Shell.cmd(String.format("killall %s", what)).exec();
+                if (what.matches("[A-Za-z0-9._:-]+")) {
+                    Shell.cmd("killall " + what).exec();
+                } else {
+                    Log.w("AppUtils", "Rejected invalid restart target: " + what);
+                }
         }
     }
 
@@ -263,8 +268,7 @@ public class AppUtils {
                 HiddenApiBypass.invoke(iVimsClass, vims, "showSessionFromSession", null, bundle, 7);
             }
         } catch (Exception e) {
-            String errMsg = "triggerCircleToSearch failed: " + e.getStackTrace();
-            Log.e("MiCTS", errMsg);
+            Log.e("MiCTS", "triggerCircleToSearch failed", e);
         }
     }
 
@@ -319,7 +323,7 @@ public class AppUtils {
                         return view3;
                     }
                 }, (dialogInterface, which) -> {
-                    OCPreferences.putString("photoMode", entryValues[which].toString());
+                    OCPreferences.putString(QS_PHOTO_SHOWCASE, entryValues[which].toString());
                     dialogInterface.dismiss();
                 });
         AlertDialog dialog = adapter.create();
