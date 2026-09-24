@@ -64,9 +64,6 @@ public class ProgressImageView extends ImageView {
         @Override
         public void onReceive(Context context, Intent intent) {
             if (Intent.ACTION_BATTERY_CHANGED.equals(intent.getAction())) {
-                if (!receiverRegistered) {
-                    receiverRegistered = true;
-                }
                 batteryLevel = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
                 batteryLevel = Math.max(0, Math.min(batteryLevel, 100));
                 batteryTemperature = intent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, 0) / 10;
@@ -122,6 +119,7 @@ public class ProgressImageView extends ImageView {
             if (progressType == ProgressType.BATTERY || progressType == ProgressType.TEMPERATURE) {
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
                 mContext.registerReceiver(batteryReceiver, filter, Context.RECEIVER_EXPORTED);
+                receiverRegistered = true;
             }
         }
         startProgressUpdates();
@@ -141,6 +139,7 @@ public class ProgressImageView extends ImageView {
 
     private void startProgressUpdates() {
         if (progressType == ProgressType.MEMORY || progressType == ProgressType.VOLUME) {
+            if (scheduler != null && !scheduler.isShutdown()) return;
             scheduler = Executors.newSingleThreadScheduledExecutor();
             updateTask = scheduler.scheduleWithFixedDelay(this::updateProgress, 0, 1, TimeUnit.SECONDS);
         }
@@ -149,9 +148,11 @@ public class ProgressImageView extends ImageView {
     private void stopProgressUpdates() {
         if (updateTask != null) {
             updateTask.cancel(true);
+            updateTask = null;
         }
         if (scheduler != null) {
-            scheduler.shutdown();
+            scheduler.shutdownNow();
+            scheduler = null;
         }
     }
 
