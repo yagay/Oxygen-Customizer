@@ -69,16 +69,18 @@ public class NetworkUtils {
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                // Handle success
-                if (!response.isSuccessful()) {
-                    if (callback != null) {
-                        callback.onDownloadComplete("");
+                try (response) {
+                    if (!response.isSuccessful()) {
+                        if (callback != null) {
+                            callback.onDownloadComplete("");
+                        }
+                        return;
                     }
-                }
-                String result = response.body() != null ? response.body().string() : "";
-                // Process the response data
-                if (callback != null) {
-                    callback.onDownloadComplete(result);
+
+                    String result = response.body() != null ? response.body().string() : "";
+                    if (callback != null) {
+                        callback.onDownloadComplete(result);
+                    }
                 }
             }
         });
