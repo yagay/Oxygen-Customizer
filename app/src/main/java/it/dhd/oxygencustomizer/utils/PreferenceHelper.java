@@ -326,7 +326,8 @@ public class PreferenceHelper {
 
     private PreferenceHelper(ExtendedSharedPreferences prefs) {
         mPreferences = prefs;
-        mOsVersion = Shell.cmd("getprop ro.build.display.id").exec().getOut().get(0);
+        List<String> buildDisplay = Shell.cmd("getprop ro.build.display.id").exec().getOut();
+        mOsVersion = buildDisplay.isEmpty() ? "" : buildDisplay.get(0);
         instance = this;
     }
 
@@ -341,13 +342,22 @@ public class PreferenceHelper {
     }
 
     public static int getOOSVersion() {
-        if (instance == null) return -1;
-        String[] split = instance.mOsVersion.split("\\.");
-        String version = split[split.length - 1].substring(0, split[split.length - 1].indexOf("("));
+        if (instance == null || TextUtils.isEmpty(instance.mOsVersion)) return -1;
+
         try {
-            return Integer.parseInt(version);
-        } catch (NumberFormatException e) {
-            Log.getStackTraceString(e);
+            String[] split = instance.mOsVersion.split("\\.");
+            if (split.length == 0) return -1;
+
+            String tail = split[split.length - 1];
+            int paren = tail.indexOf('(');
+            if (paren >= 0) {
+                tail = tail.substring(0, paren);
+            }
+
+            String digits = tail.replaceAll("[^0-9]", "");
+            return TextUtils.isEmpty(digits) ? -1 : Integer.parseInt(digits);
+        } catch (Throwable e) {
+            Log.w("PreferenceHelper", "Unable to parse OOS version from " + instance.mOsVersion, e);
             return -1;
         }
     }

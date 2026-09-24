@@ -54,10 +54,14 @@ public class RootProvider extends RootService {
                     return false;
 
 
-                return "1".equals(
-                        runLSposedSQLiteQuery(
-                                String.format("select count(*) from scope where mid = %s and user_id = 0 and app_pkg_name = '%s'", mLSPosedMID, packageName)
-                        ).get(0));
+                List<String> result = runLSposedSQLiteQuery(
+                        String.format(
+                                "select count(*) from scope where mid = %s and user_id = 0 and app_pkg_name = '%s'",
+                                mLSPosedMID,
+                                escapeSql(packageName)
+                        )
+                );
+                return !result.isEmpty() && "1".equals(result.get(0));
             } catch (Throwable ignored) {
                 return false;
             }
@@ -92,7 +96,11 @@ public class RootProvider extends RootService {
             }
 
             runLSposedSQLiteQuery(
-                    String.format("insert into scope (mid, app_pkg_name, user_id) values (%s, '%s', 0)", mLSPosedMID, packageName));
+                    String.format(
+                            "insert into scope (mid, app_pkg_name, user_id) values (%s, '%s', 0)",
+                            mLSPosedMID,
+                            escapeSql(packageName)
+                    ));
 
             return checkLSPosedDB(packageName);
         }
@@ -102,15 +110,34 @@ public class RootProvider extends RootService {
         }
 
         private void getModuleMID() {
-            mLSPosedMID = Integer.parseInt(
-                    runLSposedSQLiteQuery(
-                            String.format("select mid from modules where module_pkg_name = '%s'", BuildConfig.APPLICATION_ID)
-                    ).get(0));
+            List<String> moduleIds = runLSposedSQLiteQuery(
+                    String.format(
+                            "select mid from modules where module_pkg_name = '%s'",
+                            escapeSql(BuildConfig.APPLICATION_ID)
+                    )
+            );
+            if (moduleIds.isEmpty()) {
+                mLSPosedMID = -1;
+                mLSPosedEnabled = false;
+                return;
+            }
 
-            mLSPosedEnabled = "1".equals(
-                    runLSposedSQLiteQuery(
-                            String.format("select enabled from modules where mid = %s", mLSPosedMID)
-                    ).get(0));
+            try {
+                mLSPosedMID = Integer.parseInt(moduleIds.get(0));
+            } catch (NumberFormatException ignored) {
+                mLSPosedMID = -1;
+                mLSPosedEnabled = false;
+                return;
+            }
+
+            List<String> enabled = runLSposedSQLiteQuery(
+                    String.format("select enabled from modules where mid = %s", mLSPosedMID)
+            );
+            mLSPosedEnabled = !enabled.isEmpty() && "1".equals(enabled.get(0));
+        }
+
+        private String escapeSql(String value) {
+            return value == null ? "" : value.replace("'", "''");
         }
 
         private List<String> runLSposedSQLiteQuery(String command) {

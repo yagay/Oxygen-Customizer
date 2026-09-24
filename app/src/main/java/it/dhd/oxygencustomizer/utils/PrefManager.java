@@ -37,17 +37,13 @@ public class PrefManager {
 
     @SuppressWarnings("UnusedReturnValue")
     public static boolean importPath(SharedPreferences sharedPreferences, final @NonNull InputStream inputStream) throws IOException {
-        ObjectInputStream objectInputStream = null;
         Map<String, Object> map;
-        try {
-            objectInputStream = new ObjectInputStream(inputStream);
+        try (InputStream source = inputStream;
+             ObjectInputStream objectInputStream = new ObjectInputStream(source)) {
             map = (Map<String, Object>) objectInputStream.readObject();
         } catch (Exception e) {
             Log.e(TAG, "Error deserializing preferences", BuildConfig.DEBUG ? e : null);
             return false;
-        } finally {
-            objectInputStream.close();
-            inputStream.close();
         }
 
         SharedPreferences.Editor editor = sharedPreferences.edit();
