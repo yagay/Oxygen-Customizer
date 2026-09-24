@@ -67,6 +67,7 @@ public class QsPhotoShowcaseView extends ImageView {
     private float radius;
     private final Path path;
     private RectF rect;
+    private boolean mReceiversRegistered = false;
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -85,7 +86,9 @@ public class QsPhotoShowcaseView extends ImageView {
             } else if (Intent.ACTION_SCREEN_ON.equals(action)) {
                 mScreenOn = true;
             } else if (PowerManager.ACTION_POWER_SAVE_MODE_CHANGED.equals(intent.getAction())) {
-                mPowerSaveModeEnabled = mPowerManager.isPowerSaveMode();
+                if (mPowerManager != null) {
+                    mPowerSaveModeEnabled = mPowerManager.isPowerSaveMode();
+                }
                 removeCallback();
             }
         }
@@ -105,12 +108,6 @@ public class QsPhotoShowcaseView extends ImageView {
         super(context);
         mContext = context;
         mSettingsInterface = settingsInterface;
-
-        mContext.registerReceiver(mReceiver, new IntentFilter(ACTIONS_QS_PHOTO_CHANGED), Context.RECEIVER_EXPORTED);
-        IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
-        filter.addAction(Intent.ACTION_SCREEN_ON);
-        filter.addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
-        mContext.registerReceiver(mScreenReceiver, filter, Context.RECEIVER_EXPORTED);
 
         setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -138,6 +135,18 @@ public class QsPhotoShowcaseView extends ImageView {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        if (!mReceiversRegistered) {
+            mContext.registerReceiver(
+                    mReceiver,
+                    new IntentFilter(ACTIONS_QS_PHOTO_CHANGED),
+                    Context.RECEIVER_EXPORTED
+            );
+            IntentFilter filter = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+            filter.addAction(Intent.ACTION_SCREEN_ON);
+            filter.addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
+            mContext.registerReceiver(mScreenReceiver, filter, Context.RECEIVER_EXPORTED);
+            mReceiversRegistered = true;
+        }
         updateImage();
     }
 
@@ -250,6 +259,18 @@ public class QsPhotoShowcaseView extends ImageView {
 
     @Override
     protected void onDetachedFromWindow() {
+        removeCallback();
+        if (mReceiversRegistered) {
+            try {
+                mContext.unregisterReceiver(mReceiver);
+            } catch (Throwable ignored) {
+            }
+            try {
+                mContext.unregisterReceiver(mScreenReceiver);
+            } catch (Throwable ignored) {
+            }
+            mReceiversRegistered = false;
+        }
         super.onDetachedFromWindow();
     }
 
