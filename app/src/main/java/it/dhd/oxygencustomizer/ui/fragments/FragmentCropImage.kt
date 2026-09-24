@@ -33,9 +33,11 @@ class FragmentCropImage :
     private var _binding: FragmentCropImageViewBinding? = null
     private val binding get() = _binding!!
 
-    private var options: CropImageOptions? = null
+    private var options: CropImageOptions = CropImageOptions()
     private val openPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        binding.cropImageView.setImageUriAsync(uri)
+        if (uri != null) {
+            _binding?.cropImageView?.setImageUriAsync(uri)
+        }
     }
 
     override fun onCreateView(
@@ -44,8 +46,8 @@ class FragmentCropImage :
         savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentCropImageViewBinding.inflate(layoutInflater, container, false)
-        if (arguments != null) {
-            options = arguments?.getParcelable(CropImage.CROP_IMAGE_EXTRA_OPTIONS)
+        arguments?.getParcelable<CropImageOptions>(CropImage.CROP_IMAGE_EXTRA_OPTIONS)?.let {
+            options = it
         }
         return binding.root
     }
@@ -148,7 +150,7 @@ class FragmentCropImage :
                 putString(DATA_FILE_URI, result.uriContent.toString())
             }
             setFragmentResult(DATA_CROP_KEY, resultBundle)
-            activity?.supportFragmentManager!!.popBackStack()
+            activity?.supportFragmentManager?.popBackStack()
         } else {
             Toast
                 .makeText(activity, "Crop failed: ${result.error?.message}", Toast.LENGTH_SHORT)
@@ -157,7 +159,7 @@ class FragmentCropImage :
     }
 
     private fun setOptions() {
-        binding.cropImageView.setImageCropOptions(options!!)
+        binding.cropImageView.setImageCropOptions(options)
     }
 
     companion object {
