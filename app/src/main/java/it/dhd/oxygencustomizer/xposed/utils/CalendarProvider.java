@@ -15,12 +15,7 @@ import android.provider.CalendarContract;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
 import it.dhd.oxygencustomizer.BuildConfig;
-import it.dhd.oxygencustomizer.R;
 
 public class CalendarProvider extends ContentProvider {
 
@@ -63,11 +58,8 @@ public class CalendarProvider extends ContentProvider {
         if (callerPackages == null || callerPackages.length == 0) {
             return false;
         }
-        Set<String> allowedReaders = new HashSet<>(
-                Arrays.asList(context.getResources().getStringArray(R.array.xposed_scope))
-        );
         for (String packageName : callerPackages) {
-            if (allowedReaders.contains(packageName)) {
+            if ("com.android.systemui".equals(packageName)) {
                 return true;
             }
         }
