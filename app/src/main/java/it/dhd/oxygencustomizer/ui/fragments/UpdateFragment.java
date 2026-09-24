@@ -69,7 +69,7 @@ public class UpdateFragment extends BaseFragment {
 
     // Links
     private static final String commitURL = "https://github.com/yagay/Oxygen-Customizer/commits/beta/";
-    private static final String stableUpdatesURL = "https://raw.githubusercontent.com/yagay/Oxygen-Customizer/stable/latestStable.json";
+    private static final String stableUpdatesURL = "https://raw.githubusercontent.com/DHD2280/Oxygen-Customizer/stable/latestStable.json";
     private static final String betaUpdatesURL = "https://raw.githubusercontent.com/yagay/Oxygen-Customizer/beta/latestBeta.json";
     private static final String nightlyUpdatesURL = "https://raw.githubusercontent.com/yagay/Oxygen-Customizer/nightly-versioning/latestNightly.json";
     private static final String NIGHTLY_LINK = "https://nightly.link/yagay/Oxygen-Customizer/actions/runs/%s";
@@ -110,25 +110,29 @@ public class UpdateFragment extends BaseFragment {
             boolean successful = false;
             if (DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction()) && intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadID) {
                 try (Cursor downloadData = downloadManager.query(
-                        new DownloadManager.Query()
-                                .setFilterById(downloadID))) {
-                    downloadData.moveToFirst();
+                        new DownloadManager.Query().setFilterById(downloadID))) {
+                    if (downloadData != null && downloadData.moveToFirst()) {
+                        int statusIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_STATUS);
+                        int uriColIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
+                        boolean downloadSucceeded = statusIndex >= 0
+                                && downloadData.getInt(statusIndex) == DownloadManager.STATUS_SUCCESSFUL;
+                        String localUri = uriColIndex >= 0 ? downloadData.getString(uriColIndex) : null;
 
-                    int uriColIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
-
-                    File downloadedFile = new File(URI.create(downloadData.getString(uriColIndex)));
-
-                    if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
-                        downloadedFilePath = downloadedFile.getAbsolutePath();
-
-                        notifyInstall();
-                        successful = true;
-                    } else if (downloadedFile.exists()) {
-                        Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
-                        //noinspection ResultOfMethodCallIgnored
-                        downloadedFile.delete();
+                        if (downloadSucceeded && !TextUtils.isEmpty(localUri)) {
+                            File downloadedFile = new File(URI.create(localUri));
+                            if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
+                                downloadedFilePath = downloadedFile.getAbsolutePath();
+                                notifyInstall();
+                                successful = true;
+                            } else if (downloadedFile.exists()) {
+                                Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
+                                //noinspection ResultOfMethodCallIgnored
+                                downloadedFile.delete();
+                            }
+                        }
                     }
-                } catch (Throwable ignored) {
+                } catch (Throwable t) {
+                    Log.e("UpdateFragment", "Unable to validate downloaded update", t);
                 }
             }
 
