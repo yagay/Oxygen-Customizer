@@ -41,9 +41,11 @@ public class AuthActivity extends OplusActivity {
         supportRequestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         getWindow().setDimAmount(0.5f);
-        Intent intent = getIntent();
-        boolean shouldAuth = true;
-        shouldAuth = intent.getBooleanExtra("shouldAuth", false);
+        // Never trust an exported Activity Intent to decide whether authentication is required.
+        // The SystemUI hook may request this Activity, but the security policy is always read locally.
+        boolean shouldAuth = PreferenceManager
+                .getDefaultSharedPreferences(createDeviceProtectedStorageContext())
+                .getBoolean("advanced_reboot_auth", false);
 
         if (shouldAuth) showAuth();
         else showAdvancedReboot();
