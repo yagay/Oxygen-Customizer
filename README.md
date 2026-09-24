@@ -6,10 +6,10 @@
   <img src=".github/resources/banner.png" width="90%" alt="banner" />
 </div>
 <p align="center">
-  <a href="https://github.com/DHD2280/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/DHD2280/Oxygen-Customizer?style=for-the-badge&label=STABLE" alt="Stable"></a>
-  <a href="https://github.com/DHD2280/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/DHD2280/Oxygen-Customizer?style=for-the-badge&include_prereleases&label=BETA" alt="Beta"></a>
-  <a href="https://github.com/DHD2280/Oxygen-Customizer/actions/workflows/build_debug.yml"><img src="https://img.shields.io/github/actions/workflow/status/DHD2280/Oxygen-Customizer/build_debug.yml?branch=beta&label=Nightliy&style=for-the-badge" alt="Nightly Build"></a>
-  <a href="https://github.com/DHD2280/Oxygen-Customizer"><img alt="Repo Size" src="https://img.shields.io/github/repo-size/DHD2280/Oxygen-Customizer?style=for-the-badge"></a>
+  <a href="https://github.com/yagay/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/yagay/Oxygen-Customizer?style=for-the-badge&label=STABLE" alt="Stable"></a>
+  <a href="https://github.com/yagay/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/yagay/Oxygen-Customizer?style=for-the-badge&include_prereleases&label=BETA" alt="Beta"></a>
+  <a href="https://github.com/yagay/Oxygen-Customizer/actions/workflows/build_debug.yml"><img src="https://img.shields.io/github/actions/workflow/status/yagay/Oxygen-Customizer/build_debug.yml?branch=beta&label=Nightliy&style=for-the-badge" alt="Nightly Build"></a>
+  <a href="https://github.com/yagay/Oxygen-Customizer"><img alt="Repo Size" src="https://img.shields.io/github/repo-size/yagay/Oxygen-Customizer?style=for-the-badge"></a>
   <br>
   <a href="https://t.me/OxygenCustomizerGroup"><img src="https://img.shields.io/badge/Support%20Group-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Support Group"></a>
   <a href="https://t.me/OxygenCustomizer"><img src="https://img.shields.io/badge/Update%20Channel-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white" alt="Update Channel"></a>
@@ -93,20 +93,20 @@ This mod is released in three different variants:
 ### 🟢 **Stable**
 If you are running OOS14 or OOS13 based rom.
 <br>
-<a href="https://github.com/DHD2280/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/DHD2280/Oxygen-Customizer?style=for-the-badge&label=STABLE" alt="Stable"></a>
+<a href="https://github.com/yagay/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/yagay/Oxygen-Customizer?style=for-the-badge&label=STABLE" alt="Stable"></a>
     
 ### 🟡 **Beta**
 
 More updated with fixes and new features, if you are using OOS15 or OOS16 based rom - consider to
 use nightly variant.
 <br>
-<a href="https://github.com/DHD2280/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/DHD2280/Oxygen-Customizer?style=for-the-badge&include_prereleases&label=BETA" alt="Beta"></a>
+<a href="https://github.com/yagay/Oxygen-Customizer/releases"><img src="https://img.shields.io/github/v/release/yagay/Oxygen-Customizer?style=for-the-badge&include_prereleases&label=BETA" alt="Beta"></a>
   
 ### 🌒 **Nightly**
 This variant is released on every push on this repo.
 It can include various fixes or new feature that will came in beta and stable.
 <br>
-<a href="https://github.com/DHD2280/Oxygen-Customizer/actions/workflows/build_debug.yml"><img src="https://img.shields.io/github/actions/workflow/status/DHD2280/Oxygen-Customizer/build_debug.yml?branch=beta&label=Nightliy&style=for-the-badge" alt="Nightly Build"></a>
+<a href="https://github.com/yagay/Oxygen-Customizer/actions/workflows/build_debug.yml"><img src="https://img.shields.io/github/actions/workflow/status/yagay/Oxygen-Customizer/build_debug.yml?branch=beta&label=Nightliy&style=for-the-badge" alt="Nightly Build"></a>
 
 > [!WARNING]
 >
@@ -226,7 +226,7 @@ We highly appreciate and welcome all forms of contributions, ranging from code, 
 <details>
   <summary>What is the difference between Release build and Debug build?</summary>
 
-- [Release build](https://github.com/DHD2280/Oxygen-Customizer/releases/latest) is an optimized version intended for distribution to end-users, while [Debug build](https://github.com/DHD2280/Oxygen-Customizer/actions) includes additional features and information for debugging and development purposes.
+- [Release build](https://github.com/yagay/Oxygen-Customizer/releases/latest) is an optimized version intended for distribution to end-users, while [Debug build](https://github.com/yagay/Oxygen-Customizer/actions) includes additional features and information for debugging and development purposes.
 </details>
 
 <details>
@@ -239,13 +239,13 @@ We highly appreciate and welcome all forms of contributions, ranging from code, 
   <summary>I found a bug. How do I report it?</summary>
 
 - Ensure that you are running latest nightly before creating a new Issue!
-- To report a bug, please navigate to the [Issues](https://github.com/DHD2280/Oxygen-Customizer/issues/new/choose) section. Create a new issue and ensure you select the `Bug Report` template. Provide as much detailed information as possible, including steps to reproduce the bug and any relevant error messages or screenshots.
+- To report a bug, please navigate to the [Issues](https://github.com/yagay/Oxygen-Customizer/issues/new/choose) section. Create a new issue and ensure you select the `Bug Report` template. Provide as much detailed information as possible, including steps to reproduce the bug and any relevant error messages or screenshots.
 </details>
 
 <details>
   <summary>How do I request a new feature?</summary>
 
-- If you have a feature request, please go to the [Issues](https://github.com/DHD2280/Oxygen-Customizer/issues/new/choose) section. Create a new issue and choose the `Feature Request` template. Be sure to include comprehensive details about the desired feature, its potential benefits, and any other relevant information that can assist in understanding and evaluating the request.
+- If you have a feature request, please go to the [Issues](https://github.com/yagay/Oxygen-Customizer/issues/new/choose) section. Create a new issue and choose the `Feature Request` template. Be sure to include comprehensive details about the desired feature, its potential benefits, and any other relevant information that can assist in understanding and evaluating the request.
 </details>
 
 <details>
@@ -258,6 +258,7 @@ We highly appreciate and welcome all forms of contributions, ranging from code, 
 
 ### Thanks to:
 
+- [Upstream Oxygen Customizer](https://github.com/DHD2280/Oxygen-Customizer) and its maintainers for the original project and ongoing upstream development.
 - [Android Open Source Project (AOSP)](https://source.android.com) for Android source code.
 - [OnePlus](https://www.oneplus.com) for Oxygen OS.
 - [Material Icons](https://fonts.google.com/icons) for in-app icons.
