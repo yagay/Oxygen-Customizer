@@ -35,7 +35,7 @@ jobs:
           versionName: "${{ env.VERSION_NAME }} (#${{github.run_number}})"
 
       - name: Write sign info
-        if: github.repository == 'DHD2280/Oxygen-Customizer'
+        if: github.repository == 'yagay/Oxygen-Customizer'
         run: |
           if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
             echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> keystore.properties
@@ -46,15 +46,15 @@ jobs:
           fi
 
       - name: Build release with Gradle
-        if: github.repository == 'DHD2280/Oxygen-Customizer'
+        if: github.repository == 'yagay/Oxygen-Customizer'
         run: ./gradlew assembleRelease
 
       - name: Build debug with Gradle
-        if: github.repository == 'DHD2280/Oxygen-Customizer'
+        if: github.repository == 'yagay/Oxygen-Customizer'
         run: ./gradlew assembleDebug
 
       - name: Upload release Build Artifact
-        if: github.repository == 'DHD2280/Oxygen-Customizer'
+        if: github.repository == 'yagay/Oxygen-Customizer'
         uses: actions/upload-artifact@v4
         with:
           name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}})"
@@ -62,7 +62,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload debug Build Artifact
-        if: github.repository == 'DHD2280/Oxygen-Customizer'
+        if: github.repository == 'yagay/Oxygen-Customizer'
         uses: actions/upload-artifact@v4
         with:
           name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}}) Debug"
@@ -136,11 +136,11 @@ jobs:
           force-add: 'true'
           files: latestNightly.json
           name: GitHub
-          email: OxygenCustomizer@dhd.it
+          email: actions@yagay.local
       
 
       - name: Telegram File Message
-        if: github.repository == 'DHD2280/Oxygen-Customizer' && env.SKIP_BUILD != 'true'
+        if: github.repository == 'yagay/Oxygen-Customizer' && env.SKIP_BUILD != 'true'
         env:
           COMMIT_MESSAGE: |+
             New push to github!
@@ -158,4 +158,4 @@ jobs:
           -d text="${{env.COMMIT_MESSAGE}}" \
           -d parse_mode=Markdown \
           -d disable_web_page_preview=true \
-          -d reply_markup="{\"inline_keyboard\": [[{\"text\": \"⬇️ Download (required login)\",\"url\": \"https://github.com/DHD2280/Oxygen-Customizer/actions/runs/${{github.run_id}}\"}]]}"
+          -d reply_markup="{\"inline_keyboard\": [[{\"text\": \"⬇️ Download (required login)\",\"url\": \"https://github.com/yagay/Oxygen-Customizer/actions/runs/${{github.run_id}}\"}]]}"

@@ -15,8 +15,12 @@ jobs:
       contents: write
 
     steps:
-      - name: Source Code Download
-        run: git clone --branch beta --single-branch --recurse-submodules https://github.com/DHD2280/Oxygen-Customizer.git .
+      - name: Source Code Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: beta
+          fetch-depth: 0
+          submodules: recursive
 
       - name: set up JDK 21
         uses: actions/setup-java@v4.1.0
@@ -76,16 +80,16 @@ jobs:
           force-add: 'true'
           files: app/build.gradle.kts BetaChangelog.md latestBeta.json
           name: GitHub
-          email: OxygenCustomizer@dhd.it
+          email: actions@yagay.local
 
       - name: Telegram Channel Post
         run: |
           curl -X POST \
             -H 'Content-Type: application/json' \
-            -d '{"chat_id": ${{ secrets.OC_CHANNEL }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/DHD2280/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
+            -d '{"chat_id": ${{ secrets.OC_CHANNEL }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
 
       - name: Telegram Channel Post
         run: |
           curl -X POST \
             -H 'Content-Type: application/json' \
-            -d '{"chat_id": ${{ secrets.OC_CHANNEL2 }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/DHD2280/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
+            -d '{"chat_id": ${{ secrets.OC_CHANNEL2 }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
