@@ -37,17 +37,17 @@ public class PrefManager {
 
     @SuppressWarnings("UnusedReturnValue")
     public static boolean importPath(SharedPreferences sharedPreferences, final @NonNull InputStream inputStream) throws IOException {
-        ObjectInputStream objectInputStream = null;
         Map<String, Object> map;
-        try {
-            objectInputStream = new ObjectInputStream(inputStream);
-            map = (Map<String, Object>) objectInputStream.readObject();
+        try (inputStream; ObjectInputStream objectInputStream = new ObjectInputStream(inputStream)) {
+            Object value = objectInputStream.readObject();
+            if (!(value instanceof Map<?, ?> rawMap)) {
+                Log.e(TAG, "Backup does not contain a preference map");
+                return false;
+            }
+            map = (Map<String, Object>) rawMap;
         } catch (Exception e) {
             Log.e(TAG, "Error deserializing preferences", BuildConfig.DEBUG ? e : null);
             return false;
-        } finally {
-            objectInputStream.close();
-            inputStream.close();
         }
 
         SharedPreferences.Editor editor = sharedPreferences.edit();
