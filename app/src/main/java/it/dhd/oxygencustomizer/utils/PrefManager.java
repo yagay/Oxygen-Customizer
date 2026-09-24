@@ -12,7 +12,9 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InvalidClassException;
 import java.io.ObjectInputStream;
+import java.io.ObjectStreamClass;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -179,7 +181,7 @@ public class PrefManager {
     @SuppressWarnings("unchecked")
     private static boolean importLegacy(SharedPreferences sharedPreferences, byte[] data) {
         try (ObjectInputStream objectInputStream =
-                     new ObjectInputStream(new ByteArrayInputStream(data))) {
+                     new SafeLegacyObjectInputStream(new ByteArrayInputStream(data))) {
             Object object = objectInputStream.readObject();
             if (!(object instanceof Map<?, ?> rawMap)) {
                 return false;
@@ -195,6 +197,39 @@ public class PrefManager {
         } catch (Exception e) {
             Log.e(TAG, "Error importing legacy preferences", BuildConfig.DEBUG ? e : null);
             return false;
+        }
+    }
+
+    private static final class SafeLegacyObjectInputStream extends ObjectInputStream {
+        private static final Set<String> ALLOWED_CLASSES = Set.of(
+                "java.util.HashMap",
+                "java.util.HashSet",
+                "java.lang.String",
+                "java.lang.Boolean",
+                "java.lang.Integer",
+                "java.lang.Float",
+                "java.lang.Long",
+                "java.lang.Number"
+        );
+
+        SafeLegacyObjectInputStream(InputStream inputStream) throws IOException {
+            super(inputStream);
+        }
+
+        @Override
+        protected Class<?> resolveClass(ObjectStreamClass descriptor)
+                throws IOException, ClassNotFoundException {
+            String name = descriptor.getName();
+            if (!ALLOWED_CLASSES.contains(name)) {
+                throw new InvalidClassException("Rejected legacy preference class", name);
+            }
+            return super.resolveClass(descriptor);
+        }
+
+        @Override
+        protected Class<?> resolveProxyClass(String[] interfaces)
+                throws IOException, ClassNotFoundException {
+            throw new InvalidClassException("Proxy classes are not allowed in legacy preferences");
         }
     }
 
