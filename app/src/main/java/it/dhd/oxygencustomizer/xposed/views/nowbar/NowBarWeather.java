@@ -42,6 +42,7 @@ public class NowBarWeather extends RelativeLayout implements OmniJawsClient.Omni
     private ImageView mConditionImage;
 
     private boolean mCustomColors = false;
+    private boolean mWeatherUpdatesEnabled = false;
     private int mTextColor = Color.WHITE;
     private int mBackgroundColor = Color.parseColor("#0D47A1");
 
@@ -55,7 +56,6 @@ public class NowBarWeather extends RelativeLayout implements OmniJawsClient.Omni
         mWeatherClient = new OmniJawsClient(context);
 
         inflateView();
-        enableUpdates();
         setBarBackground();
 
         setOnLongClickListener(v -> {
@@ -93,10 +93,18 @@ public class NowBarWeather extends RelativeLayout implements OmniJawsClient.Omni
 
     public void enableUpdates() {
         log(TAG + "enableUpdates");
-        if (mWeatherClient != null) {
+        if (mWeatherClient != null && !mWeatherUpdatesEnabled) {
             mWeatherClient.addObserver(this);
+            mWeatherUpdatesEnabled = true;
             //WeatherScheduler.scheduleUpdateNow(mContext);
             queryAndUpdateWeather();
+        }
+    }
+
+    private void disableUpdates() {
+        if (mWeatherClient != null && mWeatherUpdatesEnabled) {
+            mWeatherClient.removeObserver(this);
+            mWeatherUpdatesEnabled = false;
         }
     }
 
@@ -104,6 +112,12 @@ public class NowBarWeather extends RelativeLayout implements OmniJawsClient.Omni
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         enableUpdates();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        disableUpdates();
+        super.onDetachedFromWindow();
     }
 
     @SuppressLint("SetTextI18n")
