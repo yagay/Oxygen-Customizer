@@ -16,7 +16,12 @@ sed -i 's/versionName =.*/versionName = "'$NEWVERNAME'"/' app/build.gradle.kts
 
 sed -i 's/"version":.*/"version": "'$NEWVERNAME'",/' latestBeta.json
 sed -i 's/"versionCode":.*/"versionCode": '$NEWVERCODE',/' latestBeta.json
-sed -i 's/"apkUrl":.*/"apkUrl": "https:\/\/github.com\/DHD2280\/Oxygen-Customizer\/releases\/download\/'$NEWVERNAME'\/OxygenCustomizer.apk"/' latestBeta.json
+REPOSITORY="${GITHUB_REPOSITORY:-yagay/Oxygen-Customizer}"
+ESCAPED_REPOSITORY=$(printf '%s' "$REPOSITORY" | sed 's/[\/&]/\\&/g')
+sed -i 's/"apkUrl":.*/"apkUrl": "https:\/\/github.com\/'"$ESCAPED_REPOSITORY"'\/releases\/download\/'$NEWVERNAME'\/OxygenCustomizer.apk"/' latestBeta.json
+sed -i 's#"changelog":.*#"changelog": "https://raw.githubusercontent.com/'"$REPOSITORY"'/beta/BetaChangelog.md",#' latestBeta.json
+
+sed -i 's/"sha256":.*/"sha256": ""/' latestBeta.json
 
 # module changelog
 echo "**$NEWVERNAME**  " > newChangeLog.md
