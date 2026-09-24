@@ -91,6 +91,7 @@ public class SeparateQsCustomization extends XposedMods {
     private final BroadcastReceiver mDeviceProfileReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (mDeviceProfile == null) return;
             int cellSize = ((DeviceProfile)mDeviceProfile).getCellCalculator().getCellSize();
             int marginHorizontal = ((DeviceProfile)mDeviceProfile).getCellCalculator().getCellMarginHorizontal();
             int marginVertical = ((DeviceProfile)mDeviceProfile).getCellCalculator().getCellMarginVertical();
