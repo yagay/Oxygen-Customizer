@@ -103,7 +103,7 @@ public class WeatherContentProvider extends ContentProvider {
             COLUMN_ICON_PACK
     };
 
-    public static final String AUTHORITY = "it.dhd.oxygencustomizer.weatherprovider";
+    public static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".weatherprovider";
 
     private static final UriMatcher sUriMatcher;
     static {
@@ -130,6 +130,7 @@ public class WeatherContentProvider extends ContentProvider {
             String[] selectionArgs,
             String sortOrder) {
 
+        enforceTrustedCaller();
         final int projectionType = sUriMatcher.match(uri);
         final MatrixCursor result = new MatrixCursor(resolveProjection(projection, projectionType));
 
@@ -213,6 +214,7 @@ public class WeatherContentProvider extends ContentProvider {
 
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+        enforceTrustedCaller();
         final int projectionType = sUriMatcher.match(uri);
         if (projectionType == URI_TYPE_CONTROL) {
             if (values.containsKey(COLUMN_FORCE_REFRESH) && values.getAsBoolean(COLUMN_FORCE_REFRESH)) {
@@ -221,6 +223,32 @@ public class WeatherContentProvider extends ContentProvider {
             }
         }
         return 0;
+    }
+
+    private void enforceTrustedCaller() {
+        if (mContext == null) {
+            throw new SecurityException("Provider context unavailable");
+        }
+
+        int callingUid = Binder.getCallingUid();
+        if (callingUid == Process.myUid()) {
+            return;
+        }
+
+        String[] callerPackages = mContext.getPackageManager().getPackagesForUid(callingUid);
+        if (callerPackages == null || callerPackages.length == 0) {
+            throw new SecurityException("Unknown weather provider caller");
+        }
+
+        Set<String> allowedReaders = new HashSet<>(
+                Arrays.asList(mContext.getResources().getStringArray(R.array.xposed_scope))
+        );
+        for (String packageName : callerPackages) {
+            if (allowedReaders.contains(packageName)) {
+                return;
+            }
+        }
+        throw new SecurityException("Caller is not allowed to access weather data");
     }
 
     public static void updateCachedWeatherInfo(Context context) {
