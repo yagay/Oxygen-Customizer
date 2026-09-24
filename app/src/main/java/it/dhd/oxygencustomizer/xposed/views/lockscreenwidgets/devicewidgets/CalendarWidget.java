@@ -46,7 +46,8 @@ public class CalendarWidget extends BaseDeviceWidget {
     private ImageView mCalendarImage;
     private TextView mEventTitle, mEventTime, mEventLocation;
     private ImageView mCoundDownImage;
-    private static ContentObserver mCalendarObserver;
+    private ContentObserver mCalendarObserver;
+    private boolean mEventReceiverRegistered = false;
 
     private final int CALENDAR_NEXT_EVENT = 0;
     private final int CALENDAR_TODAY_EVENT = 1;
@@ -121,9 +122,9 @@ public class CalendarWidget extends BaseDeviceWidget {
 
             SimpleDateFormat sdf = new SimpleDateFormat(mDateFormat, Locale.getDefault());
             String eventTime = sdf.format(new Date(startTime));
-            mEventTitle.setText(title.trim());
+            mEventTitle.setText(title != null ? title.trim() : "");
             mEventTime.setText(eventTime);
-            mEventLocation.setText(calendarName);
+            mEventLocation.setText(calendarName != null ? calendarName : "");
         } else {
             SimpleDateFormat sdf = new SimpleDateFormat(mDateFormat, Locale.getDefault());
             String eventTime = sdf.format(new Date(System.currentTimeMillis()));
@@ -255,14 +256,24 @@ public class CalendarWidget extends BaseDeviceWidget {
                     mCalendarObserver
             );
         }
-        IntentFilter filter = new IntentFilter(BuildConfig.APPLICATION_ID + ".UPDATE_WIDGET_AFTER_EVENT");
-        context.registerReceiver(mEventTick, filter, Context.RECEIVER_EXPORTED);
+        if (!mEventReceiverRegistered) {
+            IntentFilter filter = new IntentFilter(BuildConfig.APPLICATION_ID + ".UPDATE_WIDGET_AFTER_EVENT");
+            context.registerReceiver(mEventTick, filter, Context.RECEIVER_EXPORTED);
+            mEventReceiverRegistered = true;
+        }
     }
 
     private void unregisterCalendarObserver(Context context) {
         if (mCalendarObserver != null) {
             context.getContentResolver().unregisterContentObserver(mCalendarObserver);
             mCalendarObserver = null;
+        }
+        if (mEventReceiverRegistered) {
+            try {
+                context.unregisterReceiver(mEventTick);
+            } catch (Throwable ignored) {
+            }
+            mEventReceiverRegistered = false;
         }
     }
 
