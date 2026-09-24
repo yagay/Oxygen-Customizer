@@ -136,6 +136,20 @@ public class ReflectedClass {
             this.method = method;
         }
 
+        private void runConsumerSafely(ReflectionConsumer consumer, XC_MethodHook.MethodHookParam param) {
+            try {
+                consumer.run(param);
+            } catch (Throwable throwable) {
+                String targetClass = clazz != null ? clazz.getName() : "<unknown>";
+                String targetMethod = param != null && param.method != null
+                        ? param.method.getName()
+                        : (isConstructor ? "<init>" : String.valueOf(methodName));
+                log("[Oxygen Customizer - HookGuard] Suppressed exception in "
+                        + targetClass + "#" + targetMethod);
+                log(throwable);
+            }
+        }
+
         protected Set<XC_MethodHook.Unhook> runBefore(ReflectionConsumer consumer) {
             return runBefore(consumer, false);
         }
@@ -155,7 +169,7 @@ public class ReflectedClass {
                         if (log) {
                             log(param.method.getName() + " called, from class " + clazz.getName());
                         }
-                        consumer.run(param);
+                        runConsumerSafely(consumer, param);
                     }
                 });
 
@@ -172,7 +186,7 @@ public class ReflectedClass {
                         if (log) {
                             log(param.method.getName() + " called, from class " + clazz.getName());
                         }
-                        consumer.run(param);
+                        runConsumerSafely(consumer, param);
                     }
                 }));
 
@@ -189,7 +203,7 @@ public class ReflectedClass {
                         if (log) {
                             log(param.method.getName() + " called, from class " + clazz.getName());
                         }
-                        consumer.run(param);
+                        runConsumerSafely(consumer, param);
                     }
                 });
 
@@ -219,7 +233,7 @@ public class ReflectedClass {
                         if (log) {
                             log(param.method.getName() + " called, from class " + clazz.getName());
                         }
-                        consumer.run(param);
+                        runConsumerSafely(consumer, param);
                     }
                 });
 
@@ -236,7 +250,7 @@ public class ReflectedClass {
                         if (log) {
                             log(param.method.getName() + " called, from class " + clazz.getName());
                         }
-                        consumer.run(param);
+                        runConsumerSafely(consumer, param);
                     }
                 }));
 
@@ -253,7 +267,7 @@ public class ReflectedClass {
                         if (log) {
                             log(param.method.getName() + " called, from class " + clazz.getName());
                         }
-                        consumer.run(param);
+                        runConsumerSafely(consumer, param);
                     }
                 });
 
