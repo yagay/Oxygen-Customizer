@@ -295,11 +295,11 @@ public class SystemUtils {
     private static final AtomicBoolean darkSwitching = new AtomicBoolean(false);
 
     public static void doubleToggleDarkMode() {
-        if (!darkSwitching.compareAndSet(false, true)) {
-            return;
-        }
-
         XPLauncher.enqueueProxyCommand(proxy -> {
+            if (!darkSwitching.compareAndSet(false, true)) {
+                return;
+            }
+
             boolean isDark = isDarkMode();
             new Thread(() -> {
                 try {
