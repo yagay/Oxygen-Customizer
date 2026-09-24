@@ -28,6 +28,7 @@ import java.util.concurrent.Executor;
 import it.dhd.oneplusui.appcompat.app.OplusActivity;
 import it.dhd.oneplusui.appcompat.dialog.adapter.SummaryAdapter;
 import it.dhd.oxygencustomizer.R;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 
 public class AuthActivity extends OplusActivity {
     private Executor executor;
@@ -41,9 +42,10 @@ public class AuthActivity extends OplusActivity {
         supportRequestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         getWindow().setDimAmount(0.5f);
-        Intent intent = getIntent();
-        boolean shouldAuth = true;
-        shouldAuth = intent.getBooleanExtra("shouldAuth", false);
+        // Never trust the exported Activity intent to decide whether authentication
+        // is required. SystemUI only requests the UI; the app-owned preference is
+        // the source of truth.
+        boolean shouldAuth = OCPreferences.getBoolean("advanced_reboot_auth", false);
 
         if (shouldAuth) showAuth();
         else showAdvancedReboot();
