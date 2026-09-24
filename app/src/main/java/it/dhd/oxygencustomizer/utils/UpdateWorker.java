@@ -11,15 +11,17 @@ import android.content.SharedPreferences;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.util.Log;
+import android.Manifest;
+import android.content.pm.PackageManager;
 
 import androidx.annotation.NonNull;
 import androidx.concurrent.futures.CallbackToFutureAdapter;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 import androidx.work.ListenableWorker;
 import androidx.work.WorkerParameters;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.topjohnwu.superuser.Shell;
 
 import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.R;
@@ -77,6 +79,13 @@ public class UpdateWorker extends ListenableWorker {
     }
 
     private void showUpdateNotification() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(mContext, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            Log.w("OxygenCustomizer", "Skipping update notification: POST_NOTIFICATIONS not granted");
+            return;
+        }
+
         Intent notificationIntent = new Intent(mContext, MainActivity.class);
         notificationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         notificationIntent.putExtra("newUpdate", true);
@@ -115,8 +124,6 @@ public class UpdateWorker extends ListenableWorker {
                     -1;
 
             Integer latestVersionCode = (Integer) result.get("versionCode");
-
-            Shell.cmd(String.format("pm grant %s android.permission.POST_NOTIFICATIONS", BuildConfig.APPLICATION_ID)).exec();
 
             if (latestVersionCode != null && latestVersionCode > currentVersionCode) {
                 showUpdateNotification();

@@ -2,6 +2,7 @@ package it.dhd.oxygencustomizer.ui.fragments;
 
 import static android.content.Context.RECEIVER_EXPORTED;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
 import android.app.PendingIntent;
@@ -11,6 +12,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.FileUtils;
@@ -26,6 +28,8 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import android.content.pm.PackageManager;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.NonNull;
@@ -257,10 +261,9 @@ public class UpdateFragment extends BaseFragment {
     public void unzip(String fileName, UnZipCallback callback) {
         File unzippedFile = null;
         File fileToUnzip = new File(fileName);
-        try {
+        try (ZipFile unzipper = new ZipFile(fileToUnzip)) {
 
             //unzip once, IF double zipped
-            ZipFile unzipper = new ZipFile(fileToUnzip);
             File parentDirectory = fileToUnzip.getParentFile();
             String fileNameWithoutExtension = fileToUnzip.getName().substring(0, fileToUnzip.getName().lastIndexOf('.'));
             unzippedFile = new File(parentDirectory, fileNameWithoutExtension + ".apk");
@@ -296,8 +299,11 @@ public class UpdateFragment extends BaseFragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        //Android 13 requires notification permission to be granted or it won't allow it
-        Shell.cmd(String.format("pm grant %s android.permission.POST_NOTIFICATIONS", BuildConfig.APPLICATION_ID)).exec(); //will ask root if not granted yet
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
 
         if (!RootUtil.isDeviceRooted()) {
             currentVersionName = getString(R.string.root_not_here);
@@ -519,7 +525,12 @@ public class UpdateFragment extends BaseFragment {
         notificationIntent.putExtra("isNightly", mNightlyDownloaded);
         notificationIntent.putExtra("updateToken", updateToken);
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(getContext(), 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                getContext(),
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
 
         //noinspection ConstantConditions
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), UPDATES_CHANNEL_ID)
