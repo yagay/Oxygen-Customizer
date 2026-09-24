@@ -1,8 +1,6 @@
 name: Build Nightly APK
 
 on:
-  push:
-    branches: [ "beta" ]
   workflow_dispatch:
 
 jobs:
