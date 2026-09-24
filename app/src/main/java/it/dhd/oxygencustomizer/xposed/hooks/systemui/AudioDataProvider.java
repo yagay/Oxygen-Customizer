@@ -60,9 +60,14 @@ public class AudioDataProvider extends XposedMods {
     public Object mMediaData = null;
 
     private final Handler handler = new Handler();
+    private boolean mPeriodicUpdateRunning = false;
     private final Runnable periodicTask = new Runnable() {
         @Override
         public void run() {
+            if (!mPeriodicUpdateRunning || mMediaMetaDataListeners.isEmpty()) {
+                mPeriodicUpdateRunning = false;
+                return;
+            }
             updateMediaController();
             handler.postDelayed(this, 1000);
         }
@@ -99,10 +104,14 @@ public class AudioDataProvider extends XposedMods {
     }
 
     public static void registerInfoCallback(AudioInfoCallbacks callback) {
-        instance.mInfoCallbacks.add(callback);
+        if (instance == null || callback == null) return;
+        if (!instance.mInfoCallbacks.contains(callback)) {
+            instance.mInfoCallbacks.add(callback);
+        }
     }
 
     public static void unregisterInfoCallback(AudioInfoCallbacks callback) {
+        if (instance == null || callback == null) return;
         instance.mInfoCallbacks.remove(callback);
     }
 
@@ -138,22 +147,37 @@ public class AudioDataProvider extends XposedMods {
     }
 
     private void startPeriodicUpdate() {
+        if (mPeriodicUpdateRunning) return;
+        mPeriodicUpdateRunning = true;
+        handler.removeCallbacks(periodicTask);
         handler.post(periodicTask);
     }
 
-    public static void registerMediaMetadataListener(MediaMetadataListener listener) {
-        boolean wasEmpty = instance.mMediaMetaDataListeners.isEmpty();
-        instance.mMediaMetaDataListeners.add(listener);
-        if (wasEmpty) {
-            instance.startPeriodicUpdate();
+    private void stopPeriodicUpdate() {
+        mPeriodicUpdateRunning = false;
+        handler.removeCallbacks(periodicTask);
+        if (mActiveController != null) {
+            try {
+                mActiveController.unregisterCallback(mediaControllerCallback);
+            } catch (Throwable ignored) {
+            }
+            mActiveController = null;
         }
     }
 
+    public static void registerMediaMetadataListener(MediaMetadataListener listener) {
+        if (instance == null || listener == null) return;
+        if (!instance.mMediaMetaDataListeners.contains(listener)) {
+            instance.mMediaMetaDataListeners.add(listener);
+        }
+        instance.startPeriodicUpdate();
+    }
+
     public static void unregisterMediaMetadataListener(MediaMetadataListener listener) {
+        if (instance == null || listener == null) return;
         instance.mMediaMetaDataListeners.remove(listener);
         if (instance.mMediaMetaDataListeners.isEmpty()) {
-            instance.mActiveController.unregisterCallback(instance.mediaControllerCallback);
-            instance.mActiveController = null;
+            instance.stopPeriodicUpdate();
         }
     }
 
