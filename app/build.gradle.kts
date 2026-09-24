@@ -24,15 +24,13 @@ android {
     }
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
-    var releaseSigning = signingConfigs.getByName("debug")
-
-    try {
+    val releaseSigning = if (keystorePropertiesFile.exists()) {
         val keystoreProperties = Properties()
         FileInputStream(keystorePropertiesFile).use { inputStream ->
             keystoreProperties.load(inputStream)
         }
 
-        releaseSigning = signingConfigs.create("release") {
+        signingConfigs.create("release") {
             keyAlias = keystoreProperties.getProperty("keyAlias")
             keyPassword = keystoreProperties.getProperty("keyPassword")
             storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
@@ -40,7 +38,9 @@ android {
             enableV1Signing = true
             enableV2Signing = true
         }
-    } catch (_: Exception) {}
+    } else {
+        null
+    }
 
     buildTypes {
         release {
@@ -56,7 +56,7 @@ android {
             isDebuggable = true
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = releaseSigning
+            signingConfig = signingConfigs.getByName("debug")
         }
         getByName("debug") {
             versionNameSuffix = ".debug"
