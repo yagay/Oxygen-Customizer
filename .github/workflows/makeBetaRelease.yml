@@ -3,81 +3,82 @@ name: Make Beta Release
 on:
   push:
     branches:
-      - 'beta'
+      - beta
     paths:
       - '.github/edit2MakeNewBeta'
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: write
-
     steps:
-      - name: Source Code Checkout
+      - name: Checkout beta source
         uses: actions/checkout@v4
         with:
           ref: beta
-          fetch-depth: 0
           submodules: recursive
+          fetch-depth: 0
 
-      - name: set up JDK 21
-        uses: actions/setup-java@v4.1.0
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: gradle
 
-      - name: Shell Scripts Permissions
-        run: chmod +x .github/*.sh
+      - name: Shell script permissions
+        run: chmod +x .github/*.sh gradlew
 
-      - name: Changelog Generation
+      - name: Require release signing secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "Release signing secrets are required."
+            exit 1
+          fi
+          {
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "storeFile=${{ github.workspace }}/key.jks"
+          } > keystore.properties
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "${{ github.workspace }}/key.jks"
+
+      - name: Generate changelog
         run: .github/extractChanges.sh
 
-      - name: Version Bump
+      - name: Bump version
         run: .github/bumpVersion.sh ${{ github.run_id }}
 
-      - name: Gradlew Permissions
-        run: chmod +x gradlew
+      - name: Build signed release
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Signature files preparation
+      - name: Record release checksum
         run: |
-          if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
-            echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> keystore.properties
-            echo keyAlias='${{ secrets.KEY_ALIAS }}' >> keystore.properties
-            echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> keystore.properties
-            echo storeFile='${{ github.workspace }}/key.jks' >> keystore.properties
-            echo ${{ secrets.KEYSTORE }} | base64 --decode > ${{ github.workspace }}/key.jks
+          APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' -print -quit)
+          if [ -z "$APK_PATH" ]; then
+            echo "Release APK not found."
+            exit 1
           fi
+          SHA256=$(sha256sum "$APK_PATH" | awk '{print $1}')
+          sed -i 's/"sha256":.*/"sha256": "'"$SHA256"'"/' latestBeta.json
+          echo "Release SHA-256: $SHA256"
 
-      - name: Gradle Build
-        run: ./gradlew assembleRelease
-
-      - name: Record APK SHA-256
-        run: |
-          APK_PATH=$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)
-          test -n "$APK_PATH"
-          APK_SHA256=$(sha256sum "$APK_PATH" | awk '{print $1}')
-          echo "APK_SHA256=$APK_SHA256" >> "$GITHUB_ENV"
-          python3 - <<'PY'
-          import json, os
-          path = "latestBeta.json"
-          with open(path, "r", encoding="utf-8") as fh:
-              data = json.load(fh)
-          data["sha256"] = os.environ["APK_SHA256"]
-          with open(path, "w", encoding="utf-8") as fh:
-              json.dump(data, fh, indent=2)
-              fh.write("\n")
-          PY
-
-      - name: Upload Xposed Artifact to Actions
-        uses: actions/upload-artifact@v4.3.1
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
         with:
           name: OxygenCustomizer
           path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
 
-      - name: Oxygen Customizer Binary Release
+      - name: Publish beta release
         uses: ncipollo/release-action@v1.14.0
         with:
           tag: ${{ env.VTag }}
@@ -86,27 +87,39 @@ jobs:
           prerelease: true
           allowUpdates: false
           draft: false
-          artifacts: 'app/build/outputs/apk/release/*.apk'
+          artifacts: app/build/outputs/apk/release/*.apk
 
-      - name: Version Bump Commit
+      - name: Commit version bump and checksum
         uses: github-actions-x/commit@v2.9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          push-branch: 'beta'
+          push-branch: beta
           commit-message: 'Version update: Beta Release'
           force-add: 'true'
           files: app/build.gradle.kts BetaChangelog.md latestBeta.json
           name: GitHub
           email: actions@yagay.local
 
-      - name: Telegram Channel Post
+      - name: Telegram primary channel
+        env:
+          TELEGRAM_TK: ${{ secrets.TELEGRAM_TK }}
+          CHAT_ID: ${{ secrets.OC_CHANNEL }}
         run: |
-          curl -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{"chat_id": ${{ secrets.OC_CHANNEL }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
+          if [ -z "$TELEGRAM_TK" ] || [ -z "$CHAT_ID" ]; then
+            echo "Primary Telegram channel is not configured; skipping."
+            exit 0
+          fi
+          TEXT=$(cat telegram.msg)
+          curl -fsS -X POST "https://api.telegram.org/bot$TELEGRAM_TK/sendMessage"             -d "chat_id=$CHAT_ID"             --data-urlencode "text=$TEXT"             -d "parse_mode=Markdown"             -d "disable_web_page_preview=true"
 
-      - name: Telegram Channel Post
+      - name: Telegram secondary channel
+        env:
+          TELEGRAM_TK: ${{ secrets.TELEGRAM_TK }}
+          CHAT_ID: ${{ secrets.OC_CHANNEL2 }}
         run: |
-          curl -X POST \
-            -H 'Content-Type: application/json' \
-            -d '{"chat_id": ${{ secrets.OC_CHANNEL2 }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
+          if [ -z "$TELEGRAM_TK" ] || [ -z "$CHAT_ID" ]; then
+            echo "Secondary Telegram channel is not configured; skipping."
+            exit 0
+          fi
+          TEXT=$(cat telegram.msg)
+          curl -fsS -X POST "https://api.telegram.org/bot$TELEGRAM_TK/sendMessage"             -d "chat_id=$CHAT_ID"             --data-urlencode "text=$TEXT"             -d "parse_mode=Markdown"             -d "disable_web_page_preview=true"
