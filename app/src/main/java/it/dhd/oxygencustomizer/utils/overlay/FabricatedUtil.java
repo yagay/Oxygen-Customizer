@@ -81,7 +81,37 @@ public class FabricatedUtil {
         Shell.cmd(String.join("; ", module), String.join("; ", commands)).submit();
     }
 
+    private static void validateOverlayArguments(
+            String target, String name, String type, String resourceName, String val) {
+        if (target == null || name == null || type == null || resourceName == null || val == null) {
+            throw new IllegalArgumentException("Fabricated overlay arguments must not be null");
+        }
+        if (!target.matches("[A-Za-z0-9._]+")
+                && !"systemui".equals(target)
+                && !"sysui".equals(target)) {
+            throw new IllegalArgumentException("Invalid fabricated overlay target");
+        }
+        if (!name.matches("[A-Za-z0-9._-]+")) {
+            throw new IllegalArgumentException("Invalid fabricated overlay name");
+        }
+        if (!resourceName.matches("[A-Za-z0-9._]+")) {
+            throw new IllegalArgumentException("Invalid fabricated resource name");
+        }
+
+        boolean validValue = switch (type) {
+            case "color" -> val.matches("(?:0[xX][0-9A-Fa-f]{1,8}|-?[0-9]+)");
+            case "dimen" -> val.matches("-?[0-9]+(?:dp|dip|sp|px|in|pt|mm)");
+            case "bool" -> val.matches("(?:0|1|true|false)");
+            case "integer" -> val.matches("-?[0-9]+");
+            default -> false;
+        };
+        if (!validValue) {
+            throw new IllegalArgumentException("Invalid fabricated overlay type/value");
+        }
+    }
+
     public static List<String> buildCommands(String target, String name, String type, String resourceName, String val) {
+        validateOverlayArguments(target, name, type, resourceName, val);
         String resourceType = "0x1c";
 
         if (target.equals("systemui") || target.equals("sysui")) target = "com.android.systemui";
@@ -137,6 +167,7 @@ public class FabricatedUtil {
     }
 
     public static void disableOverlay(String name) {
+        if (name == null || !name.matches("[A-Za-z0-9._-]+")) return;
         Prefs.putBoolean("fabricated" + name, false);
         Prefs.clearPrefs(
                 "FOCMDtarget" + name,
@@ -157,6 +188,7 @@ public class FabricatedUtil {
         StringBuilder command = new StringBuilder();
 
         for (String name : names) {
+            if (name == null || !name.matches("[A-Za-z0-9._-]+")) continue;
             Prefs.putBoolean("fabricated" + name, false);
             Prefs.clearPrefs(
                     "FOCMDtarget" + name,
@@ -175,10 +207,20 @@ public class FabricatedUtil {
     }
 
     public static boolean isOverlayEnabled(String name) {
-        return Shell.cmd("[[ $(cmd overlay list | grep -o '\\[x\\] com.android.shell:OxygenCustomizerComponent" + name + "') ]] && echo 1 || echo 0").exec().getOut().get(0).equals("1");
+        if (name == null || !name.matches("[A-Za-z0-9._-]+")) return false;
+        List<String> output = Shell.cmd(
+                "[[ $(cmd overlay list | grep -F '[x] com.android.shell:OxygenCustomizerComponent"
+                        + name + "') ]] && echo 1 || echo 0"
+        ).exec().getOut();
+        return !output.isEmpty() && "1".equals(output.get(0));
     }
 
     public static boolean isOverlayDisabled(String name) {
-        return Shell.cmd("[[ $(cmd overlay list | grep -o '\\[ \\] com.android.shell:OxygenCustomizerComponent" + name + "') ]] && echo 1 || echo 0").exec().getOut().get(0).equals("1");
+        if (name == null || !name.matches("[A-Za-z0-9._-]+")) return false;
+        List<String> output = Shell.cmd(
+                "[[ $(cmd overlay list | grep -F '[ ] com.android.shell:OxygenCustomizerComponent"
+                        + name + "') ]] && echo 1 || echo 0"
+        ).exec().getOut();
+        return !output.isEmpty() && "1".equals(output.get(0));
     }
 }

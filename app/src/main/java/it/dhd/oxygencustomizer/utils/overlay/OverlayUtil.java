@@ -10,6 +10,7 @@ import android.util.Log;
 
 import com.topjohnwu.superuser.Shell;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,11 +33,16 @@ public class OverlayUtil {
     }
 
     public static List<String> getOverlayForComponent(String componentName) {
+        if (!isSafeIdentifier(componentName)) return Collections.emptyList();
         return Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponent" + componentName + "'").exec().getOut();
     }
 
     public static boolean isOverlayEnabled(String pkgName) {
-        return Shell.cmd("[[ $(cmd overlay list | grep -o '\\[x\\] " + pkgName + "') ]] && echo 1 || echo 0").exec().getOut().get(0).equals("1");
+        if (!isSafeOverlayPackage(pkgName)) return false;
+        List<String> output = Shell.cmd(
+                "[[ $(cmd overlay list | grep -F '[x] " + pkgName + "') ]] && echo 1 || echo 0"
+        ).exec().getOut();
+        return !output.isEmpty() && "1".equals(output.get(0));
     }
 
     public static boolean isOverlayDisabled(String pkgName) {
@@ -44,7 +50,10 @@ public class OverlayUtil {
     }
 
     public static void checkOverlayEnabledAndEnable(String componentName) {
-        List<String> component = Shell.cmd("cmd overlay list | grep \".x..OxygenCustomizerComponent" + componentName + "\"").exec().getOut();
+        if (!isSafeIdentifier(componentName)) return;
+        List<String> component = Shell.cmd(
+                "cmd overlay list | grep \".x..OxygenCustomizerComponent" + componentName + "\""
+        ).exec().getOut();
         if (!component.isEmpty()) {
             String num = component.get(0).split("OxygenCustomizerComponent" + componentName)[1].split("\\.overlay")[0];
             enableOverlay("OxygenCustomizerComponent" + componentName + num + ".overlay");
@@ -60,6 +69,7 @@ public class OverlayUtil {
     }
 
     public static void enableOverlay(String pkgName) {
+        if (!isSafeOverlayPackage(pkgName)) return;
         Prefs.putBoolean(pkgName, true);
         if (getModulePrefs() != null) {
             getModulePrefs().edit().putBoolean(pkgName, true).apply();
@@ -71,6 +81,7 @@ public class OverlayUtil {
         StringBuilder command = new StringBuilder();
 
         for (String pkgName : pkgNames) {
+            if (!isSafeOverlayPackage(pkgName)) continue;
             Prefs.putBoolean(pkgName, true);
             command.append("cmd overlay enable --user current ").append(pkgName).append("; cmd overlay set-priority ").append(pkgName).append(" highest; ");
         }
@@ -79,6 +90,7 @@ public class OverlayUtil {
     }
 
     public static void enableOverlayExclusiveInCategory(String pkgName) {
+        if (!isSafeOverlayPackage(pkgName)) return;
         Prefs.putBoolean(pkgName, true);
         Shell.cmd("cmd overlay enable-exclusive --user current --category " + pkgName, "cmd overlay set-priority " + pkgName + " highest").submit();
     }
@@ -95,6 +107,7 @@ public class OverlayUtil {
     }
 
     public static void disableOverlay(String pkgName) {
+        if (!isSafeOverlayPackage(pkgName)) return;
         Prefs.putBoolean(pkgName, false);
         if (getModulePrefs() != null) {
             getModulePrefs().edit().putBoolean(pkgName, false).apply();
@@ -106,6 +119,7 @@ public class OverlayUtil {
         StringBuilder command = new StringBuilder();
 
         for (String pkgName : pkgNames) {
+            if (!isSafeOverlayPackage(pkgName)) continue;
             Prefs.putBoolean(pkgName, false);
             command.append("cmd overlay disable --user current ").append(pkgName).append("; ");
         }
@@ -123,6 +137,7 @@ public class OverlayUtil {
         for (int i = 0; i < args.length; i += 2) {
             String pkgName = (String) args[i];
             boolean state = (boolean) args[i + 1];
+            if (!isSafeOverlayPackage(pkgName)) continue;
 
             Prefs.putBoolean(pkgName, state);
 
@@ -137,11 +152,19 @@ public class OverlayUtil {
     }
 
     public static boolean overlayExists() {
-        return Shell.cmd("[ -f /system/product/overlay/OxygenCustomizerComponentOCV.apk ] && echo \"found\" || echo \"not found\"").exec().getOut().get(0).equals("found");
+        List<String> output = Shell.cmd(
+                "[ -f /system/product/overlay/OxygenCustomizerComponentOCV.apk ] && echo found || echo missing"
+        ).exec().getOut();
+        return !output.isEmpty() && "found".equals(output.get(0));
     }
 
     public static boolean overlayExist(String overlayName) {
-        return Shell.cmd("[ -f /system/product/overlay/OxygenCustomizerComponent" + overlayName + ".apk ] && echo \"found\" || echo \"not found\"").exec().getOut().get(0).equals("found");
+        if (!isSafeIdentifier(overlayName)) return false;
+        List<String> output = Shell.cmd(
+                "[ -f /system/product/overlay/OxygenCustomizerComponent" + overlayName
+                        + ".apk ] && echo found || echo missing"
+        ).exec().getOut();
+        return !output.isEmpty() && "found".equals(output.get(0));
     }
 
     @SuppressWarnings("unused")
@@ -155,12 +178,24 @@ public class OverlayUtil {
                 numberOfOverlaysInAssets += Objects.requireNonNull(OxygenCustomizer.getAppContext().getAssets().list("Overlays/" + overlay)).length;
             }
 
-            int numberOfOverlaysInstalled = Integer.parseInt(Shell.cmd("find /" + ModuleConstants.OVERLAY_DIR + "/ -maxdepth 1 -type f -print| wc -l").exec().getOut().get(0));
+            List<String> output = Shell.cmd(
+                    "find /" + ModuleConstants.OVERLAY_DIR + "/ -maxdepth 1 -type f -print | wc -l"
+            ).exec().getOut();
+            if (output.isEmpty()) return false;
+            int numberOfOverlaysInstalled = Integer.parseInt(output.get(0).trim());
             return numberOfOverlaysInAssets <= numberOfOverlaysInstalled;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
+    }
+
+    private static boolean isSafeOverlayPackage(String value) {
+        return value != null && value.matches("[A-Za-z0-9._:]+");
+    }
+
+    private static boolean isSafeIdentifier(String value) {
+        return value != null && value.matches("[A-Za-z0-9._-]+");
     }
 
     public static Drawable getDrawableFromOverlay(Context context, String pkg, String drawableName) {
