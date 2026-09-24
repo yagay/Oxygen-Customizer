@@ -9,6 +9,8 @@ jobs:
 
   build:
     name: Build Nightly APK
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     env:
       TELEGRAM_TK: ${{ secrets.TELEGRAM_TK }}
