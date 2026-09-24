@@ -177,6 +177,15 @@ public class LockscreenClock extends XposedMods {
         }
     };
 
+    private final Handler mClockHandler = new Handler(Looper.getMainLooper());
+    private boolean mClockUpdaterRegistered = false;
+    private final BroadcastReceiver mTimeChangedReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mClockHandler.post(LockscreenClock.this::updateClockView);
+        }
+    };
+
     private boolean mBroadcastRegistered = false;
 
     final BroadcastReceiver mBootReceiver = new BroadcastReceiver() {
@@ -578,24 +587,17 @@ public class LockscreenClock extends XposedMods {
     private void registerClockUpdater() {
         if (mClockViewContainer == null) return;
 
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_TIME_TICK);
-        filter.addAction(Intent.ACTION_TIME_CHANGED);
-        filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
-        filter.addAction(Intent.ACTION_LOCALE_CHANGED);
+        if (!mClockUpdaterRegistered) {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_TIME_TICK);
+            filter.addAction(Intent.ACTION_TIME_CHANGED);
+            filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+            filter.addAction(Intent.ACTION_LOCALE_CHANGED);
+            mContext.registerReceiver(mTimeChangedReceiver, filter);
+            mClockUpdaterRegistered = true;
+        }
 
-        BroadcastReceiver timeChangedReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (intent != null) {
-                    new Handler(Looper.getMainLooper()).post(() -> updateClockView());
-                }
-            }
-        };
-
-        mContext.registerReceiver(timeChangedReceiver, filter);
-
-        new Handler(Looper.getMainLooper()).post(this::updateClockView);
+        mClockHandler.post(this::updateClockView);
     }
 
     private void updateClockView() {
