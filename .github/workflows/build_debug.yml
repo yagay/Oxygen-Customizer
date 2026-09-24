@@ -34,8 +34,16 @@ jobs:
           gradlePath: app/build.gradle.kts
           versionName: "${{ env.VERSION_NAME }} (#${{github.run_number}})"
 
+      - name: Detect release signing
+        run: |
+          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+            echo "HAS_SIGNING=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_SIGNING=false" >> "$GITHUB_ENV"
+          fi
+
       - name: Write sign info
-        if: github.repository == 'yagay/Oxygen-Customizer'
+        if: env.HAS_SIGNING == 'true'
         run: |
           if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
             echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> keystore.properties
@@ -46,15 +54,14 @@ jobs:
           fi
 
       - name: Build release with Gradle
-        if: github.repository == 'yagay/Oxygen-Customizer'
+        if: env.HAS_SIGNING == 'true'
         run: ./gradlew assembleRelease
 
       - name: Build debug with Gradle
-        if: github.repository == 'yagay/Oxygen-Customizer'
         run: ./gradlew assembleDebug
 
       - name: Upload release Build Artifact
-        if: github.repository == 'yagay/Oxygen-Customizer'
+        if: env.HAS_SIGNING == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}})"
@@ -62,7 +69,6 @@ jobs:
           if-no-files-found: error
 
       - name: Upload debug Build Artifact
-        if: github.repository == 'yagay/Oxygen-Customizer'
         uses: actions/upload-artifact@v4
         with:
           name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}}) Debug"
@@ -110,17 +116,20 @@ jobs:
 
       # now everything fine, let's update nightly version
       - name: Reset and checkout
+        if: env.HAS_SIGNING == 'true'
         run: |
           git reset --hard
           git clean -fdx
 
       - name: Checkout nightly-versioning
+        if: env.HAS_SIGNING == 'true'
         uses: actions/checkout@v4
         with:
           ref: nightly-versioning
           fetch-depth: 0
 
       - name: Update latestNightly.json
+        if: env.HAS_SIGNING == 'true'
         run: |
           sed -i "s/\"version\":.*/\"version\": \"$(sed 's/[\/&]/\\&/g' <<< "$NIGHTLY_VERSION")\",/" latestNightly.json
           sed -i 's/"versionCode":.*/"versionCode": '${{env.VERSION_CODE}}',/' latestNightly.json
@@ -128,6 +137,7 @@ jobs:
           sed -i 's/"actionRun":.*/"actionRun": '${{github.run_id}}',/' latestNightly.json
 
       - name: Commit
+        if: env.HAS_SIGNING == 'true'
         uses: github-actions-x/commit@v2.9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -140,7 +150,7 @@ jobs:
       
 
       - name: Telegram File Message
-        if: github.repository == 'yagay/Oxygen-Customizer' && env.SKIP_BUILD != 'true'
+        if: env.HAS_SIGNING == 'true' && env.SKIP_BUILD != 'true'
         env:
           COMMIT_MESSAGE: |+
             New push to github!

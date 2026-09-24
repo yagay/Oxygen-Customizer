@@ -41,6 +41,13 @@ jobs:
       - name: Gradlew Permissions
         run: chmod +x gradlew
 
+      - name: Validate signing secrets
+        run: |
+          test -n "${{ secrets.KEYSTORE }}" || { echo "Missing KEYSTORE secret"; exit 1; }
+          test -n "${{ secrets.KEYSTORE_PASSWORD }}" || { echo "Missing KEYSTORE_PASSWORD secret"; exit 1; }
+          test -n "${{ secrets.KEY_ALIAS }}" || { echo "Missing KEY_ALIAS secret"; exit 1; }
+          test -n "${{ secrets.KEY_PASSWORD }}" || { echo "Missing KEY_PASSWORD secret"; exit 1; }
+
       - name: Signature files preparation
         run: |
           if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
