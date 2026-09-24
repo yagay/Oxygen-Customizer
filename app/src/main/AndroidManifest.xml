@@ -145,6 +145,7 @@
         <service
             android:name=".services.RootProviderProxy"
             android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE"
             tools:ignore="ExportedService" />
 
         <service
@@ -186,13 +187,15 @@
         <provider
             android:name=".weather.WeatherContentProvider"
             android:authorities="it.dhd.oxygencustomizer.weatherprovider"
-            android:exported="true" />
+            android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE" />
 
         <provider
             android:name=".xposed.utils.CalendarProvider"
             android:authorities="it.dhd.oxygencustomizer.calendarprovider"
             android:exported="true"
-            android:grantUriPermissions="true" />
+            android:grantUriPermissions="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE" />
 
         <receiver
             android:name=".receivers.SystemReceiver"

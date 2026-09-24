@@ -90,7 +90,12 @@ public class UpdateWorker extends ListenableWorker {
         notificationIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         notificationIntent.putExtra("newUpdate", true);
 
-        PendingIntent pendingIntent = PendingIntent.getActivity(mContext, 0, notificationIntent, PendingIntent.FLAG_MUTABLE);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                mContext,
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+        );
 
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(mContext, mContext.getString(R.string.notification_channel_update))
                 .setSmallIcon(R.drawable.ic_notification_foreground)
@@ -100,7 +105,12 @@ public class UpdateWorker extends ListenableWorker {
                 .setOnlyAlertOnce(true)
                 .setAutoCancel(true);
 
-        NotificationManager notificationManager = (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager notificationManager =
+                (NotificationManager) mContext.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (notificationManager == null) {
+            Log.w("OxygenCustomizer", "NotificationManager unavailable");
+            return;
+        }
         createChannel(notificationManager);
         notificationManager.notify(0, notificationBuilder.build());
     }
