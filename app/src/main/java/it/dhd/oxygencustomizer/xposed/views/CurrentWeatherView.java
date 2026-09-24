@@ -75,11 +75,16 @@ public class CurrentWeatherView extends LinearLayout implements OmniJawsClient.O
     public static ArrayList<Object[]> instances = new ArrayList<>();
     private int mWeatherHorPadding = 0, mWeatherVerPadding = 0;
     private final Context mContext;
+    private final String mInstanceName;
+    private boolean mWeatherUpdatesEnabled = false;
+    private boolean mThemeListenerRegistered = false;
+    private final ThemeEnabler.OnThemeChangedListener mThemeChangedListener = this::reloadWeatherBg;
     private Context appContext;
 
     public CurrentWeatherView(Context context, String name) {
         super(context);
-        instances.add(new Object[]{this, name});
+        mInstanceName = name;
+        instances.add(new Object[]{this, mInstanceName});
 
         this.setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
 
@@ -94,10 +99,6 @@ public class CurrentWeatherView extends LinearLayout implements OmniJawsClient.O
         mWeatherClient = new OmniJawsClient(context);
 
         inflateView();
-
-        enableUpdates();
-
-        ThemeEnabler.registerThemeChangedListener(this::reloadWeatherBg);
     }
 
     @SuppressLint("DiscouragedApi")
@@ -140,7 +141,26 @@ public class CurrentWeatherView extends LinearLayout implements OmniJawsClient.O
     @Override
     public void onAttachedToWindow() {
         super.onAttachedToWindow();
+        boolean tracked = instances.stream().anyMatch(obj -> obj[0] == this);
+        if (!tracked) {
+            instances.add(new Object[]{this, mInstanceName});
+        }
         enableUpdates();
+        if (!mThemeListenerRegistered) {
+            ThemeEnabler.registerThemeChangedListener(mThemeChangedListener);
+            mThemeListenerRegistered = true;
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        disableUpdates();
+        if (mThemeListenerRegistered) {
+            ThemeEnabler.unRegisterThemeChangedListener(mThemeChangedListener);
+            mThemeListenerRegistered = false;
+        }
+        instances.removeIf(obj -> obj[0] == this);
+        super.onDetachedFromWindow();
     }
 
     public void updateSizes(int weatherTextSize, int weatherImageSize, String name) {
@@ -185,15 +205,17 @@ public class CurrentWeatherView extends LinearLayout implements OmniJawsClient.O
 
     public void enableUpdates() {
         log(TAG + "enableUpdates");
-        if (mWeatherClient != null) {
+        if (mWeatherClient != null && !mWeatherUpdatesEnabled) {
             mWeatherClient.addObserver(this);
+            mWeatherUpdatesEnabled = true;
             queryAndUpdateWeather();
         }
     }
 
     public void disableUpdates() {
-        if (mWeatherClient != null) {
+        if (mWeatherClient != null && mWeatherUpdatesEnabled) {
             mWeatherClient.removeObserver(this);
+            mWeatherUpdatesEnabled = false;
         }
     }
 
