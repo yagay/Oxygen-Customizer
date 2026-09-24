@@ -174,6 +174,19 @@ public class LockscreenWidgetsView extends LinearLayout implements OmniJawsClien
 
     private ActivityLauncherUtils mActivityLauncherUtils;
 
+    private boolean mLifecycleCallbacksRegistered = false;
+    private boolean mRingerReceiverRegistered = false;
+    private boolean mScreenReceiverRegistered = false;
+    private boolean mWeatherUpdatesEnabled = false;
+    private final ControllersProvider.OnWifiChanged mWifiCallback = this::onWifiChanged;
+    private final ControllersProvider.OnBluetoothChanged mBluetoothCallback = this::onBluetoothChanged;
+    private final ControllersProvider.OnTorchModeChanged mTorchCallback = this::onTorchChanged;
+    private final ControllersProvider.OnHotspotChanged mHotspotCallback = this::onHotspotChanged;
+    private final ThemeEnabler.OnThemeChangedListener mThemeChangedListener = () -> {
+        loadColors();
+        updateWidgetViews();
+    };
+
     private final MediaController.Callback mMediaCallback = new MediaController.Callback() {
         @Override
         public void onPlaybackStateChanged(PlaybackState state) {
@@ -224,8 +237,6 @@ public class LockscreenWidgetsView extends LinearLayout implements OmniJawsClien
         setupDimens();
         drawUI();
 
-        IntentFilter ringerFilter = new IntentFilter("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION");
-        mContext.registerReceiver(mRingerModeReceiver, ringerFilter);
         mMediaUpdater = new Runnable() {
             @Override
             public void run() {
@@ -233,21 +244,69 @@ public class LockscreenWidgetsView extends LinearLayout implements OmniJawsClien
                 mHandler.postDelayed(this, 1000);
             }
         };
-        updateMediaController();
+    }
+
+    private void registerLifecycleCallbacks() {
+        if (mLifecycleCallbacksRegistered) return;
+
+        if (!mRingerReceiverRegistered) {
+            IntentFilter ringerFilter = new IntentFilter("android.media.INTERNAL_RINGER_MODE_CHANGED_ACTION");
+            mContext.registerReceiver(mRingerModeReceiver, ringerFilter);
+            mRingerReceiverRegistered = true;
+        }
+        if (!mScreenReceiverRegistered) {
+            mContext.registerReceiver(
+                    mScreenOnReceiver,
+                    new IntentFilter(Intent.ACTION_SCREEN_ON),
+                    Context.RECEIVER_EXPORTED
+            );
+            mScreenReceiverRegistered = true;
+        }
 
         ControllersProvider.registerMobileDataCallback(mMobileDataCallback);
-        ControllersProvider.registerWifiCallback(this::onWifiChanged);
-        ControllersProvider.registerBluetoothCallback(this::onBluetoothChanged);
-        ControllersProvider.registerTorchModeCallback(this::onTorchChanged);
-        ControllersProvider.registerHotspotCallback(this::onHotspotChanged);
-        ThemeEnabler.registerThemeChangedListener(() -> {
-            loadColors();
-            updateWidgetViews();
-        });
+        ControllersProvider.registerWifiCallback(mWifiCallback);
+        ControllersProvider.registerBluetoothCallback(mBluetoothCallback);
+        ControllersProvider.registerTorchModeCallback(mTorchCallback);
+        ControllersProvider.registerHotspotCallback(mHotspotCallback);
+        ThemeEnabler.registerThemeChangedListener(mThemeChangedListener);
+        mLifecycleCallbacksRegistered = true;
+    }
 
-        // Add a Screen On Receiver so we can update the widgets state when the screen is turned on
-        mContext.registerReceiver(mScreenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON), Context.RECEIVER_EXPORTED);
+    private void unregisterLifecycleCallbacks() {
+        if (mLifecycleCallbacksRegistered) {
+            ControllersProvider.unRegisterMobileDataCallback(mMobileDataCallback);
+            ControllersProvider.unRegisterWifiCallback(mWifiCallback);
+            ControllersProvider.unRegisterBluetoothCallback(mBluetoothCallback);
+            ControllersProvider.unRegisterTorchModeCallback(mTorchCallback);
+            ControllersProvider.unRegisterHotspotCallback(mHotspotCallback);
+            ThemeEnabler.unRegisterThemeChangedListener(mThemeChangedListener);
+            mLifecycleCallbacksRegistered = false;
+        }
 
+        if (mRingerReceiverRegistered) {
+            try {
+                mContext.unregisterReceiver(mRingerModeReceiver);
+            } catch (Throwable ignored) {
+            }
+            mRingerReceiverRegistered = false;
+        }
+
+        if (mScreenReceiverRegistered) {
+            try {
+                mContext.unregisterReceiver(mScreenOnReceiver);
+            } catch (Throwable ignored) {
+            }
+            mScreenReceiverRegistered = false;
+        }
+
+        mHandler.removeCallbacks(mMediaUpdater);
+        if (mController != null) {
+            try {
+                mController.unregisterCallback(mMediaCallback);
+            } catch (Throwable ignored) {
+            }
+            mController = null;
+        }
     }
 
     private void setupDimens() {
@@ -494,17 +553,17 @@ public class LockscreenWidgetsView extends LinearLayout implements OmniJawsClien
     }
 
     public void enableWeatherUpdates() {
-        if (mWeatherClient != null) {
+        if (mWeatherClient != null && !mWeatherUpdatesEnabled) {
             mWeatherClient.addObserver(this);
+            mWeatherUpdatesEnabled = true;
             queryAndUpdateWeather();
         }
     }
 
     public void disableWeatherUpdates() {
-        if (mWeatherClient != null) {
-            weatherButton = null;
-            weatherButtonFab = null;
+        if (mWeatherClient != null && mWeatherUpdatesEnabled) {
             mWeatherClient.removeObserver(this);
+            mWeatherUpdatesEnabled = false;
         }
     }
 
@@ -668,6 +727,7 @@ public class LockscreenWidgetsView extends LinearLayout implements OmniJawsClien
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        registerLifecycleCallbacks();
         if (isWidgetEnabled("weather")) {
             enableWeatherUpdates();
         }
@@ -676,10 +736,11 @@ public class LockscreenWidgetsView extends LinearLayout implements OmniJawsClien
 
     @Override
     protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
         if (isWidgetEnabled("weather")) {
             disableWeatherUpdates();
         }
+        unregisterLifecycleCallbacks();
+        super.onDetachedFromWindow();
     }
 
     @Override
