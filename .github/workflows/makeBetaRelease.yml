@@ -11,9 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      TELEGRAM_TK: ${{ env.TELEGRAM_TK }}
-      OC_CHANNEL: ${{ env.OC_CHANNEL }}
-      OC_CHANNEL2: ${{ env.OC_CHANNEL2 }}
+      TELEGRAM_TK: ${{ secrets.TELEGRAM_TK }}
+      OC_CHANNEL: ${{ secrets.OC_CHANNEL }}
+      OC_CHANNEL2: ${{ secrets.OC_CHANNEL2 }}
 
     permissions:
       contents: write
