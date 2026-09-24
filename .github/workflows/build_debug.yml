@@ -10,6 +10,10 @@ jobs:
   build:
     name: Build Nightly APK
     runs-on: ubuntu-latest
+    env:
+      TELEGRAM_TK: ${{ env.TELEGRAM_TK }}
+      OC_NIGHTLY_BUILDS: ${{ env.OC_NIGHTLY_BUILDS }}
+      OC_NIGHTLY_BUILDS_THREAD: ${{ env.OC_NIGHTLY_BUILDS_THREAD }}
     steps:
       - uses: actions/checkout@v4
       - name: set up JDK 21
@@ -36,7 +40,7 @@ jobs:
 
       - name: Detect release signing
         run: |
-          if [ -n "${{ secrets.KEYSTORE }}" ]; then
+          if [ -n "${{ secrets.KEYSTORE }}" ] && [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] && [ -n "${{ secrets.KEY_ALIAS }}" ] && [ -n "${{ secrets.KEY_PASSWORD }}" ]; then
             echo "HAS_SIGNING=true" >> "$GITHUB_ENV"
           else
             echo "HAS_SIGNING=false" >> "$GITHUB_ENV"
@@ -148,7 +152,7 @@ jobs:
       
 
       - name: Telegram File Message
-        if: env.HAS_SIGNING == 'true' && env.SKIP_BUILD != 'true' && secrets.TELEGRAM_TK != '' && secrets.OC_NIGHTLY_BUILDS != ''
+        if: env.HAS_SIGNING == 'true' && env.SKIP_BUILD != 'true' && env.TELEGRAM_TK != '' && env.OC_NIGHTLY_BUILDS != ''
         env:
           COMMIT_MESSAGE: |+
             New push to github!
@@ -160,9 +164,9 @@ jobs:
           COMMIT_URL: ${{ github.event.head_commit.url }}
         run: |
           set -e
-          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage \
-          -d chat_id=${{ secrets.OC_NIGHTLY_BUILDS }} \
-          -d message_thread_id=${{ secrets.OC_NIGHTLY_BUILDS_THREAD }} \
+          curl -s -X POST https://api.telegram.org/bot${{ env.TELEGRAM_TK }}/sendMessage \
+          -d chat_id=${{ env.OC_NIGHTLY_BUILDS }} \
+          -d message_thread_id=${{ env.OC_NIGHTLY_BUILDS_THREAD }} \
           -d text="${{env.COMMIT_MESSAGE}}" \
           -d parse_mode=Markdown \
           -d disable_web_page_preview=true \

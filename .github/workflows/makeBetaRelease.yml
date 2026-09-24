@@ -10,6 +10,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TELEGRAM_TK: ${{ env.TELEGRAM_TK }}
+      OC_CHANNEL: ${{ env.OC_CHANNEL }}
+      OC_CHANNEL2: ${{ env.OC_CHANNEL2 }}
 
     permissions:
       contents: write
@@ -107,15 +111,15 @@ jobs:
           email: actions@yagay.local
 
       - name: Telegram Channel Post
-        if: secrets.TELEGRAM_TK != '' && secrets.OC_CHANNEL != ''
+        if: env.TELEGRAM_TK != '' && env.OC_CHANNEL != ''
         run: |
           curl -X POST \
             -H 'Content-Type: application/json' \
-            -d '{"chat_id": ${{ secrets.OC_CHANNEL }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
+            -d '{"chat_id": ${{ env.OC_CHANNEL }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ env.TELEGRAM_TK }}/sendMessage
 
       - name: Telegram Channel Post
-        if: secrets.TELEGRAM_TK != '' && secrets.OC_CHANNEL2 != ''
+        if: env.TELEGRAM_TK != '' && env.OC_CHANNEL2 != ''
         run: |
           curl -X POST \
             -H 'Content-Type: application/json' \
-            -d '{"chat_id": ${{ secrets.OC_CHANNEL2 }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage
+            -d '{"chat_id": ${{ env.OC_CHANNEL2 }}, "text": "'"$(cat telegram.msg)"'", "parse_mode": "Markdown", "reply_markup": {"inline_keyboard": [[{"text":"Download", "url": "https://www.github.com/yagay/Oxygen-Customizer/releases/download/${{ env.VTag }}/OxygenCustomizer.apk"}]]}' https://api.telegram.org/bot${{ env.TELEGRAM_TK }}/sendMessage
