@@ -15,7 +15,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.hardware.biometrics.BiometricManager;
 import android.view.MotionEvent;
 
 import androidx.core.content.res.ResourcesCompat;
@@ -86,11 +85,7 @@ public class AdvancedReboot extends XposedMods {
 
                         if (bounds.contains((int) x, (int) y)) {
                             param.setResult(true);
-                            if (useAuthForAdvancedReboot && mContext.getSystemService(BiometricManager.class).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
-                                showAuth(true);
-                            } else {
-                                showAuth(false);
-                            }
+                            showAuth();
                         }
                     }
                 });
@@ -148,10 +143,9 @@ public class AdvancedReboot extends XposedMods {
         return listenPackage.equals(packageName);
     }
 
-    private void showAuth(boolean shouldAuth) {
+    private void showAuth() {
         Intent intent = new Intent();
         intent.setComponent(new ComponentName(APPLICATION_ID, APPLICATION_ID + ".ui.activity.AuthActivity"));
-        intent.putExtra("shouldAuth", shouldAuth);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         mContext.startActivity(intent);
     }

@@ -88,6 +88,10 @@ public class RootProvider extends RootService {
 
             getModuleMID();
 
+            if (mLSPosedMID < 0) {
+                return false;
+            }
+
             if (!mLSPosedEnabled) {
                 enableModuleLSPosed();
 
@@ -106,6 +110,7 @@ public class RootProvider extends RootService {
         }
 
         private void enableModuleLSPosed() {
+            if (mLSPosedMID < 0) return;
             runLSposedSQLiteQuery(String.format("update modules set enabled = 1 where mid = %s", mLSPosedMID));
         }
 

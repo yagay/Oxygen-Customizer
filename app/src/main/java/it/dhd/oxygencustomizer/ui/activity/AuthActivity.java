@@ -4,7 +4,6 @@ package it.dhd.oxygencustomizer.ui.activity;
 import static androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG;
 import static androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK;
 import static androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL;
-import static androidx.biometric.BiometricPrompt.ERROR_CANCELED;
 import static it.dhd.oxygencustomizer.utils.Constants.Packages.SYSTEM_UI;
 
 import android.content.Intent;
@@ -34,7 +33,6 @@ public class AuthActivity extends OplusActivity {
     private Executor executor;
     private BiometricPrompt biometricPrompt;
     private BiometricPrompt.PromptInfo promptInfo;
-    private int shown = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,18 +57,7 @@ public class AuthActivity extends OplusActivity {
             @Override
             public void onAuthenticationError(int errorCode,
                                               @NonNull CharSequence errString) {
-                if (errorCode == ERROR_CANCELED || errorCode == BiometricPrompt.ERROR_USER_CANCELED && shown < 2) {
-                    biometricPrompt.cancelAuthentication();
-                    runOnUiThread(() -> {
-                        try {
-                            biometricPrompt.authenticate(promptInfo);
-                            shown++;
-                        } catch (Throwable ignored) {
-                        }
-                    });
-                } else {
-                    super.onAuthenticationError(errorCode, errString);
-                }
+                super.onAuthenticationError(errorCode, errString);
                 finishAndRemoveTask();
             }
 
@@ -84,10 +71,11 @@ public class AuthActivity extends OplusActivity {
             @Override
             public void onAuthenticationFailed() {
                 super.onAuthenticationFailed();
+                // A non-match is not a terminal error. Keep the prompt open so
+                // the user can retry or fall back to the configured credential.
                 Toast.makeText(getApplicationContext(), "Authentication failed",
                                 Toast.LENGTH_SHORT)
                         .show();
-                finishAndRemoveTask();
             }
         });
 
@@ -98,8 +86,11 @@ public class AuthActivity extends OplusActivity {
                 .setConfirmationRequired(true)
                 .build();
 
-        new Handler(Looper.getMainLooper()).postDelayed(() -> biometricPrompt.authenticate(promptInfo), 300);
-        shown++;
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                biometricPrompt.authenticate(promptInfo);
+            }
+        }, 300);
     }
 
     private void showAdvancedReboot() {
