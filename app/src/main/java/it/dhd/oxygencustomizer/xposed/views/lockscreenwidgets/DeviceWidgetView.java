@@ -78,6 +78,8 @@ public class DeviceWidgetView extends FrameLayout {
     }
 
     private boolean batteryRegistered = false;
+    private boolean themeListenerRegistered = false;
+    private final ThemeEnabler.OnThemeChangedListener mThemeChangedListener = this::reloadColors;
     private final BroadcastReceiver mBatteryReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -101,10 +103,6 @@ public class DeviceWidgetView extends FrameLayout {
                     Context.CONTEXT_IGNORE_SECURITY
             );
         } catch (PackageManager.NameNotFoundException ignored) {
-        }
-
-        if (!mSettingsInterface) {
-            ThemeEnabler.registerThemeChangedListener(this::reloadColors);
         }
 
         inflateView();
@@ -334,9 +332,15 @@ public class DeviceWidgetView extends FrameLayout {
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         try {
-            if (!batteryRegistered)
+            if (!batteryRegistered) {
                 mContext.registerReceiver(mBatteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+                batteryRegistered = true;
+            }
         } catch (Exception ignored) {
+        }
+        if (!mSettingsInterface && !themeListenerRegistered) {
+            ThemeEnabler.registerThemeChangedListener(mThemeChangedListener);
+            themeListenerRegistered = true;
         }
     }
 
@@ -344,8 +348,16 @@ public class DeviceWidgetView extends FrameLayout {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         try {
-            if (batteryRegistered) mContext.unregisterReceiver(mBatteryReceiver);
+            if (batteryRegistered) {
+                mContext.unregisterReceiver(mBatteryReceiver);
+                batteryRegistered = false;
+            }
         } catch (Exception ignored) {
+            batteryRegistered = false;
+        }
+        if (!mSettingsInterface && themeListenerRegistered) {
+            ThemeEnabler.unRegisterThemeChangedListener(mThemeChangedListener);
+            themeListenerRegistered = false;
         }
     }
 
