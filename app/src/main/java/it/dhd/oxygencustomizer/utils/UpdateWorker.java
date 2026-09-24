@@ -40,24 +40,40 @@ public class UpdateWorker extends ListenableWorker {
         boolean UpdateWifiOnly = prefs.getBoolean("checkOnWifi", true);
 
         ConnectivityManager connectivityManager = (ConnectivityManager) mContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        if (connectivityManager == null || connectivityManager.getActiveNetwork() == null) {
+            return CallbackToFutureAdapter.getFuture(completer -> {
+                completer.set(Result.retry());
+                return completer;
+            });
+        }
 
-        boolean isGoodNetwork =
-                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                        && !UpdateWifiOnly
-                        || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED);
+        NetworkCapabilities capabilities =
+                connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
 
-        if(isGoodNetwork)
-            checkForUpdates();
+        boolean isGoodNetwork = capabilities != null
+                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                && (!UpdateWifiOnly
+                    || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED));
+
+        if (!isGoodNetwork) {
+            return CallbackToFutureAdapter.getFuture(completer -> {
+                completer.set(Result.retry());
+                return completer;
+            });
+        }
 
         return CallbackToFutureAdapter.getFuture(completer -> {
-            completer.set(isGoodNetwork ? Result.success() : Result.retry());
-            return completer;
+            new UpdateFragment.updateChecker(result -> {
+                onCheckedCallback.onFinished(result);
+                Object versionCode = result != null ? result.get("versionCode") : null;
+                if (versionCode instanceof Integer && (Integer) versionCode >= 0) {
+                    completer.set(Result.success());
+                } else {
+                    completer.set(Result.retry());
+                }
+            }, UpdateFragment.Flavor.ALL).start();
+            return "Oxygen Customizer update check";
         });
-    }
-
-    private void checkForUpdates() {
-        new UpdateFragment.updateChecker(onCheckedCallback, UpdateFragment.Flavor.ALL).start();
     }
 
     private void showUpdateNotification() {

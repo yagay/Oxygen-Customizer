@@ -123,21 +123,17 @@ public class FileUtil {
             returnCursor.moveToFirst();
             String name = returnCursor.getString(nameIndex);
             file = new File(getAppContext().getFilesDir(), name);
-            @SuppressLint("Recycle") InputStream inputStream = getAppContext().getContentResolver().openInputStream(uri);
-            FileOutputStream outputStream = new FileOutputStream(file);
-            int read;
-            int maxBufferSize = 1024 * 1024;
+            try (InputStream inputStream = getAppContext().getContentResolver().openInputStream(uri);
+                 FileOutputStream outputStream = new FileOutputStream(file)) {
+                if (inputStream == null) return null;
 
-            if (inputStream == null) return null;
-
-            int bytesAvailable = inputStream.available();
-            int bufferSize = Math.min(bytesAvailable, maxBufferSize);
-            final byte[] buffers = new byte[bufferSize];
-            while ((read = inputStream.read(buffers)) != -1) {
-                outputStream.write(buffers, 0, read);
+                int read;
+                final byte[] buffer = new byte[8192];
+                while ((read = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, read);
+                }
+                outputStream.flush();
             }
-            inputStream.close();
-            outputStream.close();
         } catch (Exception e) {
             e.printStackTrace();
             return null;
