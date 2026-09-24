@@ -21,6 +21,8 @@ import com.topjohnwu.superuser.Shell;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.List;
+
 import it.dhd.oneplusui.preference.OplusPreference;
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.ui.base.ControlledPreferenceFragmentCompat;
@@ -120,14 +122,26 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
     }
 
     private void getDefaultColor() {
-        String secureTheme = Shell.cmd("settings get secure theme_customization_overlay_packages")
-                .exec()
-                .getOut().get(0);
-        try {
-            JSONObject jsonObject = new JSONObject(secureTheme);
+        List<String> output = Shell.cmd(
+                "settings get secure theme_customization_overlay_packages"
+        ).exec().getOut();
+        if (output.isEmpty()) {
+            Log.w("ColorsFragment", "Theme customization setting is unavailable");
+            return;
+        }
 
-            mSystemPalette = jsonObject.getString("android.theme.customization.system_palette");
-            mAccentColor = jsonObject.getString("android.theme.customization.accent_color");
+        mSystemPalette = null;
+        mAccentColor = null;
+        try {
+            JSONObject jsonObject = new JSONObject(output.get(0));
+            mSystemPalette = jsonObject.optString(
+                    "android.theme.customization.system_palette",
+                    null
+            );
+            mAccentColor = jsonObject.optString(
+                    "android.theme.customization.accent_color",
+                    null
+            );
         } catch (JSONException e) {
             Log.e("ColorsFragment", "Error parsing JSON", e);
         }
@@ -138,13 +152,18 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
         if (!mAccentColor.contains("#")) {
             mAccentColor = "#" + mAccentColor;
         }
-        if (mPreferences.getInt("primary_color", 0) == 0) {
-            mPrimaryColor.setPreviewColor(Color.parseColor(mAccentColor), true);
-        } else {
-            int color = mPreferences.getInt("primary_color", 0);
-            if (color != Color.parseColor(mAccentColor)) {
-                mPrimaryColor.setPreviewColor(color, true);
+        try {
+            int accentColor = Color.parseColor(mAccentColor);
+            if (mPreferences.getInt("primary_color", 0) == 0) {
+                mPrimaryColor.setPreviewColor(accentColor, true);
+            } else {
+                int color = mPreferences.getInt("primary_color", 0);
+                if (color != accentColor) {
+                    mPrimaryColor.setPreviewColor(color, true);
+                }
             }
+        } catch (IllegalArgumentException e) {
+            Log.e("ColorsFragment", "Invalid accent color: " + mAccentColor, e);
         }
     }
 

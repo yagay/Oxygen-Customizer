@@ -26,6 +26,8 @@ import androidx.core.content.ContextCompat;
 
 import com.topjohnwu.superuser.Shell;
 
+import java.util.List;
+
 import it.dhd.oneplusui.preference.OplusPreference;
 import it.dhd.oxygencustomizer.OxygenCustomizer;
 import it.dhd.oxygencustomizer.R;
@@ -155,20 +157,26 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
         return spannableStringBuilder;
     }
 
+    private String getSecureSetting(String key, String defaultValue) {
+        List<String> output = Shell.cmd("settings get secure " + key).exec().getOut();
+        return output.isEmpty() ? defaultValue : output.get(0);
+    }
+
     public boolean getMemcEnableFromSettings() {
-        String ret = Shell.cmd("settings get secure " + SETTINGS_SECURE_OSIE_MOTION_FLUENCY_SWITCH).exec().getOut().get(0);
-        return ret.equals("1");
+        return "1".equals(getSecureSetting(
+                SETTINGS_SECURE_OSIE_MOTION_FLUENCY_SWITCH,
+                "0"
+        ));
     }
 
     public String getMemcModeFromSettings() {
-        String ret = Shell.cmd("settings get secure " + SETTINGS_SECURE_OSIE_MOTION_VALUE).exec().getOut().get(0);
-        return ret;
+        return getSecureSetting(SETTINGS_SECURE_OSIE_MOTION_VALUE, "");
     }
 
     public boolean getSdr2hdrEnableFromSettings() {
-        String ret = Shell.cmd("settings get secure " + SETTINGS_SECURE_OSIE_VIDEO_SWITCH).exec().getOut().get(0);
+        String ret = getSecureSetting(SETTINGS_SECURE_OSIE_VIDEO_SWITCH, "0");
         if (!this.mVideoOsieSupport) {
-            return ret.equals("1");
+            return "1".equals(ret);
         }
         Log.d("MemcFragment", "mVideoOsieSupport on, not support pw sdr2hdr");
         return false;

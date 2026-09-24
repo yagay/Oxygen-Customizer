@@ -15,7 +15,6 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 import android.os.Build;
@@ -24,6 +23,8 @@ import com.canhub.cropper.CropImage;
 import com.canhub.cropper.CropImageOptions;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.topjohnwu.superuser.Shell;
+
+import java.util.List;
 
 import it.dhd.oneplusui.preference.OplusJumpPreference;
 import it.dhd.oneplusui.preference.OplusSwitchPreference;
@@ -114,18 +115,34 @@ public class Misc extends ControlledPreferenceFragmentCompat {
     }
 
     private void checkOplusVersion() {
-        String osVersion = Shell.cmd("getprop ro.build.display.id").exec().getOut().get(0);
-        if (!TextUtils.isEmpty(osVersion)) {
+        List<String> output = Shell.cmd("getprop ro.build.display.id").exec().getOut();
+        if (output.isEmpty()) {
+            Log.w("Misc OC", "Unable to read Oplus build version");
+            sendIntent();
+            return;
+        }
+
+        String osVersion = output.get(0);
+        try {
             String[] split = osVersion.split("\\.");
-            String version = split[split.length - 1].substring(0, split[split.length - 1].indexOf("("));
+            String tail = split.length > 0 ? split[split.length - 1] : "";
+            int parenthesis = tail.indexOf('(');
+            if (parenthesis >= 0) {
+                tail = tail.substring(0, parenthesis);
+            }
+            String digits = tail.replaceAll("[^0-9]", "");
+            int version = digits.isEmpty() ? -1 : Integer.parseInt(digits);
             Log.d("Misc OC", "Oplus version: " + version);
-            if (Build.VERSION.SDK_INT >= 34 && Integer.parseInt(version) >= 610) {
+
+            if (Build.VERSION.SDK_INT >= 34 && version >= 610) {
                 Log.d("Misc OC", "Oplus version is greater than 610");
                 showConfirmDialog();
             } else {
-                Log.d("Misc OC", "Oplus version is less than 610");
                 sendIntent();
             }
+        } catch (RuntimeException e) {
+            Log.w("Misc OC", "Unable to parse Oplus build version: " + osVersion, e);
+            sendIntent();
         }
     }
 
