@@ -56,8 +56,8 @@ public class FabricatedUtil {
         List<String> module = new ArrayList<>();
 
         for (Object[] arg : args) {
-            if (arg.length % 5 != 0) {
-                throw new IllegalArgumentException("Mismatch in number of arguments.");
+            if (arg == null || arg.length != 5) {
+                throw new IllegalArgumentException("Each fabricated overlay entry must contain exactly 5 values.");
             }
         }
 
@@ -203,7 +203,9 @@ public class FabricatedUtil {
             Shell.cmd("mv " + ModuleConstants.MODULE_DIR + "/post-exec.sh " + ModuleConstants.MODULE_DIR + "/post-exec.txt; grep -v \"OxygenCustomizerComponent" + name + "\" " + ModuleConstants.MODULE_DIR + "/post-exec.txt > " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp && mv " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp " + ModuleConstants.MODULE_DIR + "/post-exec.sh; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp").submit();
         }
 
-        Shell.cmd(command.toString().trim()).submit();
+        if (!command.isEmpty()) {
+            Shell.cmd(command.toString().trim()).submit();
+        }
     }
 
     public static boolean isOverlayEnabled(String name) {

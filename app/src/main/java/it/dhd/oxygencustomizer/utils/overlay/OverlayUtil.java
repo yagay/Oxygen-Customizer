@@ -34,7 +34,7 @@ public class OverlayUtil {
 
     public static List<String> getOverlayForComponent(String componentName) {
         if (!isSafeIdentifier(componentName)) return Collections.emptyList();
-        return Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponent" + componentName + "'").exec().getOut();
+        return Shell.cmd("cmd overlay list | grep -F 'OxygenCustomizerComponent" + componentName + "'").exec().getOut();
     }
 
     public static boolean isOverlayEnabled(String pkgName) {
@@ -86,7 +86,9 @@ public class OverlayUtil {
             command.append("cmd overlay enable --user current ").append(pkgName).append("; cmd overlay set-priority ").append(pkgName).append(" highest; ");
         }
 
-        Shell.cmd(command.toString().trim()).submit();
+        if (!command.isEmpty()) {
+            Shell.cmd(command.toString().trim()).submit();
+        }
     }
 
     public static void enableOverlayExclusiveInCategory(String pkgName) {
@@ -99,11 +101,18 @@ public class OverlayUtil {
         StringBuilder command = new StringBuilder();
 
         for (String pkgName : pkgNames) {
+            if (!isSafeOverlayPackage(pkgName)) continue;
             Prefs.putBoolean(pkgName, true);
-            command.append("cmd overlay enable-exclusive --user current --category ").append(pkgName).append("; cmd overlay set-priority ").append(pkgName).append(" highest; ");
+            command.append("cmd overlay enable-exclusive --user current --category ")
+                    .append(pkgName)
+                    .append("; cmd overlay set-priority ")
+                    .append(pkgName)
+                    .append(" highest; ");
         }
 
-        Shell.cmd(command.toString().trim()).submit();
+        if (!command.isEmpty()) {
+            Shell.cmd(command.toString().trim()).submit();
+        }
     }
 
     public static void disableOverlay(String pkgName) {
@@ -124,7 +133,9 @@ public class OverlayUtil {
             command.append("cmd overlay disable --user current ").append(pkgName).append("; ");
         }
 
-        Shell.cmd(command.toString().trim()).submit();
+        if (!command.isEmpty()) {
+            Shell.cmd(command.toString().trim()).submit();
+        }
     }
 
     public static void changeOverlayState(Object... args) {
@@ -148,7 +159,9 @@ public class OverlayUtil {
             }
         }
 
-        Shell.cmd(command.toString().trim()).submit();
+        if (!command.isEmpty()) {
+            Shell.cmd(command.toString().trim()).submit();
+        }
     }
 
     public static boolean overlayExists() {
