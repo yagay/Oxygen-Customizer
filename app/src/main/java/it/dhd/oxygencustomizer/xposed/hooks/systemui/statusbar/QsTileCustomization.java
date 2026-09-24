@@ -818,13 +818,20 @@ public class QsTileCustomization extends XposedMods {
         OplusQsMediaPanelView
                 .afterConstruction()
                 .run(param -> {
-                    if (qsCustomMediaTileColor) {
-                        mStaticViewBackgroundProxy = new StaticViewBackgroundProxyImplOC((QsStaticViewInfoProvider) param.thisObject);
-                        QsViewBackgroundProxy mBackgroundProxy = (QsViewBackgroundProxy) getObjectField(param.thisObject, "backgroundProxy");
-                        mStaticViewBackgroundProxy.setColors(qsMediaTileColor);
-                        mBackgroundProxy = mStaticViewBackgroundProxy;
-                        setObjectField(param.thisObject, "backgroundProxy", mBackgroundProxy);
+                    if (!qsCustomMediaTileColor) return;
+                    if (!(param.thisObject instanceof QsStaticViewInfoProvider panelInfo)) {
+                        log("Skipping custom media color: "
+                                + param.thisObject.getClass().getName()
+                                + " does not implement QsStaticViewInfoProvider");
+                        return;
                     }
+
+                    mStaticViewBackgroundProxy = new StaticViewBackgroundProxyImplOC(panelInfo);
+                    QsViewBackgroundProxy mBackgroundProxy =
+                            (QsViewBackgroundProxy) getObjectField(param.thisObject, "backgroundProxy");
+                    mStaticViewBackgroundProxy.setColors(qsMediaTileColor);
+                    mBackgroundProxy = mStaticViewBackgroundProxy;
+                    setObjectField(param.thisObject, "backgroundProxy", mBackgroundProxy);
                 });
         OplusQsMediaPanelView
                 .before("getBgOutlineProvider")

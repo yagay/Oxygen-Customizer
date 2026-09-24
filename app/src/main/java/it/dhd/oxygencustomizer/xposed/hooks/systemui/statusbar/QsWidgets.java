@@ -241,11 +241,18 @@ public class QsWidgets extends XposedMods {
                     .run(param -> {
                         if (!mQsWidgetsEnabled) return;
                         try {
+                            if (!(param.thisObject instanceof QsStaticViewInfoProvider panelInfo)) {
+                                log("Skipping media background proxy: "
+                                        + param.thisObject.getClass().getName()
+                                        + " does not implement QsStaticViewInfoProvider");
+                                return;
+                            }
+
                             QsViewBackgroundProxy TransparentBackgroundProxy;
                             if (BaseQsViewBackgroundClz.getClazz() != null) {
-                                TransparentBackgroundProxy = new StaticViewBackgroundProxyImplOC((QsStaticViewInfoProvider) param.thisObject);
+                                TransparentBackgroundProxy = new StaticViewBackgroundProxyImplOC(panelInfo);
                             } else {
-                                TransparentBackgroundProxy = new StaticViewBackgroundProxyImplExOC((QsStaticViewInfoProvider) param.thisObject);
+                                TransparentBackgroundProxy = new StaticViewBackgroundProxyImplExOC(panelInfo);
                             }
                             QsViewBackgroundProxy mBackgroundProxy = (QsViewBackgroundProxy) getObjectField(param.thisObject, "backgroundProxy");
                             mBackgroundProxy = TransparentBackgroundProxy;
