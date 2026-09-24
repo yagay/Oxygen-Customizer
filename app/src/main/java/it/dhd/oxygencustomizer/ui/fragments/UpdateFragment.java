@@ -417,6 +417,9 @@ public class UpdateFragment extends BaseFragment {
                             }
                         } catch (Exception ignored) {
                         }
+                        if (!rebootPending && !hasDownloadSource(mCurrentFlavor, result)) {
+                            enable = false;
+                        }
                         view.findViewById(R.id.updateBtn).setEnabled(enable);
                         ((Button) view.findViewById(R.id.updateBtn)).setText(BtnText);
                     });
@@ -430,6 +433,11 @@ public class UpdateFragment extends BaseFragment {
             if (rebootPending) {
                 Shell.cmd("reboot");
             } else {
+                if (latestVersion == null || !hasDownloadSource(mCurrentFlavor, latestVersion)) {
+                    Toast.makeText(requireContext(), R.string.try_again_later, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
                 String zipURL = (String) latestVersion.get("apkUrl");
                 if (zipURL == null) zipURL = (String) latestVersion.get("apkUrl");
                 if (mCurrentFlavor == Flavor.NIGHTLY) {
@@ -464,6 +472,18 @@ public class UpdateFragment extends BaseFragment {
 /*    private void getChangelog(String URL, TaskDoneCallback callback) {
         new ChangelogReceiver(URL, callback).start();
     }*/
+
+    private static boolean hasDownloadSource(Flavor flavor, HashMap<String, Object> versionInfo) {
+        if (versionInfo == null) return false;
+
+        if (flavor == Flavor.NIGHTLY) {
+            Object actionRun = versionInfo.get("actionRun");
+            return actionRun instanceof Number && ((Number) actionRun).longValue() > 0;
+        }
+
+        Object apkUrl = versionInfo.get("apkUrl");
+        return apkUrl instanceof String && !TextUtils.isEmpty(((String) apkUrl).trim());
+    }
 
     private void getCurrentVersion() {
         rebootPending = false;
@@ -569,15 +589,19 @@ public class UpdateFragment extends BaseFragment {
                     HashMap<String, Object> beta = loadVersionInfoFromUrl(betaUpdatesURL);
                     HashMap<String, Object> nightly = loadVersionInfoFromUrl(nightlyUpdatesURL);
 
-                    best = stable;
-                    int bestCode = (int) stable.get("versionCode");
+                    best = null;
+                    int bestCode = -1;
 
-                    if (beta != null && (int) beta.get("versionCode") > bestCode) {
-                        best = beta;
-                        bestCode = (int) beta.get("versionCode");
-                    }
-                    if (nightly != null && (int) nightly.get("versionCode") >= bestCode) {
-                        best = nightly;
+                    for (HashMap<String, Object> candidate : new HashMap[]{stable, beta, nightly}) {
+                        if (candidate == null) continue;
+                        Object codeValue = candidate.get("versionCode");
+                        if (!(codeValue instanceof Integer)) continue;
+                        int candidateCode = (int) codeValue;
+                        if (best == null || candidateCode > bestCode
+                                || (candidate == nightly && candidateCode == bestCode)) {
+                            best = candidate;
+                            bestCode = candidateCode;
+                        }
                     }
                 } else {
                     best = loadVersionInfoFromUrl(
@@ -586,7 +610,14 @@ public class UpdateFragment extends BaseFragment {
                                     (mFlavor == Flavor.BETA ? betaUpdatesURL : stableUpdatesURL));
                 }
 
-                mCallback.onFinished(best);
+                if (best == null) {
+                    HashMap<String, Object> error = new HashMap<>();
+                    error.put("version", "Connection Error");
+                    error.put("versionCode", -1);
+                    mCallback.onFinished(error);
+                } else {
+                    mCallback.onFinished(best);
+                }
             } catch (Exception e) {
                 HashMap<String, Object> error = new HashMap<>();
                 error.put("version", "Connection Error");
