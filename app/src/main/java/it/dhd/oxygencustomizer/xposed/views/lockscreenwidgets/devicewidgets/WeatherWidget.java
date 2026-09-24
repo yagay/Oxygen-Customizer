@@ -41,6 +41,7 @@ public class WeatherWidget extends BaseDeviceWidget implements OmniJawsClient.Om
     private final int PROGRESS_HUMIDITY = 1;
     private final int PROGRESS_WIND = 2;
     private int progressType = PROGRESS_TEMPERATURE;
+    private boolean mWeatherUpdatesEnabled = false;
 
     public WeatherWidget(Context context, boolean settingsInterface) {
         super(context, settingsInterface);
@@ -73,11 +74,33 @@ public class WeatherWidget extends BaseDeviceWidget implements OmniJawsClient.Om
     }
 
     public void enableUpdates() {
-        if (mWeatherClient != null) {
+        if (mWeatherClient != null && !mWeatherUpdatesEnabled) {
             mWeatherClient.addObserver(this);
+            mWeatherUpdatesEnabled = true;
             //WeatherScheduler.scheduleUpdateNow(mContext);
             queryAndUpdateWeather();
         }
+    }
+
+    private void disableUpdates() {
+        if (mWeatherClient != null && mWeatherUpdatesEnabled) {
+            mWeatherClient.removeObserver(this);
+            mWeatherUpdatesEnabled = false;
+        }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (mCurrentMode == WidgetMode.BIG) {
+            enableUpdates();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        disableUpdates();
+        super.onDetachedFromWindow();
     }
 
     private void queryAndUpdateWeather() {
@@ -208,6 +231,7 @@ public class WeatherWidget extends BaseDeviceWidget implements OmniJawsClient.Om
         super.onWidgetModeChanged();
         removeAllViews();
         if (mCurrentMode == WidgetMode.SMALL) {
+            disableUpdates();
             try {
                 ((ViewGroup) mTempProgress.getParent()).removeView(mTempProgress);
             } catch (Throwable ignored) {
@@ -217,7 +241,9 @@ public class WeatherWidget extends BaseDeviceWidget implements OmniJawsClient.Om
             return;
         }
         inflateView();
-        enableUpdates();
+        if (isAttachedToWindow()) {
+            enableUpdates();
+        }
     }
 
     @Override
