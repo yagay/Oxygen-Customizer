@@ -53,10 +53,13 @@ import androidx.annotation.Nullable;
 
 import org.jetbrains.annotations.Contract;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import de.robv.android.xposed.XposedBridge;
 import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.utils.AppUtils;
 import it.dhd.oxygencustomizer.xposed.XPLauncher;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 
 public class SystemUtils {
     private static final int THREAD_PRIORITY_BACKGROUND = 10;
@@ -289,27 +292,26 @@ public class SystemUtils {
         }
     }
 
-    static boolean darkSwitching = false;
+    private static final AtomicBoolean darkSwitching = new AtomicBoolean(false);
 
     public static void doubleToggleDarkMode() {
+        if (!darkSwitching.compareAndSet(false, true)) {
+            return;
+        }
+
         XPLauncher.enqueueProxyCommand(proxy -> {
             boolean isDark = isDarkMode();
             new Thread(() -> {
                 try {
-                    while (darkSwitching) {
-                        Thread.currentThread().wait(100);
-                    }
-                    darkSwitching = true;
-
                     proxy.runCommand("cmd uimode night " + (isDark ? "no" : "yes"));
                     threadSleep(1000);
                     proxy.runCommand("cmd uimode night " + (isDark ? "yes" : "no"));
-
                     threadSleep(500);
-                    darkSwitching = false;
                 } catch (Exception ignored) {
+                } finally {
+                    darkSwitching.set(false);
                 }
-            }).start();
+            }, "OC-DarkModeToggle").start();
         });
     }
 
@@ -644,12 +646,18 @@ public class SystemUtils {
         return 0;
     }
 
+    private static void sendInternalBroadcast(Intent intent) {
+        if (instance == null || intent == null) return;
+        XPrefs.addInternalBroadcastToken(intent);
+        instance.mContext.sendBroadcast(intent);
+    }
+
     public static void sendRingerTipIntent(int ringerMode) {
         Intent ringer = new Intent(ACTION_INTENT_RINGER_TIP);
         ringer.setPackage(SYSTEM_UI);
         ringer.putExtra(RINGER_TIP_MODE, ringerMode);
         ringer.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-        instance.mContext.sendBroadcast(ringer);
+        sendInternalBroadcast(ringer);
     }
 
     public static void sendFlashIntent(boolean onOff){
@@ -657,7 +665,7 @@ public class SystemUtils {
         flashIntent.setPackage(SYSTEM_UI);
         flashIntent.putExtra(FLASHLIGHT_TIP_STATE, onOff ? 1 : 2);
         flashIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-        instance.mContext.sendBroadcast(flashIntent);
+        sendInternalBroadcast(flashIntent);
     }
 
     /**
@@ -687,14 +695,14 @@ public class SystemUtils {
         Intent intent = new Intent(ACTIONS_TOGGLE_PANEL);
         intent.setPackage(LAUNCHER);
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-        instance.mContext.sendBroadcast(intent);
+        sendInternalBroadcast(intent);
     }
 
     public static void toggleOneHanded() {
         Intent intent = new Intent(ACTIONS_TOGGLE_ONE_HANDED);
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         intent.setPackage(LAUNCHER);
-        instance.mContext.sendBroadcast(intent);
+        sendInternalBroadcast(intent);
     }
 
     public static void runCircleToSearch() {
@@ -709,14 +717,14 @@ public class SystemUtils {
         Intent intent = new Intent(ACTIONS_OPEN_QUICK_SETTINGS);
         intent.setPackage(SYSTEM_UI);
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-        instance.mContext.sendBroadcast(intent);
+        sendInternalBroadcast(intent);
     }
 
     public static void killForeground() {
         Intent intent = new Intent(ACTION_INTENT_KILL_APP);
         intent.setPackage(SYSTEM_UI);
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-        instance.mContext.sendBroadcast(intent);
+        sendInternalBroadcast(intent);
     }
 
     public static void goToSleep() {

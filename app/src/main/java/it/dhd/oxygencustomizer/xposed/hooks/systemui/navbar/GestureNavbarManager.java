@@ -55,6 +55,7 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.xposed.ResourceManager;
 import it.dhd.oxygencustomizer.xposed.XPLauncher;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 import it.dhd.oxygencustomizer.xposed.utils.ActivityLauncherUtils;
 import it.dhd.oxygencustomizer.xposed.utils.DrawableConverter;
@@ -95,6 +96,7 @@ public class GestureNavbarManager extends XposedMods {
     private final BroadcastReceiver mSwitchAppReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!XPrefs.isTrustedInternalBroadcast(intent)) return;
             int side = intent.getIntExtra("side", 0);
             switchApp(side);
         }
@@ -103,6 +105,7 @@ public class GestureNavbarManager extends XposedMods {
     private final BroadcastReceiver mOverrideBackReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!XPrefs.isTrustedInternalBroadcast(intent)) return;
             int side = intent.getIntExtra("side", 0);
             if (overrideMode == 0) {
                 if (overrideLeft == 0) return;
@@ -122,6 +125,7 @@ public class GestureNavbarManager extends XposedMods {
     private final BroadcastReceiver mAppKiller = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!XPrefs.isTrustedInternalBroadcast(intent)) return;
             killForegroundApp();
         }
     };

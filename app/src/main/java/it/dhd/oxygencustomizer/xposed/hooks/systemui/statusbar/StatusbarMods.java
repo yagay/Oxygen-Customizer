@@ -50,6 +50,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 import it.dhd.oxygencustomizer.xposed.utils.DrawableSize;
 import it.dhd.oxygencustomizer.xposed.utils.SystemUtils;
@@ -90,7 +91,9 @@ public class StatusbarMods extends XposedMods {
                         updateStatusbarHeight();
                         break;
                     case ACTIONS_OPEN_QUICK_SETTINGS:
-                        openQuickSettings();
+                        if (XPrefs.isTrustedInternalBroadcast(intent)) {
+                            openQuickSettings();
+                        }
                         break;
                 }
             }

@@ -30,6 +30,7 @@ import com.oplus.systemui.seedlingservice.eventmanager.EventDispatch;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 import it.dhd.oxygencustomizer.xposed.utils.toolkit.ReflectedClass;
 
@@ -61,7 +62,10 @@ public class OpUtils extends XposedMods {
     private final BroadcastReceiver mRingerTipReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent.getAction() != null && intent.getAction().equals(ACTION_INTENT_RINGER_TIP)) {
+            if (!XPrefs.isTrustedInternalBroadcast(intent) || intent.getAction() == null) {
+                return;
+            }
+            if (intent.getAction().equals(ACTION_INTENT_RINGER_TIP)) {
                 Log.d("OxygenCustomizer", "Ringer tip intent received");
                 int ringerTip = intent.getIntExtra(RINGER_TIP_MODE, 0);
                 String desc, imagePath;

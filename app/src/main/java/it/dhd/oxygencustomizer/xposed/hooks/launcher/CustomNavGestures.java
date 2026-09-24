@@ -44,6 +44,7 @@ import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.AppUtils;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 import it.dhd.oxygencustomizer.xposed.utils.ScreenshotUtils;
 import it.dhd.oxygencustomizer.xposed.utils.SystemUtils;
@@ -108,6 +109,9 @@ public class CustomNavGestures extends XposedMods {
 	private final BroadcastReceiver mSystemUiReceiver = new BroadcastReceiver() {
 		@Override
 		public void onReceive(Context context, Intent intent) {
+			if (!XPrefs.isTrustedInternalBroadcast(intent) || intent.getAction() == null) {
+				return;
+			}
 			switch (intent.getAction()) {
 				case ACTIONS_TOGGLE_ONE_HANDED:
 					startOneHandedMode();
@@ -429,14 +433,18 @@ public class CustomNavGestures extends XposedMods {
 	private void switchApp(boolean isOnLeftEdge) {
 		Intent intent = new Intent(ACTIONS_SWITCH_APP);
 		intent.putExtra("side", !isOnLeftEdge ? 1 : 0);
+		intent.setPackage("com.android.systemui");
 		intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+		XPrefs.addInternalBroadcastToken(intent);
 		mContext.sendBroadcast(intent);
 	}
 
 	private void overrideBack(int side) {
 		Intent intent = new Intent(ACTIONS_OVERRIDE_BACK);
 		intent.putExtra("side", side);
+		intent.setPackage("com.android.systemui");
 		intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+		XPrefs.addInternalBroadcastToken(intent);
 		mContext.sendBroadcast(intent);
 	}
 
