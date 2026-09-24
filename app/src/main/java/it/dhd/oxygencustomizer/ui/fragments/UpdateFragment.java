@@ -43,6 +43,7 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
 import java.util.HashMap;
+import java.util.UUID;
 import java.util.zip.ZipFile;
 
 import javax.security.auth.callback.Callback;
@@ -55,6 +56,7 @@ import it.dhd.oxygencustomizer.databinding.FragmentUpdatesBinding;
 import it.dhd.oxygencustomizer.ui.activity.MainActivity;
 import it.dhd.oxygencustomizer.ui.base.BaseFragment;
 import it.dhd.oxygencustomizer.ui.dialogs.LoadingDialog;
+import it.dhd.oxygencustomizer.utils.Prefs;
 import it.dhd.oxygencustomizer.utils.RootUtil;
 import it.dhd.oxygencustomizer.utils.ThemeUtils;
 
@@ -191,12 +193,32 @@ public class UpdateFragment extends BaseFragment {
     }
 
     private void installApk(String downloadPath) {
+        if (!isTrustedDownloadPath(downloadPath)) {
+            Log.e("UpdateFragment", "Refusing to install untrusted update path: " + downloadPath);
+            Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         Intent promptInstall = new Intent(Intent.ACTION_VIEW).setDataAndType(
                 FileProvider.getUriForFile(requireContext(), BuildConfig.APPLICATION_ID + ".fileprovider", new File(downloadPath)),
                 "application/vnd.android.package-archive");
         promptInstall.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         promptInstall.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         getContext().startActivity(promptInstall);
+    }
+
+    private boolean isTrustedDownloadPath(String downloadPath) {
+        if (TextUtils.isEmpty(downloadPath)) return false;
+        try {
+            File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    .getCanonicalFile();
+            File candidate = new File(downloadPath).getCanonicalFile();
+            return candidate.isFile()
+                    && candidate.getPath().startsWith(downloads.getPath() + File.separator);
+        } catch (Exception e) {
+            Log.e("UpdateFragment", "Unable to validate update path", e);
+            return false;
+        }
     }
 
     public void unzip(String fileName, UnZipCallback callback) {
@@ -452,6 +474,9 @@ public class UpdateFragment extends BaseFragment {
             return;
         }
 
+        String updateToken = UUID.randomUUID().toString();
+        Prefs.putString("pending_update_token", updateToken);
+
         Intent notificationIntent = new Intent(getContext(), MainActivity.class);
         notificationIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         notificationIntent.setAction(Intent.ACTION_RUN);
@@ -459,6 +484,7 @@ public class UpdateFragment extends BaseFragment {
         notificationIntent.putExtra("updateTapped", true);
         notificationIntent.putExtra("filePath", downloadedFilePath);
         notificationIntent.putExtra("isNightly", mNightlyDownloaded);
+        notificationIntent.putExtra("updateToken", updateToken);
 
         PendingIntent pendingIntent = PendingIntent.getActivity(getContext(), 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
 

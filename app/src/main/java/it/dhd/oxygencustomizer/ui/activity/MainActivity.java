@@ -9,6 +9,7 @@ import android.app.NotificationManager;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.text.TextUtils;
 import android.view.MenuItem;
 
 import androidx.annotation.NonNull;
@@ -65,6 +66,7 @@ import it.dhd.oxygencustomizer.ui.preferences.preferencesearch.SearchPreferenceR
 import it.dhd.oxygencustomizer.utils.AppUtils;
 import it.dhd.oxygencustomizer.utils.Constants;
 import it.dhd.oxygencustomizer.utils.PreferenceHelper;
+import it.dhd.oxygencustomizer.utils.Prefs;
 import it.dhd.oxygencustomizer.utils.ShortcutUtils;
 import it.dhd.oxygencustomizer.utils.overlay.OverlayUtil;
 import it.dhd.oxygencustomizer.xposed.utils.ExtendedSharedPreferences;
@@ -100,7 +102,7 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
         }
 
         if (getIntent() != null) {
-            if (getIntent().getBooleanExtra("updateTapped", false)) {
+            if (getIntent().getBooleanExtra("updateTapped", false) && isValidUpdateIntent(getIntent())) {
                 Intent intent = getIntent();
                 Bundle bundle = new Bundle();
                 bundle.putBoolean("updateTapped", intent.getBooleanExtra("updateTapped", false));
@@ -174,6 +176,16 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
 
         ShortcutUtils shortcutUtils = new ShortcutUtils(this);
         shortcutUtils.setupShortcut();
+    }
+
+    private boolean isValidUpdateIntent(Intent intent) {
+        String expectedToken = Prefs.getString("pending_update_token", "");
+        String providedToken = intent.getStringExtra("updateToken");
+        boolean valid = !TextUtils.isEmpty(expectedToken) && expectedToken.equals(providedToken);
+        if (valid) {
+            Prefs.clearPref("pending_update_token");
+        }
+        return valid;
     }
 
     @SuppressLint("NonConstantResourceId")
