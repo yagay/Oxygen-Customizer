@@ -15,7 +15,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.FileUtils;
 import android.text.TextUtils;
 import android.util.JsonReader;
 import android.util.Log;
@@ -45,11 +44,14 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 import javax.security.auth.callback.Callback;
@@ -259,26 +261,55 @@ public class UpdateFragment extends BaseFragment {
     }
 
     public void unzip(String fileName, UnZipCallback callback) {
-        File unzippedFile = null;
+        File outputApk = null;
         File fileToUnzip = new File(fileName);
         try (ZipFile unzipper = new ZipFile(fileToUnzip)) {
-
-            //unzip once, IF double zipped
-            File parentDirectory = fileToUnzip.getParentFile();
-            String fileNameWithoutExtension = fileToUnzip.getName().substring(0, fileToUnzip.getName().lastIndexOf('.'));
-            unzippedFile = new File(parentDirectory, fileNameWithoutExtension + ".apk");
-
-            if (unzipper.stream().count() == 1) {
-                try (FileOutputStream unzipOutputStream = new FileOutputStream(unzippedFile)) {
-                    FileUtils.copy(unzipper.getInputStream(unzipper.entries().nextElement()), unzipOutputStream);
+            ZipEntry apkEntry = null;
+            Enumeration<? extends ZipEntry> entries = unzipper.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory() || !entry.getName().toLowerCase().endsWith(".apk")) {
+                    continue;
                 }
-            } else {
-                unzippedFile = new File(fileName);
+                if (apkEntry != null) {
+                    throw new IllegalStateException("Nightly archive contains multiple APK files");
+                }
+                apkEntry = entry;
+            }
+
+            if (apkEntry == null) {
+                throw new IllegalStateException("Nightly archive does not contain an APK");
+            }
+
+            File parentDirectory = fileToUnzip.getParentFile();
+            if (parentDirectory == null) {
+                throw new IllegalStateException("Nightly archive has no parent directory");
+            }
+            String baseName = fileToUnzip.getName();
+            int extensionIndex = baseName.lastIndexOf('.');
+            if (extensionIndex > 0) {
+                baseName = baseName.substring(0, extensionIndex);
+            }
+            outputApk = new File(parentDirectory, baseName + ".apk");
+
+            try (InputStream zipInput = unzipper.getInputStream(apkEntry);
+                 FileOutputStream unzipOutputStream = new FileOutputStream(outputApk)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = zipInput.read(buffer)) != -1) {
+                    unzipOutputStream.write(buffer, 0, read);
+                }
+                unzipOutputStream.flush();
             }
         } catch (Exception e) {
             Log.e("UpdateFragment", "zip install error: ", e);
+            if (outputApk != null) {
+                //noinspection ResultOfMethodCallIgnored
+                outputApk.delete();
+            }
+            outputApk = null;
         }
-        callback.onFinished(unzippedFile);
+        callback.onFinished(outputApk);
     }
 
     public interface UnZipCallback extends Callback {
@@ -439,7 +470,6 @@ public class UpdateFragment extends BaseFragment {
                 }
 
                 String zipURL = (String) latestVersion.get("apkUrl");
-                if (zipURL == null) zipURL = (String) latestVersion.get("apkUrl");
                 if (mCurrentFlavor == Flavor.NIGHTLY) {
                     mNightlyDownloaded = true;
                     zipURL = String.format(
@@ -628,11 +658,21 @@ public class UpdateFragment extends BaseFragment {
         }
 
         private HashMap<String, Object> loadVersionInfoFromUrl(String urlString) {
+            HttpURLConnection connection = null;
             try {
                 URL url = new URL(urlString);
-                InputStream s = url.openStream();
-                InputStreamReader r = new InputStreamReader(s);
-                JsonReader jsonReader = new JsonReader(r);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(10_000);
+                connection.setReadTimeout(10_000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("Accept", "application/json");
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode < 200 || responseCode >= 300) {
+                    Log.w("UpdateChecker", "Metadata request failed with HTTP " + responseCode
+                            + " from: " + urlString);
+                    return null;
+                }
 
                 HashMap<String, Object> versionInfo = new HashMap<>();
                 switch (urlString) {
@@ -646,32 +686,36 @@ public class UpdateFragment extends BaseFragment {
                         versionInfo.put("versionType", NIGHTLY);
                         break;
                 }
-                jsonReader.beginObject();
-                while (jsonReader.hasNext()) {
-                    String name = jsonReader.nextName();
-                    switch (name) {
-                        case "actionRun":
-                            versionInfo.put(name, jsonReader.nextLong());
-                            break;
-                        case "versionCode":
-                        case "devBuild":
-                            versionInfo.put(name, jsonReader.nextInt());
-                            break;
-                        case "apkUrl":
-                        case "version":
-                        case "changelog":
-                        default:
-                            versionInfo.put(name, jsonReader.nextString());
-                            break;
+                try (InputStream stream = connection.getInputStream();
+                     InputStreamReader reader = new InputStreamReader(stream);
+                     JsonReader jsonReader = new JsonReader(reader)) {
+                    jsonReader.beginObject();
+                    while (jsonReader.hasNext()) {
+                        String name = jsonReader.nextName();
+                        switch (name) {
+                            case "actionRun":
+                                versionInfo.put(name, jsonReader.nextLong());
+                                break;
+                            case "versionCode":
+                            case "devBuild":
+                                versionInfo.put(name, jsonReader.nextInt());
+                                break;
+                            default:
+                                versionInfo.put(name, jsonReader.nextString());
+                                break;
+                        }
                     }
+                    jsonReader.endObject();
                 }
-                jsonReader.endObject();
-                jsonReader.close();
                 Log.d("UpdateChecker", "Loaded version info: " + versionInfo + " from: " + urlString);
                 return versionInfo;
             } catch (Exception e) {
                 Log.e("UpdateChecker", "Failed to load version info from: " + urlString, e);
                 return null;
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
         }
 
