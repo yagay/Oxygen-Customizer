@@ -80,6 +80,8 @@ public class NowBarHolder extends LinearLayout {
     private int mLeftMargin, mRightMargin, mBottomMargin;
 
     private boolean isChargingStatusHandled = false;
+    private boolean mBatteryReceiverRegistered = false;
+    private final AudioDataProvider.AudioInfoCallbacks mAudioInfoCallback = this::showMusicNowBarIfNeeded;
 
     private void updateBackground(boolean expanded) {
         if (mBackgroundMode == 0) {
@@ -201,7 +203,8 @@ public class NowBarHolder extends LinearLayout {
         } catch (Throwable t) {
             XposedBridge.log(this.getClass().getSimpleName() + " - " + Log.getStackTraceString(t));
         }
-        mPages.addAll(List.of(mNowBarMusic, mNowBarBattery));
+        if (mNowBarMusic != null) mPages.add(mNowBarMusic);
+        if (mNowBarBattery != null) mPages.add(mNowBarBattery);
         setupPager();
         mViewPager.setPageTransformer(false, new PageTransitionTransformer());
         mViewPager.addOnPageChangeListener(new ViewPager.SimpleOnPageChangeListener() {
@@ -215,10 +218,6 @@ public class NowBarHolder extends LinearLayout {
         });
         mPagerContainer.addView(mViewPager);
         addView(view);
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_BATTERY_CHANGED);
-        filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
-        mContext.registerReceiver(batteryReceiver, filter, Context.RECEIVER_EXPORTED);
         mController.setNowBarHolder(this);
     }
 
@@ -260,12 +259,15 @@ public class NowBarHolder extends LinearLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        IntentFilter filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_BATTERY_CHANGED);
-        filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
-        mContext.registerReceiver(batteryReceiver, filter, Context.RECEIVER_EXPORTED);
+        if (!mBatteryReceiverRegistered) {
+            IntentFilter filter = new IntentFilter();
+            filter.addAction(Intent.ACTION_BATTERY_CHANGED);
+            filter.addAction(Intent.ACTION_POWER_DISCONNECTED);
+            mContext.registerReceiver(batteryReceiver, filter, Context.RECEIVER_EXPORTED);
+            mBatteryReceiverRegistered = true;
+        }
         mController.setNowBarHolder(this);
-        AudioDataProvider.registerInfoCallback(this::showMusicNowBarIfNeeded);
+        AudioDataProvider.registerInfoCallback(mAudioInfoCallback);
         GradientDrawable background = new GradientDrawable();
         background.setColor(Color.parseColor("#6F161616"));
         if (Build.VERSION.SDK_INT >= 35) {
@@ -287,8 +289,15 @@ public class NowBarHolder extends LinearLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        AudioDataProvider.unregisterInfoCallback(mAudioInfoCallback);
+        if (mBatteryReceiverRegistered) {
+            try {
+                mContext.unregisterReceiver(batteryReceiver);
+            } catch (Throwable ignored) {
+            }
+            mBatteryReceiverRegistered = false;
+        }
         super.onDetachedFromWindow();
-        mContext.unregisterReceiver(batteryReceiver);
     }
 
     private static class PageTransitionTransformer implements ViewPager.PageTransformer {
@@ -338,7 +347,8 @@ public class NowBarHolder extends LinearLayout {
         mViewPager.setAdapter(null);
         mPages.clear();
         mPagerAdapter.notifyDataSetChanged();
-        mPages.addAll(List.of(mNowBarMusic, mNowBarBattery));
+        if (mNowBarMusic != null) mPages.add(mNowBarMusic);
+        if (mNowBarBattery != null) mPages.add(mNowBarBattery);
         if (mWeatherEnabled) mPages.add(mNowBarWeather);
         if (mNotificationEnabled) mPages.add(mNowBarNotification);
         mPagerAdapter.notifyDataSetChanged();
