@@ -819,7 +819,11 @@ public class QsTileCustomization extends XposedMods {
                 .afterConstruction()
                 .run(param -> {
                     if (qsCustomMediaTileColor) {
-                        mStaticViewBackgroundProxy = new StaticViewBackgroundProxyImplOC((QsStaticViewInfoProvider) param.thisObject);
+                        if (!(param.thisObject instanceof QsStaticViewInfoProvider staticViewInfoProvider)) {
+                            log("QsTileCustomization: media panel does not implement QsStaticViewInfoProvider; skipping custom media background");
+                            return;
+                        }
+                        mStaticViewBackgroundProxy = new StaticViewBackgroundProxyImplOC(staticViewInfoProvider);
                         QsViewBackgroundProxy mBackgroundProxy = (QsViewBackgroundProxy) getObjectField(param.thisObject, "backgroundProxy");
                         mStaticViewBackgroundProxy.setColors(qsMediaTileColor);
                         mBackgroundProxy = mStaticViewBackgroundProxy;
