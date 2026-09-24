@@ -63,13 +63,16 @@ public class UpdateFragment extends BaseFragment {
     public static final String MOD_NAME = "OxygenCustomizer";
     public static final String UPDATES_CHANNEL_ID = "Updates";
 
-    // Links
-    private static final String commitURL = "https://github.com/DHD2280/Oxygen-Customizer/commits/beta/";
-    private static final String stableUpdatesURL = "https://raw.githubusercontent.com/DHD2280/Oxygen-Customizer/stable/latestStable.json";
-    private static final String betaUpdatesURL = "https://raw.githubusercontent.com/DHD2280/Oxygen-Customizer/beta/latestBeta.json";
-    private static final String nightlyUpdatesURL = "https://raw.githubusercontent.com/DHD2280/Oxygen-Customizer/nightly-versioning/latestNightly.json";
-    private static final String NIGHTLY_LINK = "https://nightly.link/DHD2280/Oxygen-Customizer/actions/runs/%s";
-    private static final String NIGHTLY_DOWNLOAD = "https://nightly.link/DHD2280/Oxygen-Customizer/actions/runs/%s/Oxygen%%20Customizer%%20nightly-%s%%20Dev%%20(%%23%s).zip";
+    // Fork-owned beta/nightly channels. Stable stays on upstream until this fork
+    // publishes a stable channel of its own.
+    private static final String REPOSITORY = "yagay/Oxygen-Customizer";
+    private static final String UPSTREAM_REPOSITORY = "DHD2280/Oxygen-Customizer";
+    private static final String commitURL = "https://github.com/" + REPOSITORY + "/commits/beta/";
+    private static final String stableUpdatesURL = "https://raw.githubusercontent.com/" + UPSTREAM_REPOSITORY + "/stable/latestStable.json";
+    private static final String betaUpdatesURL = "https://raw.githubusercontent.com/" + REPOSITORY + "/beta/latestBeta.json";
+    private static final String nightlyUpdatesURL = "https://raw.githubusercontent.com/" + REPOSITORY + "/nightly-versioning/latestNightly.json";
+    private static final String NIGHTLY_LINK = "https://nightly.link/" + REPOSITORY + "/actions/runs/%s";
+    private static final String NIGHTLY_DOWNLOAD = "https://nightly.link/" + REPOSITORY + "/actions/runs/%s/Oxygen%%20Customizer%%20nightly-%s%%20Dev%%20(%%23%s).zip";
 
     // Flavor
     public static enum Flavor {
