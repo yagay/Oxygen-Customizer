@@ -2,7 +2,7 @@
 <paths>
     <external-path
         name="downloads"
-        path="." />
+        path="Download/" />
     <cache-path
         name="cache"
         path="." />
