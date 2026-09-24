@@ -23,10 +23,13 @@ import android.content.UriMatcher;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Binder;
+import android.os.Process;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.utils.WeatherScheduler;
 
 public class WeatherContentProvider extends ContentProvider {
@@ -240,11 +243,8 @@ public class WeatherContentProvider extends ContentProvider {
             throw new SecurityException("Unknown weather provider caller");
         }
 
-        Set<String> allowedReaders = new HashSet<>(
-                Arrays.asList(mContext.getResources().getStringArray(R.array.xposed_scope))
-        );
         for (String packageName : callerPackages) {
-            if (allowedReaders.contains(packageName)) {
+            if ("com.android.systemui".equals(packageName)) {
                 return;
             }
         }
