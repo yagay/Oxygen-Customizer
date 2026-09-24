@@ -140,7 +140,7 @@ public class WeatherContentProvider extends ContentProvider {
 
     private static final UriMatcher sUriMatcher;
     static {
-        sUriMatcher = new UriMatcher(URI_TYPE_WEATHER);
+        sUriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
         sUriMatcher.addURI(AUTHORITY, "weather", URI_TYPE_WEATHER);
         sUriMatcher.addURI(AUTHORITY, "settings", URI_TYPE_SETTINGS);
         sUriMatcher.addURI(AUTHORITY, "control", URI_TYPE_CONTROL);
@@ -165,6 +165,9 @@ public class WeatherContentProvider extends ContentProvider {
 
         enforceAllowedCaller();
         final int projectionType = sUriMatcher.match(uri);
+        if (projectionType != URI_TYPE_WEATHER && projectionType != URI_TYPE_SETTINGS) {
+            throw new IllegalArgumentException("Unsupported weather query URI: " + uri);
+        }
         final MatrixCursor result = new MatrixCursor(resolveProjection(projection, projectionType));
 
 
@@ -225,8 +228,9 @@ public class WeatherContentProvider extends ContentProvider {
         if (projection != null)
             return projection;
         return switch (uriType) {
-            default -> PROJECTION_DEFAULT_WEATHER;
+            case URI_TYPE_WEATHER -> PROJECTION_DEFAULT_WEATHER;
             case URI_TYPE_SETTINGS -> PROJECTION_DEFAULT_SETTINGS;
+            default -> throw new IllegalArgumentException("Unsupported weather URI type: " + uriType);
         };
     }
 
@@ -252,8 +256,9 @@ public class WeatherContentProvider extends ContentProvider {
     public int update(@NonNull Uri uri, ContentValues values, String selection, String[] selectionArgs) {
         enforceAllowedCaller();
         final int projectionType = sUriMatcher.match(uri);
-        if (projectionType == URI_TYPE_CONTROL) {
-            if (values.containsKey(COLUMN_FORCE_REFRESH) && values.getAsBoolean(COLUMN_FORCE_REFRESH)) {
+        if (projectionType == URI_TYPE_CONTROL && values != null) {
+            if (values.containsKey(COLUMN_FORCE_REFRESH)
+                    && Boolean.TRUE.equals(values.getAsBoolean(COLUMN_FORCE_REFRESH))) {
                 if (DEBUG) Log.i(TAG, "update: " + uri.toString() + " " + values);
                 WeatherScheduler.scheduleUpdateNow(mContext);
             }

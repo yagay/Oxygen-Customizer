@@ -95,6 +95,8 @@ public class OmniJawsClient {
 
     private static final String WEATHER_UPDATE = SERVICE_PACKAGE + ".WEATHER_UPDATE";
     private static final String WEATHER_ERROR = SERVICE_PACKAGE + ".WEATHER_ERROR";
+    private static final String WEATHER_BROADCAST_PERMISSION =
+            BuildConfig.APPLICATION_ID + ".permission.WEATHER_INTERNAL";
 
     private static final DecimalFormat sNoDigitsFormat = new DecimalFormat("0");
 
@@ -163,10 +165,10 @@ public class OmniJawsClient {
         public void onReceive(final Context context, Intent intent) {
             String action = intent.getAction();
             for (OmniJawsObserver observer : mObserver) {
-                if (action.equals(WEATHER_UPDATE)) {
+                if (WEATHER_UPDATE.equals(action)) {
                     observer.weatherUpdated();
                 }
-                if (action.equals(WEATHER_ERROR)) {
+                if (WEATHER_ERROR.equals(action)) {
                     int errorReason = intent.getIntExtra(EXTRA_ERROR, 0);
                     observer.weatherError(errorReason);
                 }
@@ -402,7 +404,13 @@ public class OmniJawsClient {
             filter.addAction(WEATHER_UPDATE);
             filter.addAction(WEATHER_ERROR);
             if (DEBUG) Log.d(TAG, "registerReceiver");
-            mContext.registerReceiver(mReceiver, filter, Context.RECEIVER_EXPORTED);
+            mContext.registerReceiver(
+                    mReceiver,
+                    filter,
+                    WEATHER_BROADCAST_PERMISSION,
+                    null,
+                    Context.RECEIVER_EXPORTED
+            );
         }
         mObserver.add(observer);
     }

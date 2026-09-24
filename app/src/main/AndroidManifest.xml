@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <permission
+        android:name="${applicationId}.permission.WEATHER_INTERNAL"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="${applicationId}.permission.WEATHER_INTERNAL" />
+
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -127,6 +132,7 @@
             android:name=".ui.activity.WeatherActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE"
             android:theme="@style/Theme.OxygenCustomizer" />
 
         <provider
