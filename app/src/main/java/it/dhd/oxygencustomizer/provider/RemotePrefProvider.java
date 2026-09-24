@@ -45,11 +45,6 @@ public class RemotePrefProvider extends RemotePreferenceProvider {
             return true;
         }
 
-        // Hooked host processes only need read access.
-        if (write) {
-            return false;
-        }
-
         final String[] packages = getContext() != null
                 ? getContext().getPackageManager().getPackagesForUid(callingUid)
                 : null;
@@ -57,11 +52,26 @@ public class RemotePrefProvider extends RemotePreferenceProvider {
             return false;
         }
 
+        boolean allowedHost = false;
         for (String packageName : packages) {
             if (READ_ALLOWED_PACKAGES.contains(packageName)) {
-                return true;
+                allowedHost = true;
+                break;
             }
         }
-        return false;
+        if (!allowedHost) {
+            return false;
+        }
+
+        if (!write) {
+            return true;
+        }
+
+        // Host processes may only maintain boot-loop health counters. All user
+        // configuration remains app-owned and read-only from injected processes.
+        return prefKey != null
+                && (prefKey.startsWith("packageLastLoad_")
+                    || prefKey.startsWith("packageStrike_"));
+
     }
 }
