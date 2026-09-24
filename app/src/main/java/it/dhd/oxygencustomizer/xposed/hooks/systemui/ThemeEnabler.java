@@ -42,11 +42,10 @@ public class ThemeEnabler extends XposedMods {
     @Override
     public void updatePrefs(String... Key) {
         if (Xprefs == null) return;
+        themeNum = -1;
         for (int i = 0; i < Xprefs.getInt("UiStylesThemes", 0); i++) {
             if (Xprefs.getBoolean("OxygenCustomizerComponentTH" + (i + 1) + ".overlay", false)) {
                 themeNum = (i + 1);
-            } else {
-                themeNum = -1;
             }
         }
     }
