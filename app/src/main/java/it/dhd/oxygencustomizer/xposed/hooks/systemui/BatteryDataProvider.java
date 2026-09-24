@@ -131,7 +131,9 @@ public class BatteryDataProvider extends XposedMods {
         BatteryStatusClass
                 .afterConstruction()
                 .run(param -> {
-                    mIsFastCharging = callMethod(param.thisObject, "getChargingSpeed", mContext).equals(CHARGING_FAST);
+                    Object chargingSpeed = callMethod(param.thisObject, "getChargingSpeed", mContext);
+                    mIsFastCharging = chargingSpeed instanceof Number
+                            && ((Number) chargingSpeed).intValue() == CHARGING_FAST;
                     if (param.args.length == 0) return;
                     if (param.args[0] instanceof Intent) {
                         try {
