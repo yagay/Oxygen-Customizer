@@ -377,7 +377,7 @@ public class PreferenceHelper {
                 boolean critZero = false, warnZero = false;
                 List<Float> BBarLevels = instance.mPreferences.getSliderValues("batteryWarningRange", 0);
 
-                if (!BBarLevels.isEmpty()) {
+                if (BBarLevels.size() >= 2) {
                     critZero = BBarLevels.get(0) == 0;
                     warnZero = BBarLevels.get(1) == 0;
                 }

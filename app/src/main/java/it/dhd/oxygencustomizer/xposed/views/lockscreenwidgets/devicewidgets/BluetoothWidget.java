@@ -403,7 +403,11 @@ public class BluetoothWidget extends BaseDeviceWidget {
     public View getSmallPreview() {
         ImageView preview = new ImageView(mContext);
         preview.setLayoutParams(new LinearLayout.LayoutParams(dp2px(mContext, 60), dp2px(mContext, 60)));
-        preview.setImageBitmap(mProgresses.get(0));
+        if (!mProgresses.isEmpty()) {
+            preview.setImageBitmap(mProgresses.get(0));
+        } else {
+            preview.setImageResource(R.drawable.ic_bluetooth);
+        }
         return preview;
     }
 

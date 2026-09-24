@@ -241,6 +241,7 @@ public class SeparateQsCustomization extends XposedMods {
         ViewGroup mVolumeTileContainer = (ViewGroup) getObjectField(obj, "mVolumeTileContainer");
         ViewGroup mFirstTileContainer = (ViewGroup) getObjectField(obj, "mFirstTileContainer");
         ViewGroup mSecondTileContainer = (ViewGroup) getObjectField(obj, "mSecondTileContainer");
+        if (mViewCells == null || mViewCells.isEmpty()) return;
         ReflectedClass ViewCellInfoClz = ReflectedClass.of(mViewCells.get(0).getClass());
         for (int i = 0; i < mViewCells.size(); i++) {
             OplusLargeTileContainerView.ViewCellInfo cell = (OplusLargeTileContainerView.ViewCellInfo) mViewCells.get(i);

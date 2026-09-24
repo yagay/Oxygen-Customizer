@@ -65,8 +65,10 @@ public class SleepOnFlat extends XposedMods {
                 .after("updatePowerStateLocked")
                 .run(param -> {
                     mPowerManagerServiceInstance = param.thisObject;
-                    unHooks.get(0).forEach(XC_MethodHook.Unhook::unhook);
-                    unHooks.clear();
+                    if (!unHooks.isEmpty()) {
+                        unHooks.get(0).forEach(XC_MethodHook.Unhook::unhook);
+                        unHooks.clear();
+                    }
                 }));
 
         FaceDownDetectorClass

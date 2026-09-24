@@ -92,31 +92,44 @@ public class WeatherWidget extends BaseDeviceWidget implements OmniJawsClient.Om
             mWeatherClient.queryWeather();
             mWeatherInfo = mWeatherClient.getWeatherInfo();
             if (mWeatherInfo != null) {
-                String formattedCondition = mWeatherInfo.condition;
-                if (formattedCondition.toLowerCase().contains("clouds") || formattedCondition.toLowerCase().contains("overcast")) {
+                String formattedCondition = mWeatherInfo.condition != null ? mWeatherInfo.condition : "";
+                String conditionLower = formattedCondition.toLowerCase();
+                if (conditionLower.contains("clouds") || conditionLower.contains("overcast")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_clouds);
-                } else if (formattedCondition.toLowerCase().contains("rain")) {
+                } else if (conditionLower.contains("rain")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_rain);
-                } else if (formattedCondition.toLowerCase().contains("clear")) {
+                } else if (conditionLower.contains("clear")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_clear);
-                } else if (formattedCondition.toLowerCase().contains("storm")) {
+                } else if (conditionLower.contains("storm")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_storm);
-                } else if (formattedCondition.toLowerCase().contains("snow")) {
+                } else if (conditionLower.contains("snow")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_snow);
-                } else if (formattedCondition.toLowerCase().contains("wind")) {
+                } else if (conditionLower.contains("wind")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_wind);
-                } else if (formattedCondition.toLowerCase().contains("mist")) {
+                } else if (conditionLower.contains("mist")) {
                     formattedCondition = appContext.getResources().getString(R.string.weather_condition_mist);
                 }
                 Drawable d = mWeatherClient.getWeatherConditionImage(mWeatherInfo.conditionCode);
-                d.setTintList(null);
-                mConditionImage.setImageTintList(null);
-                mConditionImage.setImageDrawable(d.getConstantState().newDrawable().mutate());
-                mLocation.setText(mWeatherInfo.city.trim() + " " + mWeatherInfo.temp + " " + mWeatherInfo.tempUnits);
+                if (d != null) {
+                    d.setTintList(null);
+                    mConditionImage.setImageTintList(null);
+                    Drawable.ConstantState state = d.getConstantState();
+                    mConditionImage.setImageDrawable(
+                            state != null ? state.newDrawable().mutate() : d.mutate()
+                    );
+                }
+                String city = mWeatherInfo.city != null ? mWeatherInfo.city.trim() : "";
+                mLocation.setText(city + " " + mWeatherInfo.temp + " " + mWeatherInfo.tempUnits);
                 mLocation.setTextColor(mTextColor);
                 mCurrentCondition.setText(formattedCondition);
                 mCurrentCondition.setTextColor(mTextColor);
-                mHighLow.setText("H: " + mWeatherInfo.dayForecasts.get(0).high + " " + mWeatherInfo.tempUnits + " L: " + mWeatherInfo.dayForecasts.get(0).low + " " + mWeatherInfo.tempUnits);
+                if (mWeatherInfo.dayForecasts != null && !mWeatherInfo.dayForecasts.isEmpty()) {
+                    OmniJawsClient.DayForecast today = mWeatherInfo.dayForecasts.get(0);
+                    mHighLow.setText("H: " + today.high + " " + mWeatherInfo.tempUnits
+                            + " L: " + today.low + " " + mWeatherInfo.tempUnits);
+                } else {
+                    mHighLow.setText("");
+                }
                 mHighLow.setTextColor(mTextColor);
                 updateProgress();
             }

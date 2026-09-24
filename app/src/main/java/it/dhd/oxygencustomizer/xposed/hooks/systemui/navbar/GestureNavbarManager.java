@@ -206,7 +206,7 @@ public class GestureNavbarManager extends XposedMods {
                             .run(param -> {
                                 if (SideGestureConfigurationEx == null) return;
                                 MotionEvent ev = (MotionEvent) param.args[0];
-                                if (getForegroundApp()[0].equals(getDefaultLauncherPackageName())) return;
+                                if (java.util.Objects.equals(getForegroundApp()[0], getDefaultLauncherPackageName())) return;
 
                                 Point mDisplaySize = (Point) getObjectField(param.thisObject, "mDisplaySize");
                                 boolean isLeftSide = ev.getX() < (mDisplaySize.x / 3f);
@@ -431,7 +431,7 @@ public class GestureNavbarManager extends XposedMods {
 
 
         float topLeft = backGestureHeightFractionLeft.size() == 2 ? backGestureHeightFractionLeft.get(1) / 100f : 1f;
-        float topRight = backGestureHeightFractionLeft.size() == 2 ? backGestureHeightFractionRight.get(1) / 100f : 1f;
+        float topRight = backGestureHeightFractionRight.size() == 2 ? backGestureHeightFractionRight.get(1) / 100f : 1f;
         float bottomLeft = backGestureHeightFractionLeft.size() == 2 ? backGestureHeightFractionLeft.get(0) / 100f : 0 / 100f;
         float bottomRight = backGestureHeightFractionRight.size() == 2 ? backGestureHeightFractionRight.get(0) / 100f : 0 / 100f;
 
@@ -462,15 +462,18 @@ public class GestureNavbarManager extends XposedMods {
 
     private String[] getForegroundApp() {
         ActivityManager am = (ActivityManager) mContext.getSystemService(Context.ACTIVITY_SERVICE);
-        List<ActivityManager.RunningAppProcessInfo> processes = am.getRunningAppProcesses();
+        List<ActivityManager.RunningAppProcessInfo> processes =
+                am != null ? am.getRunningAppProcesses() : null;
 
         String foregroundApp = null;
         String uid = null;
-        for (ActivityManager.RunningAppProcessInfo processInfo : processes) {
-            if (processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
-                foregroundApp = processInfo.processName;
-                uid = String.valueOf(processInfo.uid);
-                break;
+        if (processes != null) {
+            for (ActivityManager.RunningAppProcessInfo processInfo : processes) {
+                if (processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                    foregroundApp = processInfo.processName;
+                    uid = String.valueOf(processInfo.uid);
+                    break;
+                }
             }
         }
         return new String[]{foregroundApp, uid};
