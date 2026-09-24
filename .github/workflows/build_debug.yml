@@ -2,17 +2,30 @@ name: Build Nightly APK
 
 on:
   push:
-    branches: [ "beta" ]
+    branches:
+      - beta
+      - 'fix/**'
+  pull_request:
+    branches:
+      - beta
   workflow_dispatch:
 
-jobs:
+permissions:
+  contents: write
 
+jobs:
   build:
-    name: Build Nightly APK
+    name: Build APK
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: set up JDK 21
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -22,140 +35,104 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Get application version name
+      - name: Read application version
         run: |
-          echo "VERSION_NAME=nightly-$(($(cat app/build.gradle.kts | grep versionCode | tr -s ' ' | cut -d " " -f 4 | tr -d '\r')))" >> $GITHUB_ENV
-          echo "VERSION_CODE=$(cat app/build.gradle.kts | grep versionCode | tr -s ' ' | cut -d " " -f 4 | tr -d '\r')" >> $GITHUB_ENV
-          echo "NIGHTLY_VERSION=nightly-$(($(cat app/build.gradle.kts | grep versionCode | tr -s ' ' | cut -d " " -f 4 | tr -d '\r'))) Dev (#${{github.run_number}})" >> $GITHUB_ENV
+          VERSION_CODE=$(grep -m1 'versionCode =' app/build.gradle.kts | awk '{print $3}' | tr -d '\r')
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=nightly-$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "NIGHTLY_VERSION=nightly-$VERSION_CODE Dev (#${{ github.run_number }})" >> "$GITHUB_ENV"
 
-      - name: Bump application version code
+      - name: Set nightly version name
         uses: chkfung/android-version-actions@v1.2.3
         with:
           gradlePath: app/build.gradle.kts
-          versionName: "${{ env.VERSION_NAME }} (#${{github.run_number}})"
+          versionName: "${{ env.VERSION_NAME }} (#${{ github.run_number }})"
 
-      - name: Write sign info
-        if: github.repository == 'yagay/Oxygen-Customizer'
+      - name: Prepare release signing
+        id: signing
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
-            echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}' >> keystore.properties
-            echo keyAlias='${{ secrets.KEY_ALIAS }}' >> keystore.properties
-            echo keyPassword='${{ secrets.KEY_PASSWORD }}' >> keystore.properties
-            echo storeFile='${{ github.workspace }}/key.jks' >> keystore.properties
-            echo ${{ secrets.KEYSTORE }} | base64 --decode > ${{ github.workspace }}/key.jks
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            {
+              echo "storePassword=$KEYSTORE_PASSWORD"
+              echo "keyAlias=$KEY_ALIAS"
+              echo "keyPassword=$KEY_PASSWORD"
+              echo "storeFile=${{ github.workspace }}/key.jks"
+            } > keystore.properties
+            printf '%s' "$KEYSTORE_B64" | base64 --decode > "${{ github.workspace }}/key.jks"
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build release with Gradle
-        if: github.repository == 'yagay/Oxygen-Customizer'
-        run: ./gradlew assembleRelease
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
-      - name: Build debug with Gradle
-        if: github.repository == 'yagay/Oxygen-Customizer'
-        run: ./gradlew assembleDebug
+      - name: Build signed nightly APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta' && steps.signing.outputs.available == 'true'
+        run: ./gradlew assembleRelease --stacktrace
 
-      - name: Upload release Build Artifact
-        if: github.repository == 'yagay/Oxygen-Customizer'
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}})"
-          path: app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
-
-      - name: Upload debug Build Artifact
-        if: github.repository == 'yagay/Oxygen-Customizer'
-        uses: actions/upload-artifact@v4
-        with:
-          name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}}) Debug"
+          name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{ github.run_number }}) Debug"
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
-      - name: Get Commit Messages
-        id: get_commit_message
-        run: |
-          COMMIT_MESSAGE_HEADER=""
-          COMMIT_MESSAGE_HEADER=$(git log -1 --pretty=%B | head -n 1)
-          
-          # Check if the commit message contains "CHANGELOG:"
-          COMMIT_MESSAGE_HEADER=$(echo "$COMMIT_MESSAGE_HEADER" | sed -E 's/^CHANGELOG: ?//')
-          if [[ "$COMMIT_MESSAGE_HEADER" == *".md"* || "$COMMIT_MESSAGE_HEADER" == *".yml"* ]]; then
-            echo "Skipping build upload."
-            echo "SKIP_BUILD=true" >> $GITHUB_ENV
-          else
-            echo "SKIP_BUILD=false" >> $GITHUB_ENV
-          fi
-          if [[ "$COMMIT_MESSAGE_HEADER" == "Release new beta!" ]]; then
-            echo "Skipping build upload."
-            echo "SKIP_BUILD=true" >> $GITHUB_ENV
-          else
-            echo "SKIP_BUILD=false" >> $GITHUB_ENV
-          fi
-          
-          if [[ "$COMMIT_MESSAGE_HEADER" =~ ^Merge\ remote-tracking\ branch ]]; then
-            COMMIT_MESSAGE_HEADER="Synced with the latest changes"
-          fi
-          
-          if [[ "$COMMIT_MESSAGE_HEADER" =~ DHD2280/beta-localization$ ]]; then
-            COMMIT_MESSAGE_HEADER="Updated translations"
-          fi
-          
-          if [[ -z "$COMMIT_MESSAGE_HEADER" ]]; then
-            echo "No valid changelog found!"
-            COMMIT_MESSAGE_HEADER="No valid changelog found!"
-            echo "SKIP_BUILD=true" >> $GITHUB_ENV
-          fi
-          
-          #ESCAPED_MESSAGE=$(echo "$COMMIT_MESSAGE_HEADER" | jq -Rsa . | sed 's/^"\(.*\)"$/\1/' | sed "s/'//g")
-          ESCAPED_MESSAGE=$(echo "$COMMIT_MESSAGE_HEADER" | sed "s/'//g" | sed ':a;N;$!ba;s/\n/\\n/g')
-          echo "COMMIT_MESSAGE_HEADER=${ESCAPED_MESSAGE}" >> $GITHUB_ENV
+      - name: Upload signed nightly APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta' && steps.signing.outputs.available == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{ github.run_number }})"
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
 
-      # now everything fine, let's update nightly version
-      - name: Reset and checkout
+      - name: Update nightly metadata
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta' && steps.signing.outputs.available == 'true'
         run: |
           git reset --hard
           git clean -fdx
+          git fetch origin nightly-versioning
+          git checkout nightly-versioning
+          sed -i "s/\"version\":.*/\"version\": \"$NIGHTLY_VERSION\",/" latestNightly.json
+          sed -i "s/\"versionCode\":.*/\"versionCode\": $VERSION_CODE,/" latestNightly.json
+          sed -i "s/\"devBuild\":.*/\"devBuild\": ${{ github.run_number }},/" latestNightly.json
+          sed -i "s/\"actionRun\":.*/\"actionRun\": ${{ github.run_id }},/" latestNightly.json
+          sed -i "s#\"actionLink\":.*#\"actionLink\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"#" latestNightly.json
 
-      - name: Checkout nightly-versioning
-        uses: actions/checkout@v4
-        with:
-          ref: nightly-versioning
-          fetch-depth: 0
-
-      - name: Update latestNightly.json
-        run: |
-          sed -i "s/\"version\":.*/\"version\": \"$(sed 's/[\/&]/\\&/g' <<< "$NIGHTLY_VERSION")\",/" latestNightly.json
-          sed -i 's/"versionCode":.*/"versionCode": '${{env.VERSION_CODE}}',/' latestNightly.json
-          sed -i 's/"devBuild":.*/"devBuild": '${{github.run_number}}',/' latestNightly.json
-          sed -i 's/"actionRun":.*/"actionRun": '${{github.run_id}}',/' latestNightly.json
-
-      - name: Commit
+      - name: Commit nightly metadata
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta' && steps.signing.outputs.available == 'true'
         uses: github-actions-x/commit@v2.9
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          push-branch: 'nightly-versioning'
-          commit-message: 'Update nightly version'
+          push-branch: nightly-versioning
+          commit-message: Update nightly version
           force-add: 'true'
           files: latestNightly.json
           name: GitHub
           email: actions@yagay.local
-      
 
-      - name: Telegram File Message
-        if: github.repository == 'yagay/Oxygen-Customizer' && env.SKIP_BUILD != 'true'
+      - name: Telegram nightly notification
+        if: github.event_name == 'push' && github.ref == 'refs/heads/beta' && steps.signing.outputs.available == 'true'
         env:
-          COMMIT_MESSAGE: |+
-            New push to github!
-            \`\`\`
-            ${{ env.COMMIT_MESSAGE_HEADER }}
-            \`\`\`
-            Nightly version: ${{ env.VERSION_NAME }} Dev (#${{github.run_number}})
-            See commit detail [here](${{ github.event.head_commit.url }})
-          COMMIT_URL: ${{ github.event.head_commit.url }}
+          TELEGRAM_TK: ${{ secrets.TELEGRAM_TK }}
+          CHAT_ID: ${{ secrets.OC_NIGHTLY_BUILDS }}
+          THREAD_ID: ${{ secrets.OC_NIGHTLY_BUILDS_THREAD }}
         run: |
-          set -e
-          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TK }}/sendMessage \
-          -d chat_id=${{ secrets.OC_NIGHTLY_BUILDS }} \
-          -d message_thread_id=${{ secrets.OC_NIGHTLY_BUILDS_THREAD }} \
-          -d text="${{env.COMMIT_MESSAGE}}" \
-          -d parse_mode=Markdown \
-          -d disable_web_page_preview=true \
-          -d reply_markup="{\"inline_keyboard\": [[{\"text\": \"⬇️ Download (required login)\",\"url\": \"https://github.com/yagay/Oxygen-Customizer/actions/runs/${{github.run_id}}\"}]]}"
+          if [ -z "$TELEGRAM_TK" ] || [ -z "$CHAT_ID" ]; then
+            echo "Telegram nightly secrets are not configured; skipping."
+            exit 0
+          fi
+          ARGS=(-d "chat_id=$CHAT_ID")
+          if [ -n "$THREAD_ID" ]; then
+            ARGS+=(-d "message_thread_id=$THREAD_ID")
+          fi
+          TEXT="New push to GitHub
+Nightly version: $NIGHTLY_VERSION
+https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -fsS -X POST "https://api.telegram.org/bot$TELEGRAM_TK/sendMessage"             "${ARGS[@]}"             --data-urlencode "text=$TEXT"             -d "disable_web_page_preview=true"
