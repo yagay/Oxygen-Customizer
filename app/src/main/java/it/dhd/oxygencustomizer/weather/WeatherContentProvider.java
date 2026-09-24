@@ -23,9 +23,17 @@ import android.content.UriMatcher;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Binder;
+import android.os.Process;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import it.dhd.oxygencustomizer.BuildConfig;
 
 import it.dhd.oxygencustomizer.utils.WeatherScheduler;
 
@@ -105,6 +113,31 @@ public class WeatherContentProvider extends ContentProvider {
 
     public static final String AUTHORITY = "it.dhd.oxygencustomizer.weatherprovider";
 
+    private static final Set<String> ALLOWED_CALLERS = new HashSet<>(Arrays.asList(
+            BuildConfig.APPLICATION_ID,
+            "android",
+            "com.android.systemui"
+    ));
+
+    private void enforceAllowedCaller() {
+        final int callingUid = Binder.getCallingUid();
+        if (callingUid == Process.myUid()) {
+            return;
+        }
+
+        final String[] packages = mContext != null
+                ? mContext.getPackageManager().getPackagesForUid(callingUid)
+                : null;
+        if (packages != null) {
+            for (String packageName : packages) {
+                if (ALLOWED_CALLERS.contains(packageName)) {
+                    return;
+                }
+            }
+        }
+        throw new SecurityException("Caller is not allowed to access Oxygen Customizer weather data");
+    }
+
     private static final UriMatcher sUriMatcher;
     static {
         sUriMatcher = new UriMatcher(URI_TYPE_WEATHER);
@@ -130,6 +163,7 @@ public class WeatherContentProvider extends ContentProvider {
             String[] selectionArgs,
             String sortOrder) {
 
+        enforceAllowedCaller();
         final int projectionType = sUriMatcher.match(uri);
         final MatrixCursor result = new MatrixCursor(resolveProjection(projection, projectionType));
 
@@ -198,21 +232,25 @@ public class WeatherContentProvider extends ContentProvider {
 
     @Override
     public String getType(@NonNull Uri uri) {
+        enforceAllowedCaller();
         return null;
     }
 
     @Override
     public Uri insert(@NonNull Uri uri, ContentValues values) {
+        enforceAllowedCaller();
         return null;
     }
 
     @Override
     public int delete(@NonNull Uri uri, String selection, String[] selectionArgs) {
+        enforceAllowedCaller();
         return 0;
     }
 
     @Override
     public int update(@NonNull Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+        enforceAllowedCaller();
         final int projectionType = sUriMatcher.match(uri);
         if (projectionType == URI_TYPE_CONTROL) {
             if (values.containsKey(COLUMN_FORCE_REFRESH) && values.getAsBoolean(COLUMN_FORCE_REFRESH)) {
