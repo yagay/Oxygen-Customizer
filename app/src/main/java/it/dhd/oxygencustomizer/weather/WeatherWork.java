@@ -111,7 +111,6 @@ public class WeatherWork extends ListenableWorker {
         Log.e(TAG, logMessage);
         Intent errorIntent = new Intent(ACTION_ERROR);
         errorIntent.putExtra(EXTRA_ERROR, errorExtra);
-        errorIntent.setPackage(mContext.getPackageName());
         mContext.sendBroadcast(errorIntent);
         completer.set(retry ? Result.retry() : Result.failure());
     }
@@ -245,7 +244,6 @@ public class WeatherWork extends ListenableWorker {
                 completer.set(Result.retry());
             }
             Intent updateIntent = new Intent(ACTION_BROADCAST);
-            updateIntent.setPackage(mContext.getPackageName());
             mContext.sendBroadcast(updateIntent);
         }
     }
