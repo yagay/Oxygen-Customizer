@@ -18,7 +18,7 @@ public class OxygenCustomizer extends Application {
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
         instance = this;
-        contextReference = new WeakReference<>(base.getApplicationContext());
+        contextReference = new WeakReference<>(base);
     }
 
     @Override

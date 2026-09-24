@@ -1,6 +1,7 @@
 package it.dhd.oxygencustomizer.utils;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 
 import java.util.List;
 
@@ -96,7 +97,7 @@ public class OCPreferences {
 
     // Clear methods
     public static void clear(String... keys) {
-        ExtendedSharedPreferences.Editor editor = prefs.edit();
+        SharedPreferences.Editor editor = prefs.edit();
         for (String key : keys) {
             editor.remove(key);
         }
