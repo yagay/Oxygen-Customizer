@@ -246,18 +246,25 @@ public class StatusbarMods extends XposedMods {
         PhoneStatusBarView
                 .after("updateStatusBarHeight")
                 .run(param -> {
-                    mStatusBarContents = ((View) param.thisObject).findViewById(mContext.getResources().getIdentifier("status_bar_contents", "id", listenPackage));
+                    int statusBarContentsId = mContext.getResources().getIdentifier(
+                            "status_bar_contents",
+                            "id",
+                            listenPackage
+                    );
+                    mStatusBarContents = statusBarContentsId != 0
+                            ? ((View) param.thisObject).findViewById(statusBarContentsId)
+                            : null;
 
-                    if (!statusBarPadding) return;
+                    if (!statusBarPadding || mStatusBarContents == null) return;
 
                     int screenWidth = mContext.getResources().getDisplayMetrics().widthPixels;
 
                     int paddingStart = SBPaddingStart == PADDING_DEFAULT
-                            ? mContext.getResources().getIdentifier("status_bar_padding_start", "type/dimen", listenPackage)
+                            ? getSystemDimensionPixelSize("status_bar_padding_start", 0)
                             : Math.round(SBPaddingStart * screenWidth / 100f);
 
                     int paddingEnd = SBPaddingEnd == PADDING_DEFAULT
-                            ? mContext.getResources().getIdentifier("status_bar_padding_end", "type/dimen", listenPackage)
+                            ? getSystemDimensionPixelSize("status_bar_padding_end", 0)
                             : Math.round(SBPaddingEnd * screenWidth / 100f);
                     mStatusBarContents.setPaddingRelative(paddingStart, (int) mTopPad, paddingEnd, 0);
                 });
@@ -475,10 +482,16 @@ public class StatusbarMods extends XposedMods {
                         } catch (Throwable ignored) {
                         }
                         TypedValue typedValue = new TypedValue();
-                        sysuiContext.getResources().getValue(
-                                sysuiContext.getResources().getIdentifier("status_bar_icon_scale_factor", "dimen", listenPackage),
-                                typedValue, true);
-                        float scaleFactor = typedValue.getFloat();
+                        int scaleResId = sysuiContext.getResources().getIdentifier(
+                                "status_bar_icon_scale_factor",
+                                "dimen",
+                                listenPackage
+                        );
+                        float scaleFactor = 1f;
+                        if (scaleResId != 0) {
+                            sysuiContext.getResources().getValue(scaleResId, typedValue, true);
+                            scaleFactor = typedValue.getFloat();
+                        }
 
                         if (icon != null) {
                             Log.d("StatusbarMods", "dimen " + dimen + " scaleFactor " + scaleFactor + " mNewIconScale " + mNewIconScale);
@@ -535,6 +548,20 @@ public class StatusbarMods extends XposedMods {
         callMethod(mDisplayManager, "setTemporaryBrightness", 0, val);
         callMethod(mDisplayManager, "setTemporaryAutoBrightnessAdjustment", val);
         callMethod(OplusBrightnessControllerExt, "setBrightness", (int) val);
+    }
+
+    private int getSystemDimensionPixelSize(String resourceName, int fallback) {
+        int resId = mContext.getResources().getIdentifier(resourceName, "dimen", listenPackage);
+        if (resId == 0) {
+            log("Missing SystemUI dimension: " + resourceName);
+            return fallback;
+        }
+        try {
+            return mContext.getResources().getDimensionPixelSize(resId);
+        } catch (Throwable t) {
+            log("Unable to resolve SystemUI dimension " + resourceName + ": " + t.getMessage());
+            return fallback;
+        }
     }
 
     private GestureDetector.OnGestureListener getPullDownLPListener() {
