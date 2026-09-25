@@ -574,14 +574,17 @@ public class HeaderClock extends XposedMods {
                 .run(param -> {
                     FrameLayout view = (FrameLayout) param.thisObject;
 
-                    LinearLayout clockContainer = view.findViewById(
-                            mContext.getResources().getIdentifier(
-                                    "button_container_parent",
-                                    "id",
-                                    mContext.getPackageName()
-                            )
+                    int clockContainerId = mContext.getResources().getIdentifier(
+                            "button_container_parent",
+                            "id",
+                            mContext.getPackageName()
                     );
+                    if (clockContainerId == 0) return;
+                    LinearLayout clockContainer = view.findViewById(clockContainerId);
+                    if (clockContainer == null) return;
+
                     LinearLayout customClockContainer = getQsClockContainer(QS_CLOCK_NOTIF_CONTAINER);
+                    if (customClockContainer == null) return;
                     mClockContainers.add(customClockContainer);
 
                     clockContainer.post(() -> {
@@ -643,11 +646,18 @@ public class HeaderClock extends XposedMods {
                 .after("onInit")
                 .run(param -> {
                     View view = (View) getObjectField(param.thisObject, "view");
-                    ViewGroup viewGroup = view.requireViewById(
-                            mContext.getResources().getIdentifier("qs_clock_and_date_container", "id", mContext.getPackageName())
+                    if (view == null) return;
+                    int clockAndDateId = mContext.getResources().getIdentifier(
+                            "qs_clock_and_date_container",
+                            "id",
+                            mContext.getPackageName()
                     );
+                    if (clockAndDateId == 0) return;
+                    ViewGroup viewGroup = view.findViewById(clockAndDateId);
+                    if (viewGroup == null) return;
 
                     LinearLayout clockContaier = getQsClockContainer(QS_CLOCK_PLUGIN);
+                    if (clockContaier == null) return;
                     mClockContainers.add(clockContaier);
 
                     if (clockContaier.getParent() != null) {
