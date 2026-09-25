@@ -27,6 +27,7 @@ import com.topjohnwu.superuser.Shell;
 import org.greenrobot.eventbus.EventBus;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -77,9 +78,8 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     private static int selectedIndex = 0;
     private static int newIndex = selectedIndex;
     private ActivityMainBinding binding;
-    private static FragmentManager fragmentManager;
     private static final String TITLE_TAG = "mainActivityTitle";
-    private static ActionBar actionBar;
+    private static WeakReference<MainActivity> activityRef = new WeakReference<>(null);
     private ColorPickerDialog.Builder colorPickerDialog;
     public static final List<SearchPreferenceItem> prefsList = new ArrayList<>();
     private Mods modsFragment;
@@ -88,7 +88,7 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        fragmentManager = getSupportFragmentManager();
+        activityRef = new WeakReference<>(this);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         createChannels();
@@ -131,37 +131,36 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
         }
 
         if (!prefsList.isEmpty()) prefsList.clear();
-        prefsList.add(new SearchPreferenceItem(R.xml.mods, R.string.mods_title, new Mods()));
-        prefsList.add(new SearchPreferenceItem(R.xml.statusbar, R.string.statusbar_title, new Statusbar()));
-        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_clock, R.string.status_bar_clock_title, new Statusbar.Clock()));
-        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_notifications, R.string.statusbar_notifications, new Statusbar.Notifications()));
-        prefsList.add(new SearchPreferenceItem(R.xml.battery_bar_settings, R.string.statusbar_batterybar_title, new Statusbar.BatteryBar()));
-        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_battery_icon, R.string.statusbar_battery_icon_options, new Statusbar.BatteryIcon()));
-        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_icons, R.string.statusbar_icons, new Statusbar.Icons()));
-        prefsList.add(new SearchPreferenceItem(R.xml.quick_settings_mods, R.string.quick_settings_title, new QuickSettings()));
-        prefsList.add(new SearchPreferenceItem(R.xml.quick_settings_tiles_prefs, R.string.quick_settings_tiles_title, new QuickSettingsTiles()));
-        prefsList.add(new SearchPreferenceItem(R.xml.quick_settings_tiles_customizations_prefs, R.string.quick_settings_tiles_customization_title, new QuickSettingsCustomization()));
-        prefsList.add(new SearchPreferenceItem(R.xml.qs_header_image_prefs, R.string.qs_header_image_title, new QsHeaderImage()));
-        prefsList.add(new SearchPreferenceItem(R.xml.qs_header_clock_prefs, R.string.qs_header_clock, new QsHeaderClock()));
-        prefsList.add(new SearchPreferenceItem(R.xml.gesture_prefs, R.string.gesture_navigation_title, new Gesture()));
-        prefsList.add(new SearchPreferenceItem(R.xml.buttons_prefs, R.string.buttons_title, new Buttons()));
+        prefsList.add(new SearchPreferenceItem(R.xml.mods, R.string.mods_title, Mods.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.statusbar, R.string.statusbar_title, Statusbar.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_clock, R.string.status_bar_clock_title, Statusbar.Clock.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_notifications, R.string.statusbar_notifications, Statusbar.Notifications.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.battery_bar_settings, R.string.statusbar_batterybar_title, Statusbar.BatteryBar.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_battery_icon, R.string.statusbar_battery_icon_options, Statusbar.BatteryIcon.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.statusbar_icons, R.string.statusbar_icons, Statusbar.Icons.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.quick_settings_mods, R.string.quick_settings_title, QuickSettings.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.quick_settings_tiles_prefs, R.string.quick_settings_tiles_title, QuickSettingsTiles.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.quick_settings_tiles_customizations_prefs, R.string.quick_settings_tiles_customization_title, QuickSettingsCustomization.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.qs_header_image_prefs, R.string.qs_header_image_title, QsHeaderImage.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.qs_header_clock_prefs, R.string.qs_header_clock, QsHeaderClock.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.gesture_prefs, R.string.gesture_navigation_title, Gesture.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.buttons_prefs, R.string.buttons_title, Buttons.class));
         if (AppUtils.isAppInstalled(this, Constants.Packages.LAUNCHER))
-            prefsList.add(new SearchPreferenceItem(R.xml.launcher_mods, R.string.launcher_title, new Launcher()));
-        prefsList.add(new SearchPreferenceItem(R.xml.lockscreen_prefs, R.string.lockscreen_title, new Lockscreen()));
-        prefsList.add(new SearchPreferenceItem(R.xml.lockscreen_clock, R.string.lockscreen_clock, new LockscreenClockFragment()));
-        prefsList.add(new SearchPreferenceItem(R.xml.lockscreen_weather_prefs, R.string.lockscreen_weather, new LockscreenWeather()));
-        prefsList.add(new SearchPreferenceItem(R.xml.aod_clock_prefs, R.string.aod_clock, new AodClock()));
-        prefsList.add(new SearchPreferenceItem(R.xml.aod_weather_prefs, R.string.aod_weather, new AodWeather()));
-        prefsList.add(new SearchPreferenceItem(R.xml.sound_mods, R.string.sound, new Mods.Sound()));
-        prefsList.add(new SearchPreferenceItem(R.xml.package_manager_prefs, R.string.package_manager, new Mods.PackageManager()));
-        prefsList.add(new SearchPreferenceItem(R.xml.misc_prefs, R.string.misc, new Misc()));
+            prefsList.add(new SearchPreferenceItem(R.xml.launcher_mods, R.string.launcher_title, Launcher.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.lockscreen_prefs, R.string.lockscreen_title, Lockscreen.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.lockscreen_clock, R.string.lockscreen_clock, LockscreenClockFragment.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.lockscreen_weather_prefs, R.string.lockscreen_weather, LockscreenWeather.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.aod_clock_prefs, R.string.aod_clock, AodClock.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.aod_weather_prefs, R.string.aod_weather, AodWeather.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.sound_mods, R.string.sound, Mods.Sound.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.package_manager_prefs, R.string.package_manager, Mods.PackageManager.class));
+        prefsList.add(new SearchPreferenceItem(R.xml.misc_prefs, R.string.misc, Misc.class));
 
         PreferenceHelper.init(ExtendedSharedPreferences.from(getDefaultSharedPreferences(createDeviceProtectedStorageContext())));
 
 
         // Setup navigation
         setSupportActionBar(binding.toolbar);
-        actionBar = getSupportActionBar();
         setupBottomNavigationView();
 
         colorPickerDialog = ColorPickerDialog.newBuilder();
@@ -290,6 +289,12 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     }
 
     public static void replaceFragment(Fragment fragment) {
+        MainActivity activity = activityRef.get();
+        if (activity == null || activity.isFinishing() || activity.isDestroyed() || fragment == null) {
+            return;
+        }
+
+        FragmentManager fragmentManager = activity.getSupportFragmentManager();
         String tag = fragment.getClass().getSimpleName();
         FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
         fragmentTransaction.setCustomAnimations(R.anim.oplus_open_slide_enter, R.anim.oplus_open_slide_exit, R.anim.oplus_close_slide_enter, R.anim.oplus_close_slide_exit);
@@ -328,6 +333,8 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     }
 
     public static void backButtonEnabled() {
+        MainActivity activity = activityRef.get();
+        ActionBar actionBar = activity != null ? activity.getSupportActionBar() : null;
         if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(true);
             actionBar.setDisplayShowHomeEnabled(true);
@@ -335,6 +342,8 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     }
 
     public static void backButtonDisabled() {
+        MainActivity activity = activityRef.get();
+        ActionBar actionBar = activity != null ? activity.getSupportActionBar() : null;
         if (actionBar != null) {
             actionBar.setDisplayHomeAsUpEnabled(false);
             actionBar.setDisplayShowHomeEnabled(false);
@@ -387,6 +396,16 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     public void onSearchResultClicked(@NonNull SearchPreferenceResult result) {
         modsFragment = new Mods();
         new Handler(getMainLooper()).post(() -> modsFragment.onSearchResultClicked(result));
+    }
+
+    @Override
+    protected void onDestroy() {
+        MainActivity activity = activityRef.get();
+        if (activity == this) {
+            activityRef.clear();
+        }
+        binding = null;
+        super.onDestroy();
     }
 
     private void createChannels() {

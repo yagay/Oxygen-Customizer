@@ -16,6 +16,7 @@ import static it.dhd.oxygencustomizer.utils.ModuleConstants.XPOSED_ONLY_MODE;
 import android.os.Bundle;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 import androidx.preference.PreferenceFragmentCompat;
 
 import it.dhd.oneplusui.preference.OplusJumpPreference;
@@ -90,13 +91,14 @@ public class Mods extends ControlledPreferenceFragmentCompat {
         } else {
             for (SearchPreferenceItem mItem : prefsList) {
                 if (mItem.getXml() == result.getResourceFile()) {
-                    replaceFragment(mItem.getFragment());
-                    if (mItem.getFragment() instanceof ClockPickerFragment clockPicker) {
+                    Fragment targetFragment = mItem.createFragment();
+                    replaceFragment(targetFragment);
+                    if (targetFragment instanceof ClockPickerFragment clockPicker) {
                         ControlledPreferenceFragmentCompat fragment = clockPicker.getPreferenceFragment();
                         clockPicker.scrollToPreference();
                         SearchPreferenceResult.highlight(fragment, result.getKey());
-                    } else {
-                        SearchPreferenceResult.highlight((PreferenceFragmentCompat) mItem.getFragment(), result.getKey());
+                    } else if (targetFragment instanceof PreferenceFragmentCompat preferenceFragment) {
+                        SearchPreferenceResult.highlight(preferenceFragment, result.getKey());
                     }
                     break;
                 }

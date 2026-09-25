@@ -11,17 +11,24 @@ public class SearchPreferenceItem {
     @StringRes
     private final int title;
 
-    private final Fragment fragment;
+    private final Class<? extends Fragment> fragmentClass;
     private final boolean shouldAdd;
 
-    public SearchPreferenceItem(@XmlRes int xml, @StringRes int title, Fragment fragment) {
-        this(xml, title, fragment, true);
+    public SearchPreferenceItem(
+            @XmlRes int xml,
+            @StringRes int title,
+            Class<? extends Fragment> fragmentClass) {
+        this(xml, title, fragmentClass, true);
     }
 
-    public SearchPreferenceItem(@XmlRes int xml, @StringRes int title, Fragment fragment, boolean shouldAdd) {
+    public SearchPreferenceItem(
+            @XmlRes int xml,
+            @StringRes int title,
+            Class<? extends Fragment> fragmentClass,
+            boolean shouldAdd) {
         this.xml = xml;
         this.title = title;
-        this.fragment = fragment;
+        this.fragmentClass = fragmentClass;
         this.shouldAdd = shouldAdd;
     }
 
@@ -33,9 +40,18 @@ public class SearchPreferenceItem {
         return title;
     }
 
-    public Fragment getFragment() {
-        return fragment;
+    public Fragment createFragment() {
+        try {
+            return fragmentClass.getDeclaredConstructor().newInstance();
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(
+                    "Unable to instantiate search fragment " + fragmentClass.getName(),
+                    e
+            );
+        }
     }
 
-
+    public boolean shouldAdd() {
+        return shouldAdd;
+    }
 }
