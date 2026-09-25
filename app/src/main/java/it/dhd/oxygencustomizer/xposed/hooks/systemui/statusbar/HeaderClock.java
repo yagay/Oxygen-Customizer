@@ -1150,18 +1150,27 @@ public class HeaderClock extends XposedMods {
 
     @SuppressLint("DiscouragedApi")
     private View getClockView() {
+        if (appContext == null) return null;
         LayoutInflater inflater = LayoutInflater.from(appContext);
 
-        return inflater.inflate(
-                appContext
-                        .getResources()
-                        .getIdentifier(
-                                HEADER_CLOCK_LAYOUT + clockStyle,
-                                "layout",
-                                BuildConfig.APPLICATION_ID
-                        ),
-                null
+        int resId = appContext.getResources().getIdentifier(
+                HEADER_CLOCK_LAYOUT + clockStyle,
+                "layout",
+                BuildConfig.APPLICATION_ID
         );
+        if (resId == 0 && clockStyle != 1) {
+            resId = appContext.getResources().getIdentifier(
+                    HEADER_CLOCK_LAYOUT + 1,
+                    "layout",
+                    BuildConfig.APPLICATION_ID
+            );
+        }
+        if (resId == 0) {
+            log(TAG + "Header clock layout not found for style " + clockStyle);
+            return null;
+        }
+
+        return inflater.inflate(resId, null);
     }
 
 
