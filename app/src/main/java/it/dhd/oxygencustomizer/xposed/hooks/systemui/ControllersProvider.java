@@ -15,7 +15,7 @@ import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
 
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -37,15 +37,15 @@ public class ControllersProvider extends XposedMods {
     @SuppressLint("StaticFieldLeak")
     private static ControllersProvider instance = null;
 
-    private final ArrayList<OnMobileDataChanged> mMobileDataChangedListeners = new ArrayList<>();
-    private final ArrayList<OnWifiChanged> mWifiChangedListeners = new ArrayList<>();
-    private final ArrayList<OnBluetoothChanged> mBluetoothChangedListeners = new ArrayList<>();
-    private final ArrayList<OnTorchModeChanged> mTorchModeChangedListeners = new ArrayList<>();
-    private final ArrayList<OnHotspotChanged> mHotspotChangedListeners = new ArrayList<>();
-    private final ArrayList<OnDozingChanged> mDozingChangedListeners = new ArrayList<>();
-    private final ArrayList<OnKeyguardShowing> mKeyguardShowingListeners = new ArrayList<>();
-    private final ArrayList<OnStatusBarStateChanged> mStatusBarStateListeners = new ArrayList<>();
-    private final ArrayList<ExpandedQsFractionChangeListener> mExpandedQsFractionChangeListeners = new ArrayList<>();
+    private final CopyOnWriteArrayList<OnMobileDataChanged> mMobileDataChangedListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnWifiChanged> mWifiChangedListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnBluetoothChanged> mBluetoothChangedListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnTorchModeChanged> mTorchModeChangedListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnHotspotChanged> mHotspotChangedListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnDozingChanged> mDozingChangedListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnKeyguardShowing> mKeyguardShowingListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<OnStatusBarStateChanged> mStatusBarStateListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<ExpandedQsFractionChangeListener> mExpandedQsFractionChangeListeners = new CopyOnWriteArrayList<>();
 
 
     private Object mBluetoothController = null;
@@ -78,7 +78,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerMobileDataCallback(ControllersProvider.OnMobileDataChanged callback) {
-        instance.mMobileDataChangedListeners.add(callback);
+        instance.mMobileDataChangedListeners.addIfAbsent(callback);
     }
 
     /**
@@ -89,7 +89,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerWifiCallback(ControllersProvider.OnWifiChanged callback) {
-        instance.mWifiChangedListeners.add(callback);
+        instance.mWifiChangedListeners.addIfAbsent(callback);
     }
 
     /**
@@ -100,7 +100,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerBluetoothCallback(ControllersProvider.OnBluetoothChanged callback) {
-        instance.mBluetoothChangedListeners.add(callback);
+        instance.mBluetoothChangedListeners.addIfAbsent(callback);
     }
 
     /**
@@ -111,7 +111,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerTorchModeCallback(ControllersProvider.OnTorchModeChanged callback) {
-        instance.mTorchModeChangedListeners.add(callback);
+        instance.mTorchModeChangedListeners.addIfAbsent(callback);
     }
 
     /**
@@ -122,7 +122,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerHotspotCallback(ControllersProvider.OnHotspotChanged callback) {
-        instance.mHotspotChangedListeners.add(callback);
+        instance.mHotspotChangedListeners.addIfAbsent(callback);
     }
 
     /**
@@ -133,7 +133,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerDozingCallback(ControllersProvider.OnDozingChanged callback) {
-        instance.mDozingChangedListeners.add(callback);
+        instance.mDozingChangedListeners.addIfAbsent(callback);
     }
 
     /**
@@ -144,7 +144,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerKeyguardShowingCallback(OnKeyguardShowing callback) {
-        instance.mKeyguardShowingListeners.add(callback);
+        instance.mKeyguardShowingListeners.addIfAbsent(callback);
     }
 
     /**
@@ -155,7 +155,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerStatusBarStateChangedCallback(OnStatusBarStateChanged callback) {
-        instance.mStatusBarStateListeners.add(callback);
+        instance.mStatusBarStateListeners.addIfAbsent(callback);
     }
 
     /**
@@ -166,7 +166,7 @@ public class ControllersProvider extends XposedMods {
     }
 
     public static void registerExpandedQsFractionChangeCallback(ExpandedQsFractionChangeListener callback) {
-        instance.mExpandedQsFractionChangeListeners.add(callback);
+        instance.mExpandedQsFractionChangeListeners.addIfAbsent(callback);
     }
 
     /**
