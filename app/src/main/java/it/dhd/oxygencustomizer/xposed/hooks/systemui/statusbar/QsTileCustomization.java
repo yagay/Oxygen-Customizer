@@ -483,9 +483,21 @@ public class QsTileCustomization extends XposedMods {
                     if (qsBrightnessBackgroundCustomize) {
                         setSliderBackgroundColor(getObjectField(param.thisObject, "mSlider"), ColorStateList.valueOf(qsBrightnessBackgroundColor));
                     } else {
-                        int color = ResourcesCompat.getColor(mContext.getResources(), mContext.getResources().getIdentifier("status_bar_qs_brightness_slider_bg_color", "color", lpparam.packageName), mContext.getTheme());
-                        if (color != 0x0) {
-                            setSliderBackgroundColor(getObjectField(param.thisObject, "mSlider"), ColorStateList.valueOf(color));
+                        int colorResId = mContext.getResources().getIdentifier(
+                                "status_bar_qs_brightness_slider_bg_color",
+                                "color",
+                                lpparam.packageName
+                        );
+                        if (colorResId != 0) {
+                            int color = ResourcesCompat.getColor(
+                                    mContext.getResources(),
+                                    colorResId,
+                                    mContext.getTheme()
+                            );
+                            setSliderBackgroundColor(
+                                    getObjectField(param.thisObject, "mSlider"),
+                                    ColorStateList.valueOf(color)
+                            );
                         }
                     }
                 });
@@ -511,9 +523,21 @@ public class QsTileCustomization extends XposedMods {
                     if (qsBrightnessBackgroundCustomize) {
                         setSliderBackgroundColor(getObjectField(param.thisObject, "mSlider"), ColorStateList.valueOf(qsBrightnessBackgroundColor));
                     } else {
-                        int color = ResourcesCompat.getColor(mContext.getResources(), mContext.getResources().getIdentifier("status_bar_qs_brightness_slider_bg_color", "color", lpparam.packageName), mContext.getTheme());
-                        if (color != 0x0) {
-                            setSliderBackgroundColor(getObjectField(param.thisObject, "mSlider"), ColorStateList.valueOf(color));
+                        int colorResId = mContext.getResources().getIdentifier(
+                                "status_bar_qs_brightness_slider_bg_color",
+                                "color",
+                                lpparam.packageName
+                        );
+                        if (colorResId != 0) {
+                            int color = ResourcesCompat.getColor(
+                                    mContext.getResources(),
+                                    colorResId,
+                                    mContext.getTheme()
+                            );
+                            setSliderBackgroundColor(
+                                    getObjectField(param.thisObject, "mSlider"),
+                                    ColorStateList.valueOf(color)
+                            );
                         }
                     }
                 });
@@ -532,8 +556,19 @@ public class QsTileCustomization extends XposedMods {
             if (qsBrightnessBackgroundCustomize) {
                 callMethod(slider, "setSeekBarBackgroundColor", ColorStateList.valueOf(qsBrightnessBackgroundColor));
             } else {
-                int color = ResourcesCompat.getColor(mContext.getResources(), mContext.getResources().getIdentifier("status_bar_qs_brightness_slider_bg_color", "color", lpparam.packageName), mContext.getTheme());
-                callMethod(slider, "setSeekBarBackgroundColor", ColorStateList.valueOf(color));
+                int colorResId = mContext.getResources().getIdentifier(
+                        "status_bar_qs_brightness_slider_bg_color",
+                        "color",
+                        lpparam.packageName
+                );
+                if (colorResId != 0) {
+                    int color = ResourcesCompat.getColor(
+                            mContext.getResources(),
+                            colorResId,
+                            mContext.getTheme()
+                    );
+                    callMethod(slider, "setSeekBarBackgroundColor", ColorStateList.valueOf(color));
+                }
             }
         };
 
