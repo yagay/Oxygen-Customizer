@@ -397,6 +397,28 @@ public class AodClock extends XposedMods {
                             BuildConfig.APPLICATION_ID
                     );
         }
+        if (resId == 0 && mAodClockStyle != 1) {
+            resId = appContext
+                    .getResources()
+                    .getIdentifier(
+                            AOD_CLOCK_LAYOUT + 1,
+                            "layout",
+                            BuildConfig.APPLICATION_ID
+                    );
+            if (resId == 0) {
+                resId = appContext
+                        .getResources()
+                        .getIdentifier(
+                                LOCKSCREEN_CLOCK_LAYOUT + 1,
+                                "layout",
+                                BuildConfig.APPLICATION_ID
+                        );
+            }
+        }
+        if (resId == 0) {
+            log("AOD clock layout not found for style " + mAodClockStyle);
+            return null;
+        }
 
         View v = inflater.inflate(resId, null);
 
