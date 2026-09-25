@@ -14,6 +14,7 @@ import it.dhd.oxygencustomizer.ui.adapters.ActivitiesListAdapter;
 import it.dhd.oxygencustomizer.ui.adapters.PackageListAdapter;
 import it.dhd.oxygencustomizer.ui.base.ControlledPreferenceFragmentCompat;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 
 public class Buttons extends ControlledPreferenceFragmentCompat {
     @Override
@@ -49,6 +50,7 @@ public class Buttons extends ControlledPreferenceFragmentCompat {
         broadcast.putExtra("packageName", FRAMEWORK);
         broadcast.putExtra("class", it.dhd.oxygencustomizer.xposed.hooks.framework.Buttons.class.getSimpleName());
 
+        OCPreferences.addInternalBroadcastToken(broadcast);
         if (getContext() != null)
             getContext().sendBroadcast(broadcast);
 

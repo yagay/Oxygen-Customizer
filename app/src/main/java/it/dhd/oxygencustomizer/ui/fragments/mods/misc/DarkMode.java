@@ -27,6 +27,7 @@ import it.dhd.oxygencustomizer.ui.adapters.AppAdapter;
 import it.dhd.oxygencustomizer.ui.base.AppFragmentBase;
 import it.dhd.oxygencustomizer.ui.models.AppModel;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 
 public class DarkMode extends AppFragmentBase {
 
@@ -155,6 +156,7 @@ public class DarkMode extends AppFragmentBase {
         broadcast.putExtra("packageName", FRAMEWORK);
         broadcast.putExtra("class", it.dhd.oxygencustomizer.xposed.hooks.framework.DarkMode.class.getSimpleName());
 
+        OCPreferences.addInternalBroadcastToken(broadcast);
         if (getContext() != null)
             getContext().sendBroadcast(broadcast);
     }

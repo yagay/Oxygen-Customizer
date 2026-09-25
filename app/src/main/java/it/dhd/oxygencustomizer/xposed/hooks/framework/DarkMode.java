@@ -26,6 +26,7 @@ import java.util.Set;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 
 public class DarkMode extends XposedMods {
@@ -38,6 +39,7 @@ public class DarkMode extends XposedMods {
     final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!XPrefs.isTrustedInternalBroadcast(intent)) return;
             try {
                 String action = intent.getAction();
                 if (action == null) return;

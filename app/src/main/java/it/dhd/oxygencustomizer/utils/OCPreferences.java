@@ -1,6 +1,7 @@
 package it.dhd.oxygencustomizer.utils;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 
 import java.util.List;
@@ -93,6 +94,31 @@ public class OCPreferences {
 
     public static float getSliderFloat(String key, float defaultVal) {
         return OplusSliderPreference.getSingleFloatValue(prefs, key, defaultVal);
+    }
+
+    public static void addInternalBroadcastToken(Intent intent) {
+        if (intent == null) return;
+        String token = getString(Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN, "");
+        if (token != null && !token.isEmpty()) {
+            intent.putExtra(
+                    Constants.Preferences.General.EXTRA_INTERNAL_BROADCAST_TOKEN,
+                    token
+            );
+        }
+    }
+
+    public static boolean isTrustedInternalBroadcast(Intent intent) {
+        if (intent == null) return false;
+        String expected = getString(
+                Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN,
+                ""
+        );
+        String provided = intent.getStringExtra(
+                Constants.Preferences.General.EXTRA_INTERNAL_BROADCAST_TOKEN
+        );
+        return expected != null
+                && !expected.isEmpty()
+                && expected.equals(provided);
     }
 
     // Clear methods
