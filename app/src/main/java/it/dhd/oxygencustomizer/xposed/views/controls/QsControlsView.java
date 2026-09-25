@@ -522,11 +522,20 @@ public class QsControlsView extends LinearLayout implements OmniJawsClient.OmniJ
         if (Build.VERSION.SDK_INT >= 35 && isNightMode()) {
             res = "status_bar_qs_tile_icon_color_active_night";
         }
-        mIconActiveColor = ResourcesCompat.getColor(
-                mContext.getResources(),
-                mContext.getResources().getIdentifier(res, "color", SYSTEM_UI),
-                appContext.getTheme()
+        int activeColorResId = mContext.getResources().getIdentifier(
+                res,
+                "color",
+                SYSTEM_UI
         );
+        if (activeColorResId != 0) {
+            mIconActiveColor = ResourcesCompat.getColor(
+                    mContext.getResources(),
+                    activeColorResId,
+                    appContext.getTheme()
+            );
+        } else {
+            mIconActiveColor = isNightMode() ? ICON_LIGHT_COLOR : ICON_DARK_COLOR;
+        }
     }
 
     @Override
@@ -764,7 +773,9 @@ public class QsControlsView extends LinearLayout implements OmniJawsClient.OmniJ
         if (resIdH == 0) {
             resIdH = mContext.getResources().getIdentifier("qs_footer_hl_tile_collapse_height", "dimen", SYSTEM_UI);
         }
-        int h = mContext.getResources().getDimensionPixelSize(resIdH);
+        int h = resIdH != 0
+                ? mContext.getResources().getDimensionPixelSize(resIdH)
+                : dp2px(mContext, 48);
         LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(
                 0,
                 h,
@@ -792,8 +803,9 @@ public class QsControlsView extends LinearLayout implements OmniJawsClient.OmniJ
             if (resIdH2 == 0) {
                 resIdH2 = mContext.getResources().getIdentifier("qs_footer_hl_tile_collapse_height", "dimen", SYSTEM_UI);
             }
-            int h2 = mContext.getResources().getDimensionPixelSize(
-                    resIdH2);
+            int h2 = resIdH2 != 0
+                    ? mContext.getResources().getDimensionPixelSize(resIdH2)
+                    : dp2px(mContext, 48);
             LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(
                     0, h2, 1);
             layoutParams2.gravity = Gravity.CENTER;
@@ -1008,7 +1020,13 @@ public class QsControlsView extends LinearLayout implements OmniJawsClient.OmniJ
             String inactiveString) {
         post(() -> {
 
-            @SuppressLint("UseCompatLoadingForDrawables") Drawable d = mContext.getDrawable(mContext.getResources().getIdentifier(active ? activeResource : inactiveResource, "drawable", SYSTEM_UI));
+            int drawableResId = mContext.getResources().getIdentifier(
+                    active ? activeResource : inactiveResource,
+                    "drawable",
+                    SYSTEM_UI
+            );
+            if (drawableResId == 0) return;
+            @SuppressLint("UseCompatLoadingForDrawables") Drawable d = mContext.getDrawable(drawableResId);
             if (iv != null) {
                 iv.setImageDrawable(d);
                 setButtonActiveState(iv, null, active);
