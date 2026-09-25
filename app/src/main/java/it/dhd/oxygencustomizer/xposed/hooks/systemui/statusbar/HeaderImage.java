@@ -53,7 +53,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.BuildConfig;
@@ -475,7 +475,6 @@ public class HeaderImage extends XposedMods {
     }
 
     private void loadImageOrGif(ImageView iv) {
-        AtomicBoolean applyTint = new AtomicBoolean(false);
         int tintColor;
         if (qshiTint == 0) {
             tintColor = -1;
@@ -493,56 +492,61 @@ public class HeaderImage extends XposedMods {
             tintColor = -1;
         }
         if (qshiValue != -1) {
-            @SuppressLint("DiscouragedApi") int resId = ResourceManager.modRes.getIdentifier("qs_header_image_" + qshiValue, "drawable", BuildConfig.APPLICATION_ID);
-            Drawable drw = ResourcesCompat.getDrawable(ResourceManager.modRes,
+            @SuppressLint("DiscouragedApi") int resId = ResourceManager.modRes.getIdentifier(
+                    "qs_header_image_" + qshiValue,
+                    "drawable",
+                    BuildConfig.APPLICATION_ID
+            );
+            if (resId == 0) {
+                log(TAG + "Header image resource not found: qs_header_image_" + qshiValue);
+                iv.post(() -> iv.setImageDrawable(null));
+                return;
+            }
+            Drawable drw = ResourcesCompat.getDrawable(
+                    ResourceManager.modRes,
                     resId,
-                    mContext.getTheme());
-            iv.post(() -> loadImageMain(iv, drw));
-            applyTint.set(true);
+                    mContext.getTheme()
+            );
+            iv.post(() -> {
+                loadImageMain(iv, drw);
+                applyImageTint(iv, drw, tintColor);
+            });
         } else {
             try {
-                ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                AtomicInteger attempts = new AtomicInteger(0);
                 executor.scheduleWithFixedDelay(() -> {
-                    File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                    int attempt = attempts.incrementAndGet();
+                    File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                    if (Android.isDirectory()) {
-                        try {
-                            ImageDecoder.Source source = ImageDecoder.createSource(new File(Environment.getExternalStorageDirectory() + "/.oxygen_customizer/header_image.png"));
-
-                            Drawable drawable = ImageDecoder.decodeDrawable(source);
-                            iv.post(() -> loadImageMain(iv, drawable));
-
-                            if (drawable instanceof AnimatedImageDrawable) {
-                                if (tintColor != -1) {
-                                    int fadeFilter = ColorUtils.blendARGB(Color.TRANSPARENT, tintColor, qshiTintIntensity / 100f);
-                                    ColorFilter colorFilter = new PorterDuffColorFilter(fadeFilter, PorterDuff.Mode.SRC_ATOP);
-                                    drawable.setColorFilter(colorFilter);
-                                } else {
-                                    drawable.setColorFilter(null);
-                                }
-                                ((AnimatedImageDrawable) drawable).setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
-                                ((AnimatedImageDrawable) drawable).start();
-                                applyTint.set(false);
-                            } else {
-                                applyTint.set(true);
-                            }
-                        } catch (Throwable ignored) {
+                    if (!androidDir.isDirectory()) {
+                        if (attempt >= 12) {
+                            executor.shutdownNow();
                         }
+                        return;
+                    }
 
-                        executor.shutdown();
+                    try {
+                        File imageFile = new File(
+                                Environment.getExternalStorageDirectory(),
+                                ".oxygen_customizer/header_image.png"
+                        );
+                        if (!imageFile.isFile()) return;
+
+                        ImageDecoder.Source source = ImageDecoder.createSource(imageFile);
+                        Drawable drawable = ImageDecoder.decodeDrawable(source);
+                        iv.post(() -> {
+                            loadImageMain(iv, drawable);
+                            applyImageTint(iv, drawable, tintColor);
+                        });
+                    } catch (Throwable t) {
+                        log(TAG + "Unable to load custom header image: " + t.getMessage());
+                    } finally {
                         executor.shutdownNow();
                     }
                 }, 0, 5, TimeUnit.SECONDS);
-
-            } catch (Throwable ignored) {
-            }
-            if (applyTint.get()) {
-                if (tintColor != -1) {
-                    int fadeFilter = ColorUtils.blendARGB(Color.TRANSPARENT, tintColor, qshiTintIntensity / 100f);
-                    iv.setColorFilter(fadeFilter, PorterDuff.Mode.SRC_ATOP);
-                }
-            } else {
-                iv.setColorFilter(null);
+            } catch (Throwable t) {
+                log(TAG + "Unable to schedule custom header image load: " + t.getMessage());
             }
         }
         if (!qshiZoomToFit) {
@@ -551,6 +555,40 @@ public class HeaderImage extends XposedMods {
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
             iv.setAdjustViewBounds(false);
             iv.setCropToPadding(false);
+        }
+    }
+
+    private void applyImageTint(ImageView imageView, Drawable drawable, int tintColor) {
+        if (drawable instanceof AnimatedImageDrawable animatedDrawable) {
+            if (tintColor != -1) {
+                int fadeFilter = ColorUtils.blendARGB(
+                        Color.TRANSPARENT,
+                        tintColor,
+                        qshiTintIntensity / 100f
+                );
+                ColorFilter colorFilter = new PorterDuffColorFilter(
+                        fadeFilter,
+                        PorterDuff.Mode.SRC_ATOP
+                );
+                drawable.setColorFilter(colorFilter);
+            } else {
+                drawable.setColorFilter(null);
+            }
+            animatedDrawable.setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
+            animatedDrawable.start();
+            imageView.setColorFilter(null);
+            return;
+        }
+
+        if (tintColor != -1) {
+            int fadeFilter = ColorUtils.blendARGB(
+                    Color.TRANSPARENT,
+                    tintColor,
+                    qshiTintIntensity / 100f
+            );
+            imageView.setColorFilter(fadeFilter, PorterDuff.Mode.SRC_ATOP);
+        } else {
+            imageView.setColorFilter(null);
         }
     }
 
