@@ -23,6 +23,7 @@ import net.lingala.zip4j.model.enums.CompressionLevel;
 import net.lingala.zip4j.model.enums.CompressionMethod;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -186,7 +187,8 @@ public class ModuleUtil {
     public static void enablePocketStudio(boolean enable) {
         if (!moduleExists()) return;
 
-        List<String> fileRead = Shell.cmd("cat /my_product/etc/extension/com.oplus.oplus-feature.xml").exec().getOut();
+        List<String> fileRead = readXmlLines("/my_product/etc/extension/com.oplus.oplus-feature.xml");
+        if (fileRead.isEmpty()) return;
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
         Pattern pattern = Pattern.compile("oplus\\.software\\.pocketstudio\\.support");
@@ -194,14 +196,18 @@ public class ModuleUtil {
         boolean featureAlreadyAdded = fileRead.stream().anyMatch(item -> pattern.matcher(item).find());
 
         if (enable && !featureAlreadyAdded) {
-            fileRead.add(fileRead.size()-2, String.format(OPLUS_FEATURE_XML, OPLUS_POCKET_STUDIO_FEATURE));
+            if (!insertBeforeRootClosingTag(
+                    fileRead,
+                    String.format(OPLUS_FEATURE_XML, OPLUS_POCKET_STUDIO_FEATURE)
+            )) return;
         } else if (!enable && featureAlreadyAdded) {
             fileRead.removeIf(element -> element.contains(OPLUS_POCKET_STUDIO_FEATURE));
         }
 
-        String oplusFeatures = String.join("\n", fileRead).replace("\"", "\\\"") ;
-
-        Shell.cmd("printf \"" + oplusFeatures + "\" > /data/adb/modules/OxygenCustomizer/my_product/etc/extension/com.oplus.oplus-feature.xml").exec();
+        writeXmlLines(
+                "/data/adb/modules/OxygenCustomizer/my_product/etc/extension/com.oplus.oplus-feature.xml",
+                fileRead
+        );
     }
 
     public static void enableMemcFeature(boolean enable) {
@@ -212,7 +218,8 @@ public class ModuleUtil {
     }
 
     private static void enableMemcOplusFeature(boolean enable) {
-        List<String> fileRead = Shell.cmd("cat /my_product/etc/extension/com.oplus.oplus-feature.xml").exec().getOut();
+        List<String> fileRead = readXmlLines("/my_product/etc/extension/com.oplus.oplus-feature.xml");
+        if (fileRead.isEmpty()) return;
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
         Pattern pattern = Pattern.compile("name=\"(.*?)\"");
@@ -237,18 +244,23 @@ public class ModuleUtil {
                 });
 
                 if (!alreadyPresent) {
-                    fileRead.add(fileRead.size() - 2, String.format(OPLUS_FEATURE_XML, memcFeature));
+                    if (!insertBeforeRootClosingTag(
+                            fileRead,
+                            String.format(OPLUS_FEATURE_XML, memcFeature)
+                    )) return;
                 }
             }
         }
 
-        String oplusFeatures = String.join("\n", fileRead).replace("\"", "\\\"") ;
-
-        Shell.cmd("printf \"" + oplusFeatures + "\" > /data/adb/modules/OxygenCustomizer/my_product/etc/extension/com.oplus.oplus-feature.xml").exec();
+        writeXmlLines(
+                "/data/adb/modules/OxygenCustomizer/my_product/etc/extension/com.oplus.oplus-feature.xml",
+                fileRead
+        );
     }
 
     private static void enableMemcOplusDisplayFeature(boolean enable) {
-        List<String> fileRead = Shell.cmd("cat /my_product/etc/permissions/oplus.product.display_features.xml").exec().getOut();
+        List<String> fileRead = readXmlLines("/my_product/etc/permissions/oplus.product.display_features.xml");
+        if (fileRead.isEmpty()) return;
         Log.d(TAG, "oplus.product.display_features: " + fileRead);
 
         Pattern pattern = Pattern.compile("name=\"(.*?)\"");
@@ -274,14 +286,57 @@ public class ModuleUtil {
                 });
 
                 if (!alreadyPresent) {
-                    fileRead.add(fileRead.size() - 2, String.format(OPLUS_FEATURE_XML, memcFeature));
+                    if (!insertBeforeRootClosingTag(
+                            fileRead,
+                            String.format(OPLUS_FEATURE_XML, memcFeature)
+                    )) return;
                 }
             }
         }
 
-        String oplusFeatures = String.join("\n", fileRead).replace("\"", "\\\"") ;
+        writeXmlLines(
+                "/data/adb/modules/OxygenCustomizer/my_product/etc/permissions/oplus.product.display_features.xml",
+                fileRead
+        );
+    }
 
-        Shell.cmd("printf \"" + oplusFeatures + "\" > /data/adb/modules/OxygenCustomizer/my_product/etc/permissions/oplus.product.display_features.xml").exec();
+    private static List<String> readXmlLines(String sourcePath) {
+        Shell.Result result = Shell.cmd("cat " + shellQuote(sourcePath)).exec();
+        if (!result.isSuccess() || result.getOut().isEmpty()) {
+            Log.e(TAG, "Unable to read XML source: " + sourcePath);
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(result.getOut());
+    }
+
+    private static boolean insertBeforeRootClosingTag(List<String> lines, String newLine) {
+        for (int i = lines.size() - 1; i >= 0; i--) {
+            String trimmed = lines.get(i).trim();
+            if (trimmed.startsWith("</") && trimmed.endsWith(">")) {
+                lines.add(i, newLine);
+                return true;
+            }
+        }
+        Log.e(TAG, "Refusing to modify malformed XML: root closing tag not found");
+        return false;
+    }
+
+    private static void writeXmlLines(String destinationPath, List<String> lines) {
+        if (lines == null || lines.isEmpty()) {
+            Log.e(TAG, "Refusing to write empty XML: " + destinationPath);
+            return;
+        }
+        String xml = String.join("\n", lines);
+        Shell.Result result = Shell.cmd(
+                "printf %s " + shellQuote(xml) + " > " + shellQuote(destinationPath)
+        ).exec();
+        if (!result.isSuccess()) {
+            Log.e(TAG, "Failed to write XML: " + destinationPath);
+        }
+    }
+
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
 }
