@@ -564,6 +564,7 @@ public class LockscreenClock extends XposedMods {
         mLockscreenView = LockscreenView.getInstance(mContext);
         mLockscreenView.setTag(OC_LOCKSCREEN_CLOCK_LAYOUT);
         View clockView = getClockView();
+        if (clockView == null) return;
         clockView.setTag(OC_LOCKSCREEN_CLOCK_TAG);
         modifyClockView(clockView);
         mLockscreenView.setClockView(clockView);
@@ -655,28 +656,31 @@ public class LockscreenClock extends XposedMods {
 
     @SuppressLint("DiscouragedApi")
     private View getClockView() {
+        if (appContext == null) return null;
         LayoutInflater inflater = LayoutInflater.from(appContext);
 
-        View v = inflater.inflate(
-                appContext
-                        .getResources()
-                        .getIdentifier(
-                                LOCKSCREEN_CLOCK_LAYOUT + lockscreenClockStyle,
-                                "layout",
-                                BuildConfig.APPLICATION_ID
-                        ),
-                null
+        int resId = appContext.getResources().getIdentifier(
+                LOCKSCREEN_CLOCK_LAYOUT + lockscreenClockStyle,
+                "layout",
+                BuildConfig.APPLICATION_ID
         );
+        int resolvedStyle = lockscreenClockStyle;
+        if (resId == 0 && lockscreenClockStyle != 1) {
+            resolvedStyle = 1;
+            resId = appContext.getResources().getIdentifier(
+                    LOCKSCREEN_CLOCK_LAYOUT + resolvedStyle,
+                    "layout",
+                    BuildConfig.APPLICATION_ID
+            );
+        }
+        if (resId == 0) {
+            log("Lockscreen clock layout not found for style " + lockscreenClockStyle);
+            return null;
+        }
 
-        loadLottieAnimationView(
-                appContext,
-                LottieAn,
-                v,
-                lockscreenClockStyle
-        );
-
+        View v = inflater.inflate(resId, null);
+        loadLottieAnimationView(appContext, LottieAn, v, resolvedStyle);
         return v;
-
     }
 
     private void modifyClockView(View clockView) {
