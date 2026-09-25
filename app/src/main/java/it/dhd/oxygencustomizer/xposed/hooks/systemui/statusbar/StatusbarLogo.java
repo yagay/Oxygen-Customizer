@@ -79,8 +79,14 @@ public class StatusbarLogo extends XposedMods {
 
     public StatusbarLogo(Context context) {
         super(context);
-        mPaddingStart = mContext.getResources().getDimensionPixelSize(
-                mContext.getResources().getIdentifier("status_bar_clock_starting_padding", "dimen", SYSTEM_UI));
+        int paddingResId = mContext.getResources().getIdentifier(
+                "status_bar_clock_starting_padding",
+                "dimen",
+                SYSTEM_UI
+        );
+        mPaddingStart = paddingResId != 0
+                ? mContext.getResources().getDimensionPixelSize(paddingResId)
+                : 0;
     }
 
     @Override
