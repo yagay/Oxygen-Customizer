@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.R;
@@ -147,12 +148,15 @@ public class StatusbarLogo extends XposedMods {
 
         try {
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            AtomicInteger attempts = new AtomicInteger(0);
             executor.scheduleWithFixedDelay(() -> {
-                File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                int attempt = attempts.incrementAndGet();
+                File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                if (Android.isDirectory()) {
+                if (androidDir.isDirectory()) {
                     placeLogo();
-                    executor.shutdown();
+                    executor.shutdownNow();
+                } else if (attempt >= 12) {
                     executor.shutdownNow();
                 }
             }, 0, 5, TimeUnit.SECONDS);
@@ -162,6 +166,7 @@ public class StatusbarLogo extends XposedMods {
     }
 
     private final ControllersProvider.OnKeyguardShowing mKeyguardShowing = showing -> {
+        if (mStatusbarLogoView == null) return;
         if (showing) {
             mStatusbarLogoView.setVisibility(View.GONE);
         } else {
