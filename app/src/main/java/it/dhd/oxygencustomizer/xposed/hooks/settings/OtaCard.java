@@ -20,6 +20,7 @@ import java.io.File;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -69,23 +70,35 @@ public class OtaCard extends XposedMods {
         if (mOtaCard == null) return;
 
         try {
-            ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            AtomicInteger attempts = new AtomicInteger(0);
             executor.scheduleWithFixedDelay(() -> {
-                File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                int attempt = attempts.incrementAndGet();
+                File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                if (Android.isDirectory()) {
-                    try {
-                        ImageDecoder.Source source = ImageDecoder.createSource(new File(Environment.getExternalStorageDirectory() + "/.oxygen_customizer/settings_ota_card.png"));
-
-                        RoundedBitmapDrawable otaImage = RoundedBitmapDrawableFactory.create(
-                                mContext.getResources(),
-                                ImageDecoder.decodeBitmap(source));
-                        otaImage.setCornerRadius(dp2px(mContext, 12));
-                        mOtaCard.setBackground(otaImage);
-                    } catch (Throwable ignored) {
+                if (!androidDir.isDirectory()) {
+                    if (attempt >= 12) {
+                        executor.shutdownNow();
                     }
+                    return;
+                }
 
-                    executor.shutdown();
+                try {
+                    File imageFile = new File(
+                            Environment.getExternalStorageDirectory(),
+                            ".oxygen_customizer/settings_ota_card.png"
+                    );
+                    if (!imageFile.isFile()) return;
+
+                    ImageDecoder.Source source = ImageDecoder.createSource(imageFile);
+                    RoundedBitmapDrawable otaImage = RoundedBitmapDrawableFactory.create(
+                            mContext.getResources(),
+                            ImageDecoder.decodeBitmap(source)
+                    );
+                    otaImage.setCornerRadius(dp2px(mContext, 12));
+                    mOtaCard.post(() -> mOtaCard.setBackground(otaImage));
+                } catch (Throwable ignored) {
+                } finally {
                     executor.shutdownNow();
                 }
             }, 0, 5, TimeUnit.SECONDS);

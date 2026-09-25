@@ -87,6 +87,7 @@ import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -537,13 +538,16 @@ public class HeaderClock extends XposedMods {
 
         try {
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            AtomicInteger attempts = new AtomicInteger(0);
             executor.scheduleWithFixedDelay(() -> {
-                File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                int attempt = attempts.incrementAndGet();
+                File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                if (Android.isDirectory()) {
+                if (androidDir.isDirectory()) {
                     updateStockPrefs();
                     updateClockView();
-                    executor.shutdown();
+                    executor.shutdownNow();
+                } else if (attempt >= 12) {
                     executor.shutdownNow();
                 }
             }, 0, 5, TimeUnit.SECONDS);
@@ -556,7 +560,9 @@ public class HeaderClock extends XposedMods {
         if (!showHeaderClock) return;
         float alpha = coerceIn(fraction / 0.86f, 0.0f, 1.0f);
         View v = getQsClockContainer(QS_CLOCK_NOTIF_CONTAINER);
-        v.setAlpha(alpha);
+        if (v != null) {
+            v.setAlpha(alpha);
+        }
     };
 
     @Override

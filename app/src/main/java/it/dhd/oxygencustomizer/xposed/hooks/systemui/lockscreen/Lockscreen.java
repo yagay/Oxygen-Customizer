@@ -46,6 +46,7 @@ import java.io.File;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -148,12 +149,15 @@ public class Lockscreen extends XposedMods {
 
         try {
             ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            AtomicInteger attempts = new AtomicInteger(0);
             executor.scheduleWithFixedDelay(() -> {
-                File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                int attempt = attempts.incrementAndGet();
+                File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                if (Android.isDirectory()) {
+                if (androidDir.isDirectory()) {
                     updateDrawable();
-                    executor.shutdown();
+                    executor.shutdownNow();
+                } else if (attempt >= 12) {
                     executor.shutdownNow();
                 }
             }, 0, 5, TimeUnit.SECONDS);
@@ -309,27 +313,56 @@ public class Lockscreen extends XposedMods {
     private void updateDrawable() {
         if (customFingerprint) {
             if (fingerprintStyle != -1) {
-                @SuppressLint("DiscouragedApi") int resId = ResourceManager.modRes.getIdentifier("fingerprint_" + fingerprintStyle, "drawable", BuildConfig.APPLICATION_ID);
-                mFpDrawable = (ResourcesCompat.getDrawable(ResourceManager.modRes,
-                        resId,
-                        mContext.getTheme()));
+                @SuppressLint("DiscouragedApi") int resId = ResourceManager.modRes.getIdentifier(
+                        "fingerprint_" + fingerprintStyle,
+                        "drawable",
+                        BuildConfig.APPLICATION_ID
+                );
+                if (resId == 0) {
+                    log("Fingerprint drawable not found for style " + fingerprintStyle);
+                    mFpDrawable = null;
+                } else {
+                    mFpDrawable = ResourcesCompat.getDrawable(
+                            ResourceManager.modRes,
+                            resId,
+                            mContext.getTheme()
+                    );
+                }
             } else {
                 try {
                     ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                    AtomicInteger attempts = new AtomicInteger(0);
                     executor.scheduleWithFixedDelay(() -> {
-                        File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                        int attempt = attempts.incrementAndGet();
+                        File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                        if (Android.isDirectory()) {
-                            try {
-                                ImageDecoder.Source source = ImageDecoder.createSource(new File(Environment.getExternalStorageDirectory() + "/.oxygen_customizer/lockscreen_fp_icon.png"));
-                                mFpDrawable = ImageDecoder.decodeDrawable(source);
-                                if (mFpDrawable instanceof AnimatedImageDrawable) {
-                                    ((AnimatedImageDrawable) mFpDrawable).setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
-                                    ((AnimatedImageDrawable) mFpDrawable).start();
-                                }
-                            } catch (Throwable t) {
-                                log("Failed to load custom fingerprint icon: " + t.getMessage());
+                        if (!androidDir.isDirectory()) {
+                            if (attempt >= 12) {
+                                executor.shutdownNow();
                             }
+                            return;
+                        }
+
+                        try {
+                            File iconFile = new File(
+                                    Environment.getExternalStorageDirectory(),
+                                    ".oxygen_customizer/lockscreen_fp_icon.png"
+                            );
+                            if (!iconFile.isFile()) {
+                                mFpDrawable = null;
+                                return;
+                            }
+
+                            ImageDecoder.Source source = ImageDecoder.createSource(iconFile);
+                            mFpDrawable = ImageDecoder.decodeDrawable(source);
+                            if (mFpDrawable instanceof AnimatedImageDrawable animatedDrawable) {
+                                animatedDrawable.setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
+                                animatedDrawable.start();
+                            }
+                        } catch (Throwable t) {
+                            log("Failed to load custom fingerprint icon: " + t.getMessage());
+                        } finally {
+                            executor.shutdownNow();
                         }
                     }, 0, 5, TimeUnit.SECONDS);
                 } catch (Throwable ignored) {
