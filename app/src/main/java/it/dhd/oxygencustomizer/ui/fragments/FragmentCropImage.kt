@@ -46,7 +46,10 @@ class FragmentCropImage :
         savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentCropImageViewBinding.inflate(layoutInflater, container, false)
-        arguments?.getParcelable<CropImageOptions>(CropImage.CROP_IMAGE_EXTRA_OPTIONS)?.let {
+        arguments?.getParcelable(
+            CropImage.CROP_IMAGE_EXTRA_OPTIONS,
+            CropImageOptions::class.java,
+        )?.let {
             options = it
         }
         return binding.root
