@@ -9,8 +9,7 @@ import android.content.Context;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -24,8 +23,8 @@ public class SystemNotificationListener extends XposedMods {
     @SuppressLint("StaticFieldLeak")
     private static SystemNotificationListener instance = null;
 
-    private List<NotificationCallback> mNotificationCallbacks = new ArrayList<>();
-    private List<DeviceUnlockListener> mDeviceUnlockListeners = new ArrayList<>();
+    private final CopyOnWriteArrayList<NotificationCallback> mNotificationCallbacks = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<DeviceUnlockListener> mDeviceUnlockListeners = new CopyOnWriteArrayList<>();
     public Object mNotificationListener = null;
 
     public SystemNotificationListener(Context context) {
@@ -102,7 +101,7 @@ public class SystemNotificationListener extends XposedMods {
     }
 
     public static void addNotificationCallback(NotificationCallback callback) {
-        instance.mNotificationCallbacks.add(callback);
+        instance.mNotificationCallbacks.addIfAbsent(callback);
     }
 
     public static void removeNotificationCallback(NotificationCallback callback) {
@@ -110,7 +109,7 @@ public class SystemNotificationListener extends XposedMods {
     }
 
     public static void addDeviceUnlockListener(DeviceUnlockListener listener) {
-        instance.mDeviceUnlockListeners.add(listener);
+        instance.mDeviceUnlockListeners.addIfAbsent(listener);
     }
 
     public static void removeDeviceUnlockListener(DeviceUnlockListener listener) {
@@ -123,31 +122,46 @@ public class SystemNotificationListener extends XposedMods {
 
     private void onNotificationPosted(StatusBarNotification notification, NotificationListenerService.RankingMap rankingMap) {
         for (NotificationCallback callback : mNotificationCallbacks) {
-            callback.onNotificationPosted(notification, rankingMap);
+            try {
+                callback.onNotificationPosted(notification, rankingMap);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
     private void onNotificationRemoved(StatusBarNotification notification, NotificationListenerService.RankingMap rankingMap, int reason) {
         for (NotificationCallback callback : mNotificationCallbacks) {
-            callback.onNotificationRemoved(notification, rankingMap, reason);
+            try {
+                callback.onNotificationRemoved(notification, rankingMap, reason);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
     private void onNotificationRemoved(StatusBarNotification notification, NotificationListenerService.RankingMap rankingMap) {
         for (NotificationCallback callback : mNotificationCallbacks) {
-            callback.onNotificationRemoved(notification, rankingMap);
+            try {
+                callback.onNotificationRemoved(notification, rankingMap);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
     private void onNotificationRankingUpdate(NotificationListenerService.RankingMap rankingMap) {
         for (NotificationCallback callback : mNotificationCallbacks) {
-            callback.onNotificationRankingUpdate(rankingMap);
+            try {
+                callback.onNotificationRankingUpdate(rankingMap);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
     private void onDeviceUnlock(boolean unlocked) {
         for (DeviceUnlockListener listener : mDeviceUnlockListeners) {
-            listener.onDeviceUnlock(unlocked);
+            try {
+                listener.onDeviceUnlock(unlocked);
+            } catch (Throwable ignored) {
+            }
         }
     }
 
