@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.xposed.hooks.systemui.ControllersProvider;
@@ -68,6 +69,7 @@ public class QsPhotoShowcaseView extends ImageView {
     private final Path path;
     private RectF rect;
     private boolean mReceiversRegistered = false;
+    private ScheduledExecutorService mLoadExecutor;
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
@@ -183,67 +185,80 @@ public class QsPhotoShowcaseView extends ImageView {
 
     private void updateImage() {
         if (mContext == null) return;
-        mDrawables.clear();
         removeCallback();
-        String imagePath = Environment.getExternalStorageDirectory() + "/.oxygen_customizer/qs_photo.png";
-        try {
-            ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
-            executor.scheduleWithFixedDelay(() -> {
-                File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+        stopLoadExecutor();
 
-                if (Android.isDirectory()) {
-                    try {
-                        // Load showcase images
-                        File dir = new File(Environment.getExternalStorageDirectory() + "/.oxygen_customizer");
-                        File[] filteredFiles = dir.listFiles((dir1, name) ->
-                                name.startsWith("qs_photo_") && name.endsWith(".png"));
-                        if (filteredFiles != null) {
-                            mDrawables.clear();
-                            for (File file : filteredFiles) {
-                                ImageDecoder.Source source = ImageDecoder.createSource(file);
+        AtomicInteger attempts = new AtomicInteger(0);
+        mLoadExecutor = Executors.newSingleThreadScheduledExecutor();
+        mLoadExecutor.scheduleWithFixedDelay(() -> {
+            int attempt = attempts.incrementAndGet();
+            File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                                Drawable drawable = ImageDecoder.decodeDrawable(source);
-                                mDrawables.add(drawable);
-                            }
-                        }
-                        // load custom image
-                        if (new File(imagePath).exists()) {
-                            ImageDecoder.Source source = ImageDecoder.createSource(new File(imagePath));
-
-                            Drawable drawable = ImageDecoder.decodeDrawable(source);
-
-                            if (drawable instanceof AnimatedImageDrawable) {
-                                ((AnimatedImageDrawable) drawable).setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
-                                ((AnimatedImageDrawable) drawable).start();
-                            }
-                            mLoadedDrawable = drawable;
-                        }
-                        post(() -> {
-                            if (mIsShowcase && !mDrawables.isEmpty()) {
-                                // Set the first drawable from the showcase images
-                                setImageDrawable(mDrawables.get(0));
-                                mCurrentDrawableIndex = 0;
-                            } else if (mLoadedDrawable != null) {
-                                // Set the custom image if available
-                                setImageDrawable(mLoadedDrawable);
-                            } else {
-                                // Fallback to default icon if no images are found
-                                setImageDrawable(ResourcesCompat.getDrawable(
-                                        mSettingsInterface ?
-                                                mContext.getResources() :
-                                                modRes,
-                                        R.mipmap.ic_launcher,
-                                        mContext.getTheme()));
-                            }
-                        });
-                    } catch (Throwable ignored) {}
-
-                    executor.shutdown();
-                    executor.shutdownNow();
+            if (!androidDir.isDirectory()) {
+                if (attempt >= 12) {
+                    stopLoadExecutor();
                 }
-            }, 0, 5, TimeUnit.SECONDS);
+                return;
+            }
 
-        } catch (Throwable ignored) {
+            try {
+                List<Drawable> loadedDrawables = new ArrayList<>();
+                File dir = new File(
+                        Environment.getExternalStorageDirectory(),
+                        ".oxygen_customizer"
+                );
+                File[] filteredFiles = dir.listFiles((dir1, name) ->
+                        name.startsWith("qs_photo_") && name.endsWith(".png"));
+
+                if (filteredFiles != null) {
+                    for (File file : filteredFiles) {
+                        ImageDecoder.Source source = ImageDecoder.createSource(file);
+                        loadedDrawables.add(ImageDecoder.decodeDrawable(source));
+                    }
+                }
+
+                Drawable loadedCustomDrawable = null;
+                File imageFile = new File(dir, "qs_photo.png");
+                if (imageFile.isFile()) {
+                    ImageDecoder.Source source = ImageDecoder.createSource(imageFile);
+                    loadedCustomDrawable = ImageDecoder.decodeDrawable(source);
+                }
+
+                Drawable finalLoadedCustomDrawable = loadedCustomDrawable;
+                post(() -> {
+                    mDrawables.clear();
+                    mDrawables.addAll(loadedDrawables);
+                    mLoadedDrawable = finalLoadedCustomDrawable;
+
+                    if (mLoadedDrawable instanceof AnimatedImageDrawable animatedDrawable) {
+                        animatedDrawable.setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
+                        animatedDrawable.start();
+                    }
+
+                    if (mIsShowcase && !mDrawables.isEmpty()) {
+                        setImageDrawable(mDrawables.get(0));
+                        mCurrentDrawableIndex = 0;
+                    } else if (mLoadedDrawable != null) {
+                        setImageDrawable(mLoadedDrawable);
+                    } else {
+                        setImageDrawable(ResourcesCompat.getDrawable(
+                                mSettingsInterface ? mContext.getResources() : modRes,
+                                R.mipmap.ic_launcher,
+                                mContext.getTheme()
+                        ));
+                    }
+                });
+            } catch (Throwable ignored) {
+            } finally {
+                stopLoadExecutor();
+            }
+        }, 0, 5, TimeUnit.SECONDS);
+    }
+
+    private synchronized void stopLoadExecutor() {
+        if (mLoadExecutor != null) {
+            mLoadExecutor.shutdownNow();
+            mLoadExecutor = null;
         }
     }
 
@@ -260,6 +275,7 @@ public class QsPhotoShowcaseView extends ImageView {
     @Override
     protected void onDetachedFromWindow() {
         removeCallback();
+        stopLoadExecutor();
         if (mReceiversRegistered) {
             try {
                 mContext.unregisterReceiver(mReceiver);
