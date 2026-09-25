@@ -1182,7 +1182,7 @@ public class HeaderClock extends XposedMods {
             );
         }
         if (resId == 0) {
-            log(TAG + "Header clock layout not found for style " + clockStyle);
+            log("HeaderClock: header clock layout not found for style " + clockStyle);
             return null;
         }
 
