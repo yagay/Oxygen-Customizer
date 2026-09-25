@@ -54,6 +54,7 @@ import java.util.Arrays;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
@@ -657,25 +658,38 @@ public class DepthWallpaper extends XposedMods {
     private void setDepthBackground() {
         if (!DWallpaperEnabled || !mLayersCreated) return;
         if (mWallpaperBackground != null) {
-            ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            AtomicInteger attempts = new AtomicInteger(0);
             executor.scheduleWithFixedDelay(() -> {
-                File Android = new File(Environment.getExternalStorageDirectory() + "/Android");
+                int attempt = attempts.incrementAndGet();
+                File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
 
-                if (Android.isDirectory()) {
-                    try {
-                        ImageDecoder.Source source = ImageDecoder.createSource(new File(getLockScreenBitmapCachePath()));
-
-                        Drawable drawable = ImageDecoder.decodeDrawable(source);
-                        mWallpaperBackground.post(() -> mWallpaperBitmapContainer.setBackground(drawable));
-
-                        if (drawable instanceof AnimatedImageDrawable) {
-                            ((AnimatedImageDrawable) drawable).setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
-                            ((AnimatedImageDrawable) drawable).start();
-                        }
-                    } catch (Throwable ignored) {
+                if (!androidDir.isDirectory()) {
+                    if (attempt >= 12) {
+                        executor.shutdownNow();
                     }
+                    return;
+                }
 
-                    executor.shutdown();
+                try {
+                    File cacheFile = new File(getLockScreenBitmapCachePath());
+                    if (!cacheFile.isFile()) return;
+
+                    ImageDecoder.Source source = ImageDecoder.createSource(cacheFile);
+                    Drawable drawable = ImageDecoder.decodeDrawable(source);
+                    mWallpaperBackground.post(() -> {
+                        if (mWallpaperBitmapContainer != null) {
+                            mWallpaperBitmapContainer.setBackground(drawable);
+                        }
+                    });
+
+                    if (drawable instanceof AnimatedImageDrawable animatedDrawable) {
+                        animatedDrawable.setRepeatCount(AnimatedImageDrawable.REPEAT_INFINITE);
+                        animatedDrawable.start();
+                    }
+                } catch (Throwable t) {
+                    log("Unable to load depth wallpaper background: " + t.getMessage());
+                } finally {
                     executor.shutdownNow();
                 }
             }, 0, 5, TimeUnit.SECONDS);
