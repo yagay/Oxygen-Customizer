@@ -114,14 +114,16 @@ public class FileUtil {
 
     private static String getRealPathFromURI(Uri uri) {
         File file;
-        try {
-            @SuppressLint("Recycle") Cursor returnCursor = getAppContext().getContentResolver().query(uri, null, null, null, null);
-
-            if (returnCursor == null) return null;
+        try (Cursor returnCursor = getAppContext().getContentResolver()
+                .query(uri, null, null, null, null)) {
+            if (returnCursor == null || !returnCursor.moveToFirst()) return null;
 
             int nameIndex = returnCursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-            returnCursor.moveToFirst();
+            if (nameIndex < 0) return null;
+
             String name = returnCursor.getString(nameIndex);
+            if (name == null || name.isBlank()) return null;
+
             file = new File(getAppContext().getFilesDir(), name);
             try (InputStream inputStream = getAppContext().getContentResolver().openInputStream(uri);
                  FileOutputStream outputStream = new FileOutputStream(file)) {

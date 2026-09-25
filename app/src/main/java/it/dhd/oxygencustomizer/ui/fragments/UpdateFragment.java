@@ -109,43 +109,54 @@ public class UpdateFragment extends BaseFragment {
         @SuppressLint("MissingPermission")
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (getContext() != null)
-                getContext().unregisterReceiver(downloadCompletionReceiver);
+            if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
+                return;
+            }
 
+            long completedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
+            if (completedId != downloadID) {
+                return;
+            }
 
             boolean successful = false;
-            if (DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction()) && intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1) == downloadID) {
-                try (Cursor downloadData = downloadManager.query(
-                        new DownloadManager.Query()
-                                .setFilterById(downloadID))) {
-                    downloadData.moveToFirst();
-
+            try (Cursor downloadData = downloadManager.query(
+                    new DownloadManager.Query().setFilterById(downloadID))) {
+                if (downloadData != null && downloadData.moveToFirst()) {
                     int uriColIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
+                    if (uriColIndex >= 0) {
+                        String localUri = downloadData.getString(uriColIndex);
+                        if (!TextUtils.isEmpty(localUri)) {
+                            File downloadedFile = new File(URI.create(localUri));
 
-                    File downloadedFile = new File(URI.create(downloadData.getString(uriColIndex)));
-
-                    if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
-                        downloadedFilePath = downloadedFile.getAbsolutePath();
-
-                        notifyInstall();
-                        successful = true;
-                    } else if (downloadedFile.exists()) {
-                        Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
-                        //noinspection ResultOfMethodCallIgnored
-                        downloadedFile.delete();
+                            if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
+                                downloadedFilePath = downloadedFile.getAbsolutePath();
+                                notifyInstall();
+                                successful = true;
+                            } else if (downloadedFile.exists()) {
+                                Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
+                                //noinspection ResultOfMethodCallIgnored
+                                downloadedFile.delete();
+                            }
+                        }
                     }
+                }
+            } catch (Throwable t) {
+                Log.e("UpdateFragment", "Unable to inspect completed download", t);
+            } finally {
+                try {
+                    context.unregisterReceiver(downloadCompletionReceiver);
                 } catch (Throwable ignored) {
                 }
             }
 
             if (!successful) {
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(requireContext(), UPDATES_CHANNEL_ID)
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, UPDATES_CHANNEL_ID)
                         .setSmallIcon(R.drawable.ic_notification_foreground)
-                        .setContentTitle(requireContext().getText(R.string.download_failed))
-                        .setContentText(requireContext().getText(R.string.try_again_later))
+                        .setContentTitle(context.getText(R.string.download_failed))
+                        .setContentText(context.getText(R.string.try_again_later))
                         .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
-                NotificationManagerCompat.from(requireContext()).notify(2, builder.build());
+                NotificationManagerCompat.from(context).notify(2, builder.build());
             }
         }
     };
