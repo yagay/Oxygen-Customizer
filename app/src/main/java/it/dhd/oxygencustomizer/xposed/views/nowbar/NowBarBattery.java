@@ -357,22 +357,13 @@ public class NowBarBattery extends RelativeLayout {
     }
 
     private String getSystemUiString(Context context, String identifier) {
-        return context.getString(
-                context.getResources().getIdentifier(
-                        identifier,
-                        "string",
-                        SYSTEM_UI)
-        );
+        int resId = context.getResources().getIdentifier(identifier, "string", SYSTEM_UI);
+        return resId != 0 ? context.getString(resId) : identifier;
     }
 
     private String getSystemUiString(Context context, String identifier, String arg) {
-        return context.getString(
-                context.getResources().getIdentifier(
-                        identifier,
-                        "string",
-                        SYSTEM_UI),
-                arg
-        );
+        int resId = context.getResources().getIdentifier(identifier, "string", SYSTEM_UI);
+        return resId != 0 ? context.getString(resId, arg) : arg;
     }
 
     public void setBatteryBarOptions(
