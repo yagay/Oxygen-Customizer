@@ -65,16 +65,6 @@ android {
         }
     }
 
-    applicationVariants.all {
-        val variant = this
-        variant.outputs
-            .map { it as com.android.build.gradle.internal.api.BaseVariantOutputImpl }
-            .forEach { output ->
-                val outputFileName = "OxygenCustomizer.apk"
-                output.outputFileName = outputFileName
-            }
-    }
-
     buildFeatures {
         viewBinding = true
         dataBinding = true
@@ -113,6 +103,14 @@ android {
         )
 
         jniLibs.useLegacyPackaging = true
+    }
+}
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("OxygenCustomizer.apk")
+        }
     }
 }
 
