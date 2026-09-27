@@ -67,6 +67,13 @@ Thanks to those contributors, this project exists:
                 </a>
             </td>
             <td align="center">
+                <a href="https://github.com/yagay">
+                    <img src="https://avatars.githubusercontent.com/u/1614094?v=4" width="32;" alt="yagay"/>
+                    <br />
+                    <sub><b>Jie</b></sub>
+                </a>
+            </td>
+            <td align="center">
                 <a href="https://github.com/crowdin-bot">
                     <img src="https://avatars.githubusercontent.com/u/58779643?v=4" width="32;" alt="crowdin-bot"/>
                     <br />
@@ -94,6 +101,8 @@ Thanks to those contributors, this project exists:
                     <sub><b>Jean Rivera</b></sub>
                 </a>
             </td>
+		</tr>
+		<tr>
             <td align="center">
                 <a href="https://github.com/luigimak">
                     <img src="https://avatars.githubusercontent.com/u/10235885?v=4" width="32;" alt="luigimak"/>
@@ -101,8 +110,6 @@ Thanks to those contributors, this project exists:
                     <sub><b>luigimak</b></sub>
                 </a>
             </td>
-		</tr>
-		<tr>
             <td align="center">
                 <a href="https://github.com/Mahmud0808">
                     <img src="https://avatars.githubusercontent.com/u/29881338?v=4" width="32;" alt="Mahmud0808"/>
