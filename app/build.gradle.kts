@@ -8,6 +8,8 @@ plugins {
     alias(libs.plugins.kotlin.kapt)
 }
 
+val ciArm64Only = providers.gradleProperty("ciArm64Only").orNull == "true"
+
 android {
 
     namespace = "it.dhd.oxygencustomizer"
@@ -21,6 +23,13 @@ android {
         versionName = "beta-207"
 //        setProperty("archivesBaseName", "OxygenCustomizer.apk")
         buildConfigField("int", "MIN_SDK_VERSION", "$minSdk")
+
+        if (ciArm64Only) {
+            ndk {
+                abiFilters.clear()
+                abiFilters += "arm64-v8a"
+            }
+        }
     }
 
     val keystorePropertiesFile = rootProject.file("keystore.properties")
