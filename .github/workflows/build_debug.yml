@@ -61,8 +61,22 @@ jobs:
         if: env.HAS_SIGNING == 'true'
         run: ./gradlew assembleRelease
 
-      - name: Build debug with Gradle
-        run: ./gradlew assembleDebug
+      - name: Build arm64-v8a debug with Gradle
+        run: ./gradlew -PciArm64Only=true assembleDebug
+
+      - name: Prepare fixed debug APK name
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          ABIS="$(unzip -Z1 "$APK" | sed -n 's#^lib/\([^/]*\)/.*#\1#p' | sort -u)"
+          if [ -n "$ABIS" ] && [ "$ABIS" != "arm64-v8a" ]; then
+            echo "Unexpected ABIs in APK: $ABIS"
+            exit 1
+          fi
+          cp "$APK" artifacts/OxygenCustomizer-debug-arm64-v8a.apk
 
       - name: Upload release Build Artifact
         if: env.HAS_SIGNING == 'true'
@@ -75,8 +89,8 @@ jobs:
       - name: Upload debug Build Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: "Oxygen Customizer ${{ env.VERSION_NAME }} Dev (#${{github.run_number}}) Debug"
-          path: app/build/outputs/apk/debug/*.apk
+          name: OxygenCustomizer-debug-arm64-v8a
+          path: artifacts/OxygenCustomizer-debug-arm64-v8a.apk
           if-no-files-found: error
 
       - name: Get Commit Messages
