@@ -28,6 +28,7 @@ import androidx.core.view.MenuHost;
 import androidx.core.view.MenuProvider;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.LifecycleEventObserver;
 import androidx.recyclerview.widget.OplusRecyclerView;
 
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.databinding.FragmentAppListBinding;
@@ -174,8 +176,18 @@ public abstract class AppFragmentBase extends BaseFragment {
         }
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        binding = null;
+    }
+
+    private static final ExecutorService APP_SCAN_EXECUTOR =
+            Executors.newFixedThreadPool(2, r -> new Thread(r, "OC-AppListScan"));
+
     public static class LoadAppsTask {
         private final Context mContext;
+        private volatile Future<?> runningTask;
         private Map<String, Integer> mEnabledApps;
         private Set<String> mEnabledSetApps;
         private final OnTaskCompleted taskCompletedListener;
@@ -184,13 +196,18 @@ public abstract class AppFragmentBase extends BaseFragment {
         /** Suppress queued UI callbacks after the owning Fragment view is destroyed. */
         public LoadAppsTask bindTo(LifecycleOwner owner) {
             mViewLifecycleOwner = owner;
+            owner.getLifecycle().addObserver((LifecycleEventObserver) (source, event) -> {
+                if (event == Lifecycle.Event.ON_DESTROY && runningTask != null) {
+                    runningTask.cancel(true);
+                }
+            });
             return this;
         }
 
         private boolean isViewAlive() {
             return mViewLifecycleOwner == null
                     || mViewLifecycleOwner.getLifecycle().getCurrentState()
-                            .isAtLeast(Lifecycle.State.CREATED);
+                            != Lifecycle.State.DESTROYED);
         }
         private final OnPreTaskExecution preExecutionListener;
         private final boolean hasSlider;
@@ -251,7 +268,6 @@ public abstract class AppFragmentBase extends BaseFragment {
         }
 
         public void execute() {
-            ExecutorService executor = Executors.newSingleThreadExecutor();
             Handler handler = new Handler(Looper.getMainLooper());
 
             if (preExecutionListener != null) {
@@ -265,6 +281,7 @@ public abstract class AppFragmentBase extends BaseFragment {
                 PackageManager packageManager = mContext.getPackageManager();
                 List<ApplicationInfo> apps = packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0));
                 for(ApplicationInfo app : apps) {
+                    if (Thread.currentThread().isInterrupted()) return appList;
                     Integer value;
                     int enabledAppCount = 0;
                     if (hasSlider) {
@@ -301,7 +318,7 @@ public abstract class AppFragmentBase extends BaseFragment {
                 return appList;
             };
 
-            executor.execute(() -> {
+            runningTask = APP_SCAN_EXECUTOR.submit(() -> {
                 try {
                     final List<AppModel> appList = callable.call();
                     handler.post(() -> {
@@ -313,8 +330,8 @@ public abstract class AppFragmentBase extends BaseFragment {
                     Log.e(this.getClass().getName(), "Executor error", e);
                 }
             });
-            // Do not retain a live worker thread after the queued app scan completes.
-            executor.shutdown();
+            // A destroyed view cannot keep a scan queued.
+            if (!isViewAlive()) runningTask.cancel(true);
         }
     }
 
