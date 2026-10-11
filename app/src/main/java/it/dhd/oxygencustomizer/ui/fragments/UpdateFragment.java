@@ -97,71 +97,12 @@ public class UpdateFragment extends BaseFragment {
 
     private Flavor mCurrentFlavor = Flavor.ALL;
     private boolean mNightlyDownloaded = false;
-    DownloadManager downloadManager;
-    long downloadID = 0; //from download manager
     static boolean betaUpdate = BuildConfig.VERSION_NAME.toLowerCase().contains("beta");
     static boolean nightlyUpdate = BuildConfig.VERSION_NAME.toLowerCase().contains("nightly");
     HashMap<String, Object> latestVersion = null;
-    private String downloadedFilePath;
     private LoadingDialog mLoadingDialog;
     private volatile int mUpdateRequestGeneration = 0;
 
-    final BroadcastReceiver downloadCompletionReceiver = new BroadcastReceiver() {
-
-        @SuppressLint("MissingPermission")
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            if (!DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) {
-                return;
-            }
-
-            long completedId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
-            if (completedId != downloadID) {
-                return;
-            }
-
-            boolean successful = false;
-            try (Cursor downloadData = downloadManager.query(
-                    new DownloadManager.Query().setFilterById(downloadID))) {
-                if (downloadData != null && downloadData.moveToFirst()) {
-                    int uriColIndex = downloadData.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI);
-                    if (uriColIndex >= 0) {
-                        String localUri = downloadData.getString(uriColIndex);
-                        if (!TextUtils.isEmpty(localUri)) {
-                            File downloadedFile = new File(URI.create(localUri));
-
-                            if (downloadedFile.exists() && verifyDownloadedFile(downloadedFile)) {
-                                downloadedFilePath = downloadedFile.getAbsolutePath();
-                                notifyInstall();
-                                successful = true;
-                            } else if (downloadedFile.exists()) {
-                                Log.e("UpdateFragment", "Downloaded update failed SHA-256 verification");
-                                //noinspection ResultOfMethodCallIgnored
-                                downloadedFile.delete();
-                            }
-                        }
-                    }
-                }
-            } catch (Throwable t) {
-                Log.e("UpdateFragment", "Unable to inspect completed download", t);
-            } finally {
-                try {
-                    context.unregisterReceiver(downloadCompletionReceiver);
-                } catch (Throwable ignored) {
-                }
-            }
-
-            if (!successful) {
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, UPDATES_CHANNEL_ID)
-                        .setSmallIcon(R.drawable.ic_notification_foreground)
-                        .setContentTitle(context.getText(R.string.download_failed))
-                        .setContentText(context.getText(R.string.try_again_later))
-                        .setPriority(NotificationCompat.PRIORITY_DEFAULT);
-
-                NotificationManagerCompat.from(context).notify(2, builder.build());
-            }
-        }
-    };
     private FragmentUpdatesBinding binding;
     private int currentVersionCode = -1;
     private int currentVersionType = -1;
@@ -175,9 +116,7 @@ public class UpdateFragment extends BaseFragment {
             @NonNull LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
 
-        //noinspection ConstantConditions
-        downloadManager = (DownloadManager) requireContext().getSystemService(Context.DOWNLOAD_SERVICE);
-
+        // Download completion belongs to the manifest receiver and WorkManager.
         //finally
         binding = FragmentUpdatesBinding.inflate(inflater, container, false);
 
@@ -243,33 +182,6 @@ public class UpdateFragment extends BaseFragment {
         getContext().startActivity(promptInstall);
     }
 
-    private boolean verifyDownloadedFile(File file) {
-        Object expectedValue = latestVersion != null ? latestVersion.get("sha256") : null;
-        String expected = expectedValue != null ? String.valueOf(expectedValue).trim() : "";
-        if (TextUtils.isEmpty(expected)) {
-            // Backward compatible with metadata generated before checksum support.
-            return true;
-        }
-
-        try (FileInputStream inputStream = new FileInputStream(file)) {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] buffer = new byte[8192];
-            int read;
-            while ((read = inputStream.read(buffer)) != -1) {
-                digest.update(buffer, 0, read);
-            }
-
-            StringBuilder actual = new StringBuilder();
-            for (byte value : digest.digest()) {
-                actual.append(String.format("%02x", value & 0xff));
-            }
-            return expected.equalsIgnoreCase(actual.toString());
-        } catch (Exception e) {
-            Log.e("UpdateFragment", "Unable to verify update checksum", e);
-            return false;
-        }
-    }
-
     private boolean isTrustedDownloadPath(String downloadPath) {
         if (TextUtils.isEmpty(downloadPath)) return false;
         try {
@@ -283,6 +195,8 @@ public class UpdateFragment extends BaseFragment {
             return false;
         }
     }
+
+    private static final long MAX_NIGHTLY_APK_BYTES = 512L * 1024 * 1024;
 
     public void unzip(String fileName, UnZipCallback callback) {
         File outputApk = null;
@@ -308,6 +222,9 @@ public class UpdateFragment extends BaseFragment {
             if (apkEntry == null) {
                 throw new IllegalStateException("Nightly archive does not contain an APK");
             }
+            if (apkEntry.getSize() > MAX_NIGHTLY_APK_BYTES) {
+                throw new IllegalStateException("Nightly APK exceeds extraction size limit");
+            }
 
             File parentDirectory = fileToUnzip.getParentFile();
             if (parentDirectory == null) {
@@ -324,7 +241,12 @@ public class UpdateFragment extends BaseFragment {
                  FileOutputStream unzipOutputStream = new FileOutputStream(outputApk)) {
                 byte[] buffer = new byte[8192];
                 int read;
+                long extracted = 0;
                 while ((read = zipInput.read(buffer)) != -1) {
+                    extracted += read;
+                    if (extracted > MAX_NIGHTLY_APK_BYTES) {
+                        throw new IllegalStateException("Nightly APK extraction limit exceeded");
+                    }
                     unzipOutputStream.write(buffer, 0, read);
                 }
                 unzipOutputStream.flush();
@@ -509,8 +431,8 @@ public class UpdateFragment extends BaseFragment {
                 }
 
                 String zipURL = (String) latestVersion.get("apkUrl");
-                if (mCurrentFlavor == Flavor.NIGHTLY) {
-                    mNightlyDownloaded = true;
+                mNightlyDownloaded = mCurrentFlavor == Flavor.NIGHTLY;
+                if (mNightlyDownloaded) {
                     zipURL = String.format(
                             NIGHTLY_DOWNLOAD,
                             latestVersion.get("actionRun"),
@@ -518,8 +440,13 @@ public class UpdateFragment extends BaseFragment {
                             latestVersion.get("devBuild"));
                 }
 
-                //noinspection ConstantConditions
-                startDownload(zipURL, latestVersion);
+                try {
+                    startDownload(zipURL, latestVersion);
+                } catch (RuntimeException error) {
+                    Log.e("UpdateFragment", "Unable to start update download", error);
+                    Toast.makeText(requireContext(), R.string.download_failed, Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 binding.updateBtn.setEnabled(false);
 //				downloadStarted = true;
                 binding.updateBtn.setText(R.string.update_download_started);
@@ -582,25 +509,8 @@ public class UpdateFragment extends BaseFragment {
     }
 
     public void startDownload(String zipURL, HashMap<String, Object> versionInfo) {
-        IntentFilter filters = new IntentFilter();
-        filters.addAction(DownloadManager.ACTION_DOWNLOAD_COMPLETE);
-        filters.addAction(DownloadManager.ACTION_NOTIFICATION_CLICKED);
-
-        String fileName = "OxygenCustomizer-%s.%s";
-        downloadID = downloadManager.enqueue(new DownloadManager.Request(Uri.parse(zipURL))
-                .setTitle("Oxygen Customizer Update Package")
-                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS,
-                        String.format(fileName,
-                                mNightlyDownloaded ?
-                                        "nightly-" + versionInfo.get("versionCode") + "-" + versionInfo.get("devBuild") :
-                                        versionInfo.get("version") + "-" + versionInfo.get("versionCode"),
-                                mNightlyDownloaded ? "zip" : "apk"))
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE));
-
-        //noinspection ConstantConditions
-        if (getContext() != null) {
-            getContext().registerReceiver(downloadCompletionReceiver, filters, RECEIVER_EXPORTED);
-        }
+        it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver.enqueueDownload(
+                requireContext().getApplicationContext(), zipURL, versionInfo, mNightlyDownloaded);
     }
 
     @Override
@@ -608,44 +518,6 @@ public class UpdateFragment extends BaseFragment {
         ++mUpdateRequestGeneration;
         super.onDestroyView();
         binding = null;
-    }
-
-    @SuppressLint("MissingPermission")
-    public void notifyInstall() {
-        if (getContext() == null) {
-            Log.w("UpdateFragment", "notifyInstall: context is null");
-            return;
-        }
-
-        String updateToken = UUID.randomUUID().toString();
-        Prefs.putString("pending_update_token", updateToken);
-
-        Intent notificationIntent = new Intent(getContext(), MainActivity.class);
-        notificationIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        notificationIntent.setAction(Intent.ACTION_RUN);
-        notificationIntent.addCategory(Intent.CATEGORY_DEFAULT);
-        notificationIntent.putExtra("updateTapped", true);
-        notificationIntent.putExtra("filePath", downloadedFilePath);
-        notificationIntent.putExtra("isNightly", mNightlyDownloaded);
-        notificationIntent.putExtra("updateToken", updateToken);
-
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-                getContext(),
-                0,
-                notificationIntent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-        );
-
-        //noinspection ConstantConditions
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(getContext(), UPDATES_CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_notification_foreground)
-                .setContentTitle(requireContext().getString(R.string.update_notification_title))
-                .setContentText(requireContext().getString(R.string.update_notification_text))
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true);
-
-        NotificationManagerCompat.from(getContext()).notify(1, builder.build());
     }
 
     public interface TaskDoneCallback extends Callback {

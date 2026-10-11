@@ -181,11 +181,13 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     }
 
     private boolean isValidUpdateIntent(Intent intent) {
-        String expectedToken = Prefs.getString("pending_update_token", "");
+        long id = intent.getLongExtra("updateDownloadId", -1);
+        String key = id >= 0 ? "pending_update_token_" + id : "pending_update_token";
+        String expectedToken = Prefs.getString(key, "");
         String providedToken = intent.getStringExtra("updateToken");
         boolean valid = !TextUtils.isEmpty(expectedToken) && expectedToken.equals(providedToken);
         if (valid) {
-            Prefs.clearPref("pending_update_token");
+            Prefs.clearPref(key);
         }
         return valid;
     }

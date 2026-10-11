@@ -270,6 +270,36 @@ checks.extend([
     ]),
 ])
 
+checks.extend([
+    (JAVA / "receivers/UpdateDownloadReceiver.java", [
+        "enqueueUniqueWork(",
+        "DownloadManager.STATUS_SUCCESSFUL",
+        "pending_update_token_",
+        "verifyChecksum(",
+    ]),
+    (JAVA / "ui/fragments/UpdateFragment.java", [
+        "MAX_NIGHTLY_APK_BYTES",
+        "extracted > MAX_NIGHTLY_APK_BYTES",
+        "UpdateDownloadReceiver.enqueueDownload(",
+    ]),
+    (JAVA / "utils/extension/TaskExecutor.java", [
+        "preExecuteLatch.countDown();",
+        "mExecutor.shutdown();",
+        "mTask.cancel(true)",
+    ]),
+    (JAVA / "utils/RootUtil.java", [
+        "private static void setPermissionsChecked(",
+        "if (!result.isSuccess())",
+    ]),
+    (JAVA / "utils/overlay/compiler/OverlayCompileCoordinator.java", [
+        "notePackageInstallAttempt(",
+        "if (!installAttempted[i]) continue;",
+    ]),
+    (JAVA / "xposed/hooks/systemui/lockscreen/DepthWallpaper.java", [
+        "catch (NumberFormatException invalidPreference)",
+        "if (stateValue == null) return;",
+    ]),
+])
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")

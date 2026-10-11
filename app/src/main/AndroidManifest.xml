@@ -197,6 +197,16 @@
             android:grantUriPermissions="true"
             android:permission="android.permission.STATUS_BAR_SERVICE" />
 
+        <!-- Receive completed downloads even after the update Fragment is gone. -->
+        <receiver
+            android:name=".receivers.UpdateDownloadReceiver"
+            android:exported="true"
+            android:permission="android.permission.SEND_DOWNLOAD_COMPLETED_INTENTS">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+
         <receiver
             android:name=".receivers.SystemReceiver"
             android:exported="false">
