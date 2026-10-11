@@ -235,7 +235,7 @@ public class MemcEnhancer extends XposedMods {
                         oplus.software.display.game.memc_enable
                     */
                 String requestedFeature = (String) param.args[0];
-                if (OPLUS_MEMC_FEATURES.contains(requestedFeature) && enableMemcFeature) {
+                if (OPLUS_MEMC_FEATURES.contains(requestedFeature) && configSnapshot.force) {
                     param.setResult(true);
                 }
             }
@@ -261,7 +261,7 @@ public class MemcEnhancer extends XposedMods {
         hookAllMethods(SystemProperties, "getBoolean", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!enableMemcFeature) return;
+                if (!configSnapshot.force) return;
                 if (param.args[0].equals("ro.oplus.display.memc_video_refreshrate") ||
                         param.args[0].equals("vendor.display.show_memc_tomast")) {
                     log("get: " + param.args[0] + " called, returning true");
@@ -307,45 +307,45 @@ public class MemcEnhancer extends XposedMods {
         hookAllMethods(OplusMemcHelper, "getConfigAppList", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!useCustomMemcConfig) return;
+                if (!configSnapshot.custom) return;
                 log("getConfigAppList called");
-                param.setResult(sConfigPackage);
+                param.setResult(new ArrayList<>(configSnapshot.packages));
             }
         });
 
         hookAllMethods(OplusMemcHelper, "getConfigActivityList", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!useCustomMemcConfig) return;
+                if (!configSnapshot.custom) return;
                 log("getConfigActivityList called");
-                param.setResult(sConfigActivity);
+                param.setResult(new ArrayList<>(configSnapshot.activities));
             }
         });
 
         hookAllMethods(OplusMemcHelper, "getSdr2hdrCommandMap", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!useCustomMemcConfig) return;
+                if (!configSnapshot.custom) return;
                 log("getSdr2hdrCommandMap called");
-                param.setResult(sSdr2hdrCommandMap);
+                param.setResult(new HashMap<>(configSnapshot.sdr2hdr));
             }
         });
 
         hookAllMethods(OplusMemcHelper, "getMemcCommandMap", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!useCustomMemcConfig) return;
+                if (!configSnapshot.custom) return;
                 log("getMemcCommandMap called");
-                param.setResult(sMemcCommandMap);
+                param.setResult(new HashMap<>(configSnapshot.memc));
             }
         });
 
         hookAllMethods(OplusMemcHelper, "getAppScreenRateMap", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!useCustomMemcConfig) return;
+                if (!configSnapshot.custom) return;
                 log("getAppScreenRateMap called");
-                param.setResult(sAppScreenRateMap);
+                param.setResult(new HashMap<>(configSnapshot.rates));
             }
         });
 
@@ -365,10 +365,10 @@ public class MemcEnhancer extends XposedMods {
         hookAllMethods(OplusMemcHelper, "isInConfigpackageList", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!useCustomMemcConfig) return;
+                if (!configSnapshot.custom) return;
                 String packageName = (String) param.args[0];
-                log("isInConfigpackageList called with: " + packageName + " returning: " + sConfigPackage.contains(packageName));
-                param.setResult(sConfigPackage.contains(packageName));
+                log("isInConfigpackageList called with: " + packageName + " returning: " + configSnapshot.packages.contains(packageName));
+                param.setResult(configSnapshot.packages.contains(packageName));
             }
         });
     }
