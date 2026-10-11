@@ -135,7 +135,7 @@ public class UpdateWorker extends ListenableWorker {
             int versionType = (int) result.get("versionType");
 
             int currentNightly = isNightly ?
-                    Integer.parseInt(versionName.substring(versionName.indexOf("#") + 1, versionName.lastIndexOf(")"))) :
+                    UpdateFragment.getNightlyBuildNumber(versionName) :
                     -1;
 
             Integer latestVersionCode = (Integer) result.get("versionCode");

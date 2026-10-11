@@ -540,8 +540,22 @@ public class UpdateFragment extends BaseFragment {
         rebootPending = false;
         currentVersionName = BuildConfig.VERSION_NAME;
         currentVersionCode = BuildConfig.VERSION_CODE;
-        if (currentVersionName.contains("nightly")) {
-            currentNightlyVersion = currentVersionName.substring(currentVersionName.indexOf("#") + 1, currentVersionName.lastIndexOf(")"));
+        currentNightlyVersion = currentVersionName.toLowerCase().contains("nightly")
+                ? String.valueOf(getNightlyBuildNumber(currentVersionName)) : "";
+    }
+
+    /** Parse an optional #build marker without crashing the update page on malformed versions. */
+    public static int getNightlyBuildNumber(String versionName) {
+        if (versionName == null) return 0;
+        int marker = versionName.lastIndexOf('#');
+        if (marker < 0) return 0;
+        int end = marker + 1;
+        while (end < versionName.length() && Character.isDigit(versionName.charAt(end))) end++;
+        if (end == marker + 1) return 0;
+        try {
+            return Integer.parseInt(versionName.substring(marker + 1, end));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
     }
 

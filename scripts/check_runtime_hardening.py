@@ -70,6 +70,8 @@ checks = [
     ]),
     (JAVA / "ui/fragments/UpdateFragment.java", [
         'Shell.cmd("reboot").submit(result ->',
+        "public static int getNightlyBuildNumber(String versionName)",
+        "Character.isDigit(versionName.charAt(end))",
         'if (!result.isSuccess())',
     ]),
     (JAVA / "xposed/hooks/framework/DarkMode.java", [
@@ -113,6 +115,7 @@ checks = [
     ]),
     (JAVA / "utils/UpdateWorker.java", [
         "hasTransport(NetworkCapabilities.TRANSPORT_WIFI)",
+        "UpdateFragment.getNightlyBuildNumber(versionName)",
     ]),
     (JAVA / "xposed/utils/toolkit/ReflectedClass.java", [
         "findClassIfExists(name, loader)",
