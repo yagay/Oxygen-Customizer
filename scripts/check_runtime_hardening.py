@@ -97,7 +97,7 @@ checks = [
         "mEnabledApps.remove(model.getPackageName());",
     ]),
     (JAVA / "ui/base/AppFragmentBase.java", [
-        "executor.shutdown();",
+        "APP_SCAN_EXECUTOR.submit(",
     ]),
     (JAVA / "ui/adapters/PackageListAdapter.java", [
         "mLoadGeneration",
