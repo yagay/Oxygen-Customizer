@@ -41,11 +41,13 @@ def check() -> None:
     assert_contains(controllers, "CopyOnWriteArrayList<UiStateChangedListener> mUiStateChangedListeners")
     assert_contains(controllers, "instance.mUiStateChangedListeners.add(callback)")
     assert_contains(launcher, "recoveryScheduled.compareAndSet(false, true)")
-    assert_contains(launcher, "modsLoaded.compareAndSet(false, true)")
+    assert_contains(launcher, "loadingMods.compareAndSet(false, true)")
+    assert_contains(launcher, "modsLoaded.set(true)")
     assert_contains(overlays, "Boolean actualState = queryOverlayState(pkgName);")
     assert_contains(overlays, "if (actualState != null) {")
     assert_contains(overlays, "return Boolean.FALSE.equals(queryOverlayState(pkgName));")
     assert_contains(overlays, "Prefs.putBoolean(pkgName, actualState);")
+    assert_contains(overlays, "executeOverlayBatch(Runnable changes)")
 
     module_constants = "app/src/main/java/it/dhd/oxygencustomizer/utils/ModuleConstants.java"
     module_util = "app/src/main/java/it/dhd/oxygencustomizer/utils/ModuleUtil.java"
@@ -53,10 +55,14 @@ def check() -> None:
     compiler = "app/src/main/java/it/dhd/oxygencustomizer/utils/overlay/compiler/"
     assert_contains(module_constants, 'MY_PRODUCT_PERMISSIONS_DIR = MY_PRODUCT_ETC_DIR + "/permissions"')
     assert_contains(module_util, "${0%/*}")
+    assert_contains(module_util, "OverlayCompileCoordinator.LOCK.lock();")
+    assert_contains(module_util, "OverlayUtil.applyOverlayStateNow(pkg, false, false)")
     if "${0%%/*}" in read(module_util):
         raise AssertionError("Generated module scripts must resolve MODDIR from an absolute path")
     assert_contains(fabricated, "OVERLAY_WRITER.execute(")
     assert_contains(fabricated, "refreshPostExecScript()")
+    assert_contains(fabricated, "restoreSavedConfiguration(name, previous)")
+    assert_contains(fabricated, "OverlayUtil.OPERATION_LOCK.lock();")
     for name in ("OnDemandCompiler.java", "RoundnessCompiler.java", "SettingsIconsCompiler.java"):
         assert_contains(compiler + name, "OverlayCompileCoordinator.LOCK.lock();")
         assert_contains(compiler + name, "OverlayCompileCoordinator.LOCK.unlock();")
@@ -64,6 +70,9 @@ def check() -> None:
         "app/src/main/java/it/dhd/oxygencustomizer/xposed/utils/ExtendedRemotePreferences.java",
         "getIntFromString(String key, String defaultValue)"
     )
+    for source in ("RoundnessCompiler.java", "SettingsIconsCompiler.java"):
+        assert_contains(compiler + source, "OverlayCompileCoordinator.runChecked(")
+        assert_contains(compiler + source, "restorePrevious(rollbackNames, rollbackEnabled)")
     assert_contains("app/src/main/assets/xposed_init", "it.dhd.oxygencustomizer.xposed.MainHook")
     assert_contains("app/src/main/AndroidManifest.xml", 'android:name="xposedmodule"')
 

@@ -142,11 +142,14 @@ public class SettingsIconsCompiler {
         }
     }
 
-    private static void moveOverlaysToCache() {
+    private static void moveOverlaysToCache() throws IOException {
         for (int i = 0; i < mPackages.size(); i++) {
-            Shell.cmd(
-                    "mv -f \"" + ModuleConstants.DATA_DIR + "/CompileOnDemand/" + mPackages.get(i) + "/" + "ICS" + mIconSet + "\" \"" + ModuleConstants.TEMP_CACHE_DIR + "/" + mPackages.get(i) + "/" + "SIP" + (i + 1) + "\""
-            ).exec();
+            OverlayCompileCoordinator.runChecked(
+                    "mv -f \"" + ModuleConstants.DATA_DIR + "/CompileOnDemand/" + mPackages.get(i)
+                            + "/ICS" + mIconSet + "\" \""
+                            + ModuleConstants.TEMP_CACHE_DIR + "/" + mPackages.get(i)
+                            + "/SIP" + (i + 1) + "\"",
+                    "Prepare settings icons source");
         }
     }
 

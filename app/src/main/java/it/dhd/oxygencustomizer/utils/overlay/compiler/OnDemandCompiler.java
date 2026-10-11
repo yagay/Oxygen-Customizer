@@ -153,14 +153,10 @@ public class OnDemandCompiler {
         }
     }
 
-    private static void moveOverlaysToCache() {
-        try {
-            OverlayCompileCoordinator.runChecked("mv -f \"" + ModuleConstants.DATA_DIR
+    private static void moveOverlaysToCache() throws IOException {
+        OverlayCompileCoordinator.runChecked("mv -f \"" + ModuleConstants.DATA_DIR
                     + "/CompileOnDemand/" + mPackage + "/" + mOverlayName + mStyle
                     + "\" \"" + TEMP_CACHE_DIR + "/" + mPackage + "/" + mOverlayName + "\"",
                     "Move overlay source");
-        } catch (IOException e) {
-            throw new IllegalStateException("Overlay source preparation failed", e);
-        }
     }
 }
