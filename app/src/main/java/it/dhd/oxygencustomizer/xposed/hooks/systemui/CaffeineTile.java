@@ -59,7 +59,10 @@ public class CaffeineTile extends XposedMods {
         @Override
         public void onReceive(Context context, android.content.Intent intent) {
             if (intent != null && intent.getAction() != null) {
-                if (intent.getAction().equals(ACTION_SCREEN_OFF) || intent.getAction().equals(ACTION_TILE_REMOVED)) {
+                boolean systemScreenOff = ACTION_SCREEN_OFF.equals(intent.getAction());
+                boolean trustedTileRemoval = ACTION_TILE_REMOVED.equals(intent.getAction())
+                        && it.dhd.oxygencustomizer.xposed.XPrefs.isTrustedInternalBroadcast(intent);
+                if (systemScreenOff || trustedTileRemoval) {
                     stopCountDown(true);
                     if (mWakeLock.isHeld())
                         mWakeLock.release();
