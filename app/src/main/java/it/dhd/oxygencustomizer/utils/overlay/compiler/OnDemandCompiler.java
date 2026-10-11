@@ -32,6 +32,7 @@ public class OnDemandCompiler {
     private static String mPackage = null;
     private static int mStyle = 0;
     private static boolean mForce = false;
+    private static OverlayCompileCoordinator.FileSnapshot mFileSnapshot;
 
     public static boolean buildOverlay(String overlay_name, int style, String targetPackage, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
@@ -39,6 +40,7 @@ public class OnDemandCompiler {
         boolean wasEnabled = false;
         boolean completed = false;
         try {
+        mFileSnapshot = null;
         wasEnabled = force && OverlayUtil.isOverlayEnabled(targetOverlay);
         mOverlayName = overlay_name;
         mPackage = targetPackage;
@@ -81,6 +83,7 @@ public class OnDemandCompiler {
         return false;
         } finally {
             try {
+                if (!completed && mFileSnapshot != null) mFileSnapshot.restore();
                 if (!completed && force) {
                     OverlayCompileCoordinator.restorePrevious(
                             new String[]{targetOverlay}, new boolean[]{wasEnabled});
@@ -88,7 +91,8 @@ public class OnDemandCompiler {
             } finally {
                 try {
                     OverlayCompileCoordinator.cleanupStaging(
-                            TEMP_DIR, ModuleConstants.DATA_DIR + "/CompileOnDemand");
+                            TEMP_DIR, ModuleConstants.DATA_DIR + "/CompileOnDemand",
+                            ModuleConstants.DATA_DIR + "/overlay-rollback");
                 } finally {
                     OverlayCompileCoordinator.LOCK.unlock();
                 }
@@ -130,6 +134,8 @@ public class OnDemandCompiler {
             String name = "OxygenCustomizerComponent" + mOverlayName + ".apk";
             String signed = SIGNED_DIR + "/" + name;
             if (mForce) {
+                mFileSnapshot = OverlayCompileCoordinator.snapshotOverlayFiles(
+                        SYSTEM_OVERLAY_DIR + "/" + name);
                 String staging = ModuleConstants.DATA_DIR + "/" + name;
                 runChecked("cp -f " + signed + " " + staging, "Stage overlay APK");
                 RootUtil.setPermissions(644, staging);

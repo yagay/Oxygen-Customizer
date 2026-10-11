@@ -30,6 +30,7 @@ public class SettingsIconsCompiler {
 
     private static int mIconSet;
     private static boolean mForce;
+    private static OverlayCompileCoordinator.FileSnapshot mFileSnapshot;
 
     private static final List<String> mPackages = new ArrayList<>() {{
         add(SETTINGS);
@@ -45,6 +46,7 @@ public class SettingsIconsCompiler {
         if (force) {
             for (int i = 0; i < rollbackNames.length; i++) rollbackEnabled[i] = OverlayUtil.isOverlayEnabled(rollbackNames[i]);
         }
+        mFileSnapshot = null;
         mIconSet = iconSet;
         mForce = force;
 
@@ -105,11 +107,13 @@ public class SettingsIconsCompiler {
         return false;
         } finally {
             try {
+                if (!completed && mFileSnapshot != null) mFileSnapshot.restore();
                 if (!completed && force) OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
             } finally {
                 try {
                     OverlayCompileCoordinator.cleanupStaging(
-                            ModuleConstants.TEMP_DIR, ModuleConstants.DATA_DIR + "/CompileOnDemand");
+                            ModuleConstants.TEMP_DIR, ModuleConstants.DATA_DIR + "/CompileOnDemand",
+                            ModuleConstants.DATA_DIR + "/overlay-rollback");
                 } finally {
                     OverlayCompileCoordinator.LOCK.unlock();
                 }
@@ -180,6 +184,14 @@ public class SettingsIconsCompiler {
 
     private static void postExecute(boolean hasErroredOut) throws IOException {
         if (!hasErroredOut) {
+            List<String> destinations = new ArrayList<>();
+            for (int i = 1; i <= mPackages.size(); i++) {
+                String name = "OxygenCustomizerComponentSIP" + i + ".apk";
+                destinations.add(ModuleConstants.OVERLAY_DIR + "/" + name);
+                if (mForce) destinations.add(ModuleConstants.SYSTEM_OVERLAY_DIR + "/" + name);
+            }
+            mFileSnapshot = OverlayCompileCoordinator.snapshotOverlayFiles(
+                    destinations.toArray(new String[0]));
             for (int i = 1; i <= mPackages.size(); i++) {
                 String name = "OxygenCustomizerComponentSIP" + i + ".apk";
                 String signed = ModuleConstants.SIGNED_DIR + "/" + name;

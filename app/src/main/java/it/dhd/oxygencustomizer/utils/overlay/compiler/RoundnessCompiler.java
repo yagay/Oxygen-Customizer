@@ -9,6 +9,8 @@ import android.util.Log;
 import com.topjohnwu.superuser.Shell;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import it.dhd.oxygencustomizer.utils.overlay.compiler.OverlayCompileCoordinator;
 
@@ -25,6 +27,7 @@ public class RoundnessCompiler {
     private static final String[] mPackages = {FRAMEWORK, SYSTEM_UI};
     private static final String[] mOverlayName = {"CRN1", "CR1"};
     private static boolean mForce = false;
+    private static OverlayCompileCoordinator.FileSnapshot mFileSnapshot;
 
     public static boolean buildOverlay(String[] resources, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
@@ -37,6 +40,7 @@ public class RoundnessCompiler {
                 rollbackEnabled[i] = OverlayUtil.isOverlayEnabled(rollbackNames[i]);
             }
         }
+        mFileSnapshot = null;
         mForce = force;
 
         preExecute();
@@ -83,13 +87,15 @@ public class RoundnessCompiler {
         return false;
         } finally {
             try {
+                if (!completed && mFileSnapshot != null) mFileSnapshot.restore();
                 if (!completed && force) {
                     OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
                 }
             } finally {
                 try {
                     OverlayCompileCoordinator.cleanupStaging(
-                            ModuleConstants.TEMP_DIR, ModuleConstants.DATA_DIR + "/Overlays");
+                            ModuleConstants.TEMP_DIR, ModuleConstants.DATA_DIR + "/Overlays",
+                            ModuleConstants.DATA_DIR + "/overlay-rollback");
                 } finally {
                     OverlayCompileCoordinator.LOCK.unlock();
                 }
@@ -133,6 +139,14 @@ public class RoundnessCompiler {
 
     private static void postExecute(boolean hasErroredOut) throws IOException {
         if (!hasErroredOut) {
+            List<String> destinations = new ArrayList<>();
+            for (String overlayName : mOverlayName) {
+                String name = "OxygenCustomizerComponent" + overlayName + ".apk";
+                destinations.add(ModuleConstants.OVERLAY_DIR + "/" + name);
+                if (mForce) destinations.add(ModuleConstants.SYSTEM_OVERLAY_DIR + "/" + name);
+            }
+            mFileSnapshot = OverlayCompileCoordinator.snapshotOverlayFiles(
+                    destinations.toArray(new String[0]));
             for (String overlayName : mOverlayName) {
                 String file = "OxygenCustomizerComponent" + overlayName + ".apk";
                 String signed = ModuleConstants.SIGNED_DIR + "/" + file;
