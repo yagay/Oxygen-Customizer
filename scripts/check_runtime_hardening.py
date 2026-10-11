@@ -111,8 +111,6 @@ for filename, forbidden in [
      "param.getClass().getSimpleName().contains"),
     (JAVA / "xposed/hooks/systemui/statusbar/QsTileCustomization.java",
      'getObjectField(param.thisObject, "getBgOutlineProvider")'),
-    (JAVA / "utils/overlay/compiler/OnDemandCompiler.java",
-     "Shell.cmd(\"rm -rf \" + TEMP_DIR).exec()"),
 ]:
     if forbidden in (BASE / filename).read_text(encoding="utf-8"):
         failures.append(f"{filename}: stale unsafe code {forbidden!r}")

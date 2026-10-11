@@ -226,7 +226,7 @@ public class ModuleUtil {
     public static void enablePocketStudio(boolean enable) {
         if (!moduleExists()) return;
 
-        List<String> fileRead = readXmlLines("/my_product/etc/extension/com.oplus.oplus-feature.xml");
+        List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml");
         if (fileRead.isEmpty()) return;
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
@@ -284,7 +284,7 @@ public class ModuleUtil {
     }
 
     private static void enableMemcOplusFeature(boolean enable) {
-        List<String> fileRead = readXmlLines("/my_product/etc/extension/com.oplus.oplus-feature.xml");
+        List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml");
         if (fileRead.isEmpty()) throw new IllegalStateException("MEMC firmware XML is unavailable");
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
@@ -325,7 +325,7 @@ public class ModuleUtil {
     }
 
     private static void enableMemcOplusDisplayFeature(boolean enable) {
-        List<String> fileRead = readXmlLines("/my_product/etc/permissions/oplus.product.display_features.xml");
+        List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/permissions/oplus.product.display_features.xml");
         if (fileRead.isEmpty()) throw new IllegalStateException("MEMC firmware XML is unavailable");
         Log.d(TAG, "oplus.product.display_features: " + fileRead);
 
@@ -390,7 +390,7 @@ public class ModuleUtil {
     private static void writeXmlLines(String destinationPath, List<String> lines) {
         if (lines == null || lines.isEmpty()) {
             Log.e(TAG, "Refusing to write empty XML: " + destinationPath);
-            return;
+            throw new IllegalStateException("Refusing to write empty module XML: " + destinationPath);
         }
         String xml = String.join("\n", lines);
         Shell.Result result = Shell.cmd(
