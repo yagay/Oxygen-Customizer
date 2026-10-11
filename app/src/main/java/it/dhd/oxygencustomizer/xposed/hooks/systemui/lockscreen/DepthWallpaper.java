@@ -41,6 +41,7 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.LayerDrawable;
 import android.os.Build;
 import android.os.Environment;
+import android.os.SystemClock;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -102,7 +103,11 @@ public class DepthWallpaper extends XposedMods {
     final BroadcastReceiver mPluginReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // The external plugin does not support the internal token protocol.
+            // Ignore unsolicited or expired status signals until it supports nonce echoes.
+            if (pluginResponseDeadline == 0 || SystemClock.elapsedRealtime() > pluginResponseDeadline) return;
             if (intent != null && intent.getAction() != null) {
+                pluginResponseDeadline = 0;
                 switch (intent.getAction()) {
                     case ACTION_EXTRACT_SUCCESS -> {
                         lockScreenSubjectCacheValid = false;
@@ -120,6 +125,7 @@ public class DepthWallpaper extends XposedMods {
     private boolean superPowerSave = false;
     private boolean mBroadcastRegistered = false;
     private boolean mPluginBroadcastRegistered = false;
+    private volatile long pluginResponseDeadline;
     private int mLastUiState = -1;
 
     public DepthWallpaper(Context context) {
@@ -332,6 +338,7 @@ public class DepthWallpaper extends XposedMods {
                                             intent.putExtra("sourcePath", getLockScreenBitmapCachePath());
                                             intent.putExtra("destinationPath", getLockScreenSubjectCachePath());
                                             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+                                            pluginResponseDeadline = SystemClock.elapsedRealtime() + 120_000L;
                                             mContext.sendBroadcast(intent);
                                         } catch (Throwable failure) {
                                             log(failure);
