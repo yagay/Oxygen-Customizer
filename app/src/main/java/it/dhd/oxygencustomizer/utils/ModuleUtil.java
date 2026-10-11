@@ -286,7 +286,9 @@ public class ModuleUtil {
                                                  String... paths) {
         OverlayCompileCoordinator.LOCK.lock();
         try {
-            if (!moduleExists()) return;
+            if (!moduleExists()) {
+                throw new IllegalStateException(operation + " module is not installed");
+            }
             String[] backups = new String[paths.length];
             for (int i = 0; i < paths.length; i++) {
                 backups[i] = paths[i] + ".oc-txn";
@@ -348,10 +350,10 @@ public class ModuleUtil {
     }
 
     private static void enablePocketStudioUnchecked(boolean enable) {
-        if (!moduleExists()) return;
-
         List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml");
-        if (fileRead.isEmpty()) return;
+        if (fileRead.isEmpty()) {
+            throw new IllegalStateException("Pocket Studio feature XML is unavailable");
+        }
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
         Pattern pattern = Pattern.compile("oplus\\.software\\.pocketstudio\\.support");
@@ -362,13 +364,13 @@ public class ModuleUtil {
             if (!insertBeforeRootClosingTag(
                     fileRead,
                     String.format(OPLUS_FEATURE_XML, OPLUS_POCKET_STUDIO_FEATURE)
-            )) return;
+            )) throw new IllegalStateException("Pocket Studio XML closing tag is unavailable");
         } else if (!enable && featureAlreadyAdded) {
             fileRead.removeIf(element -> element.contains(OPLUS_POCKET_STUDIO_FEATURE));
         }
 
         writeXmlLines(
-                "/data/adb/modules/OxygenCustomizer/my_product/etc/extension/com.oplus.oplus-feature.xml",
+                ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml",
                 fileRead
         );
     }
@@ -420,7 +422,7 @@ public class ModuleUtil {
         }
 
         writeXmlLines(
-                "/data/adb/modules/OxygenCustomizer/my_product/etc/extension/com.oplus.oplus-feature.xml",
+                ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml",
                 fileRead
         );
     }
