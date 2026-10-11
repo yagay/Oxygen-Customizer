@@ -35,6 +35,35 @@ checks = [
         "if (mCategory == null)",
         "intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);",
     ]),
+    (JAVA / "utils/PackageModeParser.java", [
+        "public static Map<String, Integer> parse(Set<String> values, int maxMode)",
+        "catch (NumberFormatException ignored)",
+        "mode < 0 || mode > maxMode",
+    ]),
+    (JAVA / "ui/fragments/UpdateFragment.java", [
+        'Shell.cmd("reboot").submit(result ->',
+        'if (!result.isSuccess())',
+    ]),
+    (JAVA / "xposed/hooks/framework/DarkMode.java", [
+        "PackageModeParser.parse(darkModeApps, mapping.length - 1)",
+    ]),
+    (JAVA / "xposed/hooks/settings/DarkModeSettings.java", [
+        "AppEntity != null",
+        "PackageModeParser.parse(darkModeApps, 4)",
+    ]),
+    (JAVA / "xposed/hooks/systemui/statusbar/StatusbarNotification.java", [
+        "PackageModeParser.parse(notificationApps, 2)",
+        "if (!(rawEntries instanceof Collection<?> entries)) return;",
+        "Math.max(0, clockContainer.getChildCount() - 1)",
+        "resIdWidth != 0",
+        "tintedCopy(",
+    ]),
+    (JAVA / "ui/fragments/mods/misc/DarkMode.java", [
+        "PackageModeParser.parse(enabledApps, 4)",
+    ]),
+    (JAVA / "ui/fragments/mods/statusbar/StatusbarNotificationChoice.java", [
+        "PackageModeParser.parse(enabledApps, 2)",
+    ]),
     (JAVA / "utils/UpdateWorker.java", [
         "hasTransport(NetworkCapabilities.TRANSPORT_WIFI)",
     ]),

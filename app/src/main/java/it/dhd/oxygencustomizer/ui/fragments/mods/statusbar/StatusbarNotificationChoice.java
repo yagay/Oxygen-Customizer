@@ -26,6 +26,7 @@ import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.ui.adapters.AppAdapter;
 import it.dhd.oxygencustomizer.ui.base.AppFragmentBase;
 import it.dhd.oxygencustomizer.ui.models.AppModel;
+import it.dhd.oxygencustomizer.utils.PackageModeParser;
 
 public class StatusbarNotificationChoice extends AppFragmentBase {
 
@@ -82,17 +83,7 @@ public class StatusbarNotificationChoice extends AppFragmentBase {
         Set<String> enabledApps = mPreferences.getStringSet(CUSTOM_NOTIFICATION_APPS, new ArraySet<>());
         Log.d("StatusbarNotificationChoice", "onViewCreated: " + enabledApps.toString());
         mEnabledApps = new ArrayMap<>();
-        for (String item : enabledApps) {
-            if (item.contains("|")) {
-                List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                if (arr.size() < 2 || arr.get(1).isBlank()) {
-                    arr.set(1, "0");
-                }
-                mEnabledApps.put(arr.get(0), Integer.parseInt(arr.get(1)));
-            } else {
-                mEnabledApps.put(item, 0);
-            }
-        }
+        mEnabledApps.putAll(PackageModeParser.parse(enabledApps, 2));
 
         new LoadAppsTask(getAppContext(), mEnabledApps, () -> {
             binding.searchView.setEnabled(false);

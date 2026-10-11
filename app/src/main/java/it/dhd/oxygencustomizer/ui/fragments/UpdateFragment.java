@@ -473,7 +473,17 @@ public class UpdateFragment extends BaseFragment {
 
         binding.updateBtn.setOnClickListener(view1 -> {
             if (rebootPending) {
-                Shell.cmd("reboot");
+                Shell.cmd("reboot").submit(result -> {
+                    if (!result.isSuccess()) {
+                        Log.e("UpdateFragment", "Reboot command failed: " + result.getErr());
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> {
+                                if (isAdded()) Toast.makeText(requireContext(),
+                                        R.string.try_again_later, Toast.LENGTH_SHORT).show();
+                            });
+                        }
+                    }
+                });
             } else {
                 if (latestVersion == null || !hasDownloadSource(mCurrentFlavor, latestVersion)) {
                     Toast.makeText(requireContext(), R.string.try_again_later, Toast.LENGTH_SHORT).show();

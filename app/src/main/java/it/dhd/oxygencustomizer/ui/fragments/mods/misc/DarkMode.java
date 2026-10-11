@@ -28,6 +28,7 @@ import it.dhd.oxygencustomizer.ui.base.AppFragmentBase;
 import it.dhd.oxygencustomizer.ui.models.AppModel;
 import it.dhd.oxygencustomizer.utils.Constants;
 import it.dhd.oxygencustomizer.utils.OCPreferences;
+import it.dhd.oxygencustomizer.utils.PackageModeParser;
 
 public class DarkMode extends AppFragmentBase {
 
@@ -84,17 +85,7 @@ public class DarkMode extends AppFragmentBase {
 
         Set<String> enabledApps = mPreferences.getStringSet("custom_dark_mode", new ArraySet<>());
         mEnabledApps = new ArrayMap<>();
-        for (String item : enabledApps) {
-            if (item.contains("|")) {
-                List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                if (arr.size() < 2 || arr.get(1).isBlank()) {
-                    arr.set(1, "0");
-                }
-                mEnabledApps.put(arr.get(0), Integer.parseInt(arr.get(1)));
-            } else {
-                mEnabledApps.put(item, 0);
-            }
-        }
+        mEnabledApps.putAll(PackageModeParser.parse(enabledApps, 4));
 
         binding.appFunctionSwitch.setSwitchChangeListener((buttonView, isChecked) -> mPreferences.edit().putBoolean("custom_dark_mode_switch", isChecked).apply());
         binding.appFunctionSwitch.setSwitchChecked(mPreferences.getBoolean("custom_dark_mode_switch", false));

@@ -26,6 +26,7 @@ import java.util.Set;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.utils.PackageModeParser;
 import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 
@@ -97,17 +98,7 @@ public class DarkMode extends XposedMods {
                     log("DarkMode: Hooked updateList");
 
                     Map<String, Integer> supportListMap = new ArrayMap<>();
-                    for (String item : darkModeApps) {
-                        if (item.contains("|")) {
-                            List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                            if (arr.size() < 2 || arr.get(1).isBlank()) {
-                                arr.set(1, "0");
-                            }
-                            supportListMap.put(arr.get(0), Integer.parseInt(arr.get(1)));
-                        } else {
-                            supportListMap.put(item, 0);
-                        }
-                    }
+                    supportListMap.putAll(PackageModeParser.parse(darkModeApps, mapping.length - 1));
 
                     Map<String, Object> dataMap = new ArrayMap<>();
                     for (Map.Entry<String, Integer> entry : supportListMap.entrySet()) {

@@ -19,6 +19,7 @@ import java.util.Set;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
+import it.dhd.oxygencustomizer.utils.PackageModeParser;
 
 public class DarkModeSettings extends XposedMods {
 
@@ -43,25 +44,19 @@ public class DarkModeSettings extends XposedMods {
 
         final Class<?> AppEntity = findClassIfExists("com.oplus.settings.feature.display.darkmode.utils.DarkModeFileUtils$AppEntity", lpparam.classLoader);
 
-        if (DarkModeFileUtils != null) {
+        if (DarkModeFileUtils != null && AppEntity != null) {
             hookAllMethods(DarkModeFileUtils, "parseManagedList", new XC_MethodHook() {
                 @Override
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                     if (!enableCustomDarkMode) return;
 
                     Map<String, Object> mEnabledApps = new ArrayMap<>();
-                    for (String item : darkModeApps) {
-                        final Object mAppEntity = AppEntity.getConstructor().newInstance();
-                        if (item.contains("|")) {
-                            List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                            if (arr.size() < 2 || arr.get(1).isBlank()) {
-                                arr.set(1, "0");
-                            }
-                            setObjectField(mAppEntity, "curType", Integer.parseInt(arr.get(1)));
-                            mEnabledApps.put(arr.get(0), mAppEntity);
-                        } else {
-                            mEnabledApps.put(item, mAppEntity);
+                    for (Map.Entry<String, Integer> app : PackageModeParser.parse(darkModeApps, 4).entrySet()) {
+                        final Object entity = AppEntity.getConstructor().newInstance();
+                        if (app.getValue() != 0) {
+                            setObjectField(entity, "curType", app.getValue());
                         }
+                        mEnabledApps.put(app.getKey(), entity);
                     }
                     setObjectField(param.thisObject, "mAppsMap", mEnabledApps);
                     param.setResult(null);

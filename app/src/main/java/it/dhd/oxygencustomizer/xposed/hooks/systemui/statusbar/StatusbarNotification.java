@@ -47,6 +47,7 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
+import it.dhd.oxygencustomizer.utils.PackageModeParser;
 import it.dhd.oxygencustomizer.xposed.hooks.systemui.PanelAnimationListener;
 import it.dhd.oxygencustomizer.xposed.utils.toolkit.ReflectedClass;
 
@@ -64,7 +65,7 @@ public class StatusbarNotification extends XposedMods {
     private Set<String> notificationApps = new HashSet<>();
     private Map<String, Integer> notificationAppMode = new HashMap<>();
     private static int notificationDefaultExpansion = DEFAULT;
-    private static Drawable defaultClearAllIcon = null, defaultClearAllBg = null;
+    private Drawable defaultClearAllIcon = null, defaultClearAllBg = null;
     private final String TAG = this.getClass().getSimpleName() + ": ";
     private Object mCollapsedStatusBarFragment = null;
     private View mStatusBar;
@@ -99,17 +100,7 @@ public class StatusbarNotification extends XposedMods {
         clearButtonIconColor = Xprefs.getInt(CLEAR_BUTTON_ICON_COLOR, Color.WHITE);
         notificationApps = Xprefs.getStringSet(CUSTOM_NOTIFICATION_APPS, new HashSet<>());
         notificationAppMode = new ArrayMap<>();
-        for (String item : notificationApps) {
-            if (item.contains("|")) {
-                List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                if (arr.size() < 2 || arr.get(1).isBlank()) {
-                    arr.set(1, "0");
-                }
-                notificationAppMode.put(arr.get(0), Integer.parseInt(arr.get(1)));
-            } else {
-                notificationAppMode.put(item, 0);
-            }
-        }
+        notificationAppMode.putAll(PackageModeParser.parse(notificationApps, 2));
 
         if (Key.length > 0) {
             for (String k : CLEAR_ALL_BUTTON_PREFS)
@@ -259,7 +250,10 @@ public class StatusbarNotification extends XposedMods {
                     .before("getPlatformBlurDrawable")
                     .run(param -> {
                         if (customizeClearButton) {
-                            Drawable customBg = (Drawable) param.args[0];
+                            if (param.args.length == 0 || !(param.args[0] instanceof Drawable customBg)) return;
+                            customBg = tintedCopy(customBg, linkBackgroundAccent
+                                    ? getPrimaryColor(mContext) : clearButtonBgColor);
+                            if (customBg == null) return;
                             if (linkBackgroundAccent) {
                                 customBg.setTint(getPrimaryColor(mContext));
                             } else {
@@ -273,13 +267,11 @@ public class StatusbarNotification extends XposedMods {
                     .run(param -> {
                         XposedBridge.log("StatusbarNotification updateClearAllBackground" );
                         if (customizeClearButton) {
-                            ImageView clearAllButton = (ImageView) getObjectField(param.thisObject, "clearAll");
-                            Drawable icon = clearAllButton.getDrawable();
-                            if (linkIconAccent)
-                                icon.setTint(getPrimaryColor(mContext));
-                            else
-                                icon.setTint(clearButtonIconColor);
-                            icon.invalidateSelf();
+                            Object candidate = getObjectField(param.thisObject, "clearAll");
+                            if (!(candidate instanceof ImageView clearAllButton)) return;
+                            Drawable icon = tintedCopy(clearAllButton.getDrawable(),
+                                    linkIconAccent ? getPrimaryColor(mContext) : clearButtonIconColor);
+                            if (icon == null) return;
                             clearAllButton.setImageDrawable(icon);
                             XposedBridge.log(TAG + "updateClearAllBackground: icon color set to " + clearButtonIconColor);
                         }
@@ -303,23 +295,18 @@ public class StatusbarNotification extends XposedMods {
         if (NotifCollection == null) return;
 
 
-        if (!(expandMode == EXPAND_ALWAYS)) {
-            callMethod(
-                    Scroller,
-                    "setOwnScrollY",
-                    /* position */0,
-                    /* animate */ true);
+        if (expandMode != EXPAND_ALWAYS && Scroller != null) {
+            callMethod(Scroller, "setOwnScrollY", 0, true);
         }
 
-        Collection<Object> entries;
-        //noinspection unchecked
-        entries = (Collection<Object>) getObjectField(NotifCollection, "mReadOnlyNotificationSet");
+        Object rawEntries = getObjectField(NotifCollection, "mReadOnlyNotificationSet");
+        if (!(rawEntries instanceof Collection<?> entries)) return;
         for (Object entry : entries.toArray()) {
             Object row = getObjectField(entry, "row");
             StatusBarNotification mSbn = (StatusBarNotification) getObjectField(entry, "mSbn");
             if (row != null) {
                 setRowExpansion(row, expandMode == EXPAND_PACKAGE ?
-                        checkExpansion(mSbn.getPackageName()) :
+                        (mSbn != null && checkExpansion(mSbn.getPackageName())) :
                         expandMode == EXPAND_ALWAYS);
             }
         }
@@ -344,15 +331,12 @@ public class StatusbarNotification extends XposedMods {
         OplusQSSimpleHeader
                 .after("onInit")
                 .run(param -> {
-                    FrameLayout view = (FrameLayout) param.thisObject;
-
-                    LinearLayout clockContainer = view.findViewById(
-                            mContext.getResources().getIdentifier(
-                                    "button_container_parent",
-                                    "id",
-                                    mContext.getPackageName()
-                            )
-                    );
+                    if (!(param.thisObject instanceof FrameLayout view)) return;
+                    int containerId = mContext.getResources().getIdentifier(
+                            "button_container_parent", "id", mContext.getPackageName());
+                    if (containerId == 0) return;
+                    View container = view.findViewById(containerId);
+                    if (!(container instanceof LinearLayout clockContainer)) return;
                     for (int i = clockContainer.getChildCount() - 1; i >= 0; i--) {
                         View child = clockContainer.getChildAt(i);
                         if ("notification_buttons_container".equals(child.getTag())) {
@@ -377,7 +361,8 @@ public class StatusbarNotification extends XposedMods {
                     try {
                         ((ViewGroup) mNotificationButtonsContainer.getParent()).removeView(mNotificationButtonsContainer);
                     } catch (Throwable ignored) {}
-                    clockContainer.addView(mNotificationButtonsContainer, clockContainer.getChildCount() - 1);
+                    clockContainer.addView(mNotificationButtonsContainer,
+                            Math.max(0, clockContainer.getChildCount() - 1));
 
                     AlphaOptimizedImageView mExpand, mCollapse;
                     int resIdWidth = mContext.getResources().getIdentifier("simple_qs_header_button_width", "dimen", SYSTEM_UI);
@@ -386,15 +371,15 @@ public class StatusbarNotification extends XposedMods {
                     mExpand = new AlphaOptimizedImageView(mContext);
                     mCollapse = new AlphaOptimizedImageView(mContext);
 
-                    mExpand.setLayoutParams(new LinearLayout.LayoutParams(
-                            (int) mContext.getResources().getDimension(resIdWidth),
-                            (int) mContext.getResources().getDimension(resIdHeight)
-                    ));
+                    int buttonWidth = resIdWidth != 0
+                            ? mContext.getResources().getDimensionPixelSize(resIdWidth)
+                            : dp2px(mContext, 40);
+                    int buttonHeight = resIdHeight != 0
+                            ? mContext.getResources().getDimensionPixelSize(resIdHeight)
+                            : dp2px(mContext, 40);
+                    mExpand.setLayoutParams(new LinearLayout.LayoutParams(buttonWidth, buttonHeight));
                     mExpand.setPadding(dp2px(mContext, 4), 0, dp2px(mContext, 4), 0);
-                    mCollapse.setLayoutParams(new LinearLayout.LayoutParams(
-                            (int) mContext.getResources().getDimension(resIdWidth),
-                            (int) mContext.getResources().getDimension(resIdHeight)
-                    ));
+                    mCollapse.setLayoutParams(new LinearLayout.LayoutParams(buttonWidth, buttonHeight));
 
                     mNotificationButtonsContainer.addView(mExpand);
                     mNotificationButtonsContainer.addView(mCollapse);
@@ -430,32 +415,27 @@ public class StatusbarNotification extends XposedMods {
     }
 
 
+    private Drawable tintedCopy(Drawable original, int color) {
+        if (original == null || original.getConstantState() == null) return null;
+        Drawable copy = original.getConstantState().newDrawable(mContext.getResources()).mutate();
+        copy.setTint(color);
+        return copy;
+    }
+
     private void updateButton() {
         if (mClearAllButton == null) return;
-        if (customizeClearButton) {
-            if (defaultClearAllBg != null) {
-                Drawable customBg = defaultClearAllBg;
-                if (linkBackgroundAccent) {
-                    customBg.setTint(getPrimaryColor(mContext));
-                } else {
-                    customBg.setTint(clearButtonBgColor);
-                }
-                mClearAllButton.setBackground(customBg);
-            }
-            Drawable icon = defaultClearAllIcon;
-            if (linkIconAccent)
-                icon.setTint(getPrimaryColor(mContext));
-            else
-                icon.setTint(clearButtonIconColor);
-            mClearAllButton.setImageDrawable(icon);
-        } else {
-            if (defaultClearAllIcon != null) {
-                mClearAllButton.setImageDrawable(defaultClearAllIcon);
-            }
-            if (defaultClearAllBg != null) {
-                mClearAllButton.setBackground(defaultClearAllBg);
-            }
+        if (!customizeClearButton) {
+            if (defaultClearAllIcon != null) mClearAllButton.setImageDrawable(defaultClearAllIcon);
+            if (defaultClearAllBg != null) mClearAllButton.setBackground(defaultClearAllBg);
+            return;
         }
+
+        Drawable bg = tintedCopy(defaultClearAllBg,
+                linkBackgroundAccent ? getPrimaryColor(mContext) : clearButtonBgColor);
+        if (bg != null) mClearAllButton.setBackground(bg);
+        Drawable icon = tintedCopy(defaultClearAllIcon,
+                linkIconAccent ? getPrimaryColor(mContext) : clearButtonIconColor);
+        if (icon != null) mClearAllButton.setImageDrawable(icon);
     }
 
 }
