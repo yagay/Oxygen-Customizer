@@ -49,7 +49,9 @@ public class RootProviderProxy extends Service {
 
                 Shell.Result result = Shell.cmd(command).exec();
                 if (!result.isSuccess()) {
-                    Log.w(TAG, "Root command exited unsuccessfully: " + result.getErr());
+                    Log.e(TAG, "Root command failed, code=" + result.getCode()
+                            + ", stderr=" + result.getErr());
+                    throw new RemoteException("Root command failed with exit code " + result.getCode());
                 }
                 return result.getOut().toArray(new String[0]);
             } catch (RemoteException e) {
@@ -70,9 +72,14 @@ public class RootProviderProxy extends Service {
 
             try {
                 Shell.Result result = Shell.cmd("cmd overlay enable --user current " + theme,
-                        "cmd overlay set-priority " + theme + " highest").exec();
+                        "cmd overlay set-priority --user current " + theme + " highest").exec();
                 if (!result.isSuccess()) {
                     throw new RemoteException("Overlay manager rejected theme activation");
+                }
+                Shell.Result observed = Shell.cmd("cmd overlay list --user current").exec();
+                if (!observed.isSuccess() || observed.getOut().stream()
+                        .noneMatch(line -> line.trim().equals("[x] " + theme))) {
+                    throw new RemoteException("Overlay activation was not verified");
                 }
             } catch (RemoteException e) {
                 throw e;
@@ -85,6 +92,10 @@ public class RootProviderProxy extends Service {
         @Override
         public void extractSubject(Bitmap input, String resultPath) throws RemoteException {
             ensureEnvironment();
+            if (input == null || resultPath == null || !resultPath.startsWith("/")
+                    || resultPath.indexOf('\0') >= 0) {
+                throw new RemoteException("Invalid subject extraction input");
+            }
 
             try {
                 new BitmapSubjectSegmenter(getApplicationContext()).segmentSubject(input, new BitmapSubjectSegmenter.SegmentResultListener() {
@@ -103,8 +114,12 @@ public class RootProviderProxy extends Service {
 
                             String quotedTemp = shellQuote(tempFile.getAbsolutePath());
                             String quotedResult = shellQuote(resultPath);
-                            Shell.cmd("cp -F " + quotedTemp + " " + quotedResult).exec();
-                            Shell.cmd("chmod 644 " + quotedResult).exec();
+                            Shell.Result copyResult = Shell.cmd("cp -f " + quotedTemp
+                                    + " " + quotedResult + " && chmod 644 " + quotedResult).exec();
+                            if (!copyResult.isSuccess()) {
+                                throw new IllegalStateException("Subject image copy failed: "
+                                        + copyResult.getErr());
+                            }
                             //noinspection ResultOfMethodCallIgnored
                             tempFile.delete();
                             Log.d(TAG, "DepthWallpaper onSuccess: BitmapSubjectSegmenter " + resultPath);
@@ -120,6 +135,7 @@ public class RootProviderProxy extends Service {
                 });
             } catch (Throwable t) {
                 Log.e(TAG, "extractSubject: BitmapSubjectSegmenter", t);
+                throw new RemoteException("Unable to start subject extraction");
             }
         }
 

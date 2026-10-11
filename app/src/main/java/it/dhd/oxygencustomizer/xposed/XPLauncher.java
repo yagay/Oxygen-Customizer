@@ -20,10 +20,14 @@ import android.os.IBinder;
 import android.os.RemoteException;
 
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -44,7 +48,15 @@ public class XPLauncher implements ServiceConnection {
             new CopyOnWriteArrayList<>();
     public Context mContext = null;
 
-    private static IRootProviderProxy rootProxyIPC;
+    private static volatile IRootProviderProxy rootProxyIPC;
+    public static final ConcurrentHashMap<String, String> modLoadStates = new ConcurrentHashMap<>();
+    private static final int MAX_PENDING_PROXY_COMMANDS = 64;
+    private static final int ROOT_CONNECT_RETRIES = 24;
+    private static final ExecutorService ROOT_COMMAND_EXECUTOR = Executors.newSingleThreadExecutor(task -> {
+        Thread worker = new Thread(task, "OC-RootCommand-Worker");
+        worker.setDaemon(true);
+        return worker;
+    });
     private static final Queue<ProxyRunnable> proxyQueue = new LinkedList<>();
     private static final AtomicBoolean rootConnectWorkerRunning = new AtomicBoolean(false);
     private static final AtomicBoolean bindInProgress = new AtomicBoolean(false);
@@ -130,12 +142,19 @@ public class XPLauncher implements ServiceConnection {
         try {
             if (isBootLooped(lpparam.packageName)) {
                 log("Oxygen Customizer: startup protection active in " + lpparam.packageName);
+                modLoadStates.put("STARTUP", "BOOT_LOOP_PROTECTED");
                 modsLoaded.set(true);
                 return;
             }
             new SystemUtils(mContext);
             loadModpacks(lpparam);
             modsLoaded.set(true);
+            long unsuccessful = modLoadStates.values().stream()
+                    .filter(state -> !"ACTIVE".equals(state)).count();
+            if (unsuccessful > 0) {
+                log("[ Oxygen Customizer ] " + unsuccessful + " Hook packs not fully active in "
+                        + lpparam.processName);
+            }
         } catch (Throwable failure) {
             log("[ Oxygen Customizer ] Hook startup failed in " + lpparam.processName);
             log(failure);
@@ -158,17 +177,29 @@ public class XPLauncher implements ServiceConnection {
                     instance.updatePrefs();
                 } catch (Throwable throwable) {
                     instance.log(throwable);
+                    modLoadStates.put(mod.getName(), "PREFERENCES_FAILED");
                     // Never install a hook with uninitialised preference state.
                     continue;
                 }
                 instance.initResources();
-                instance.handleLoadPackageInternal(lpparam);
+                // Register before invoking installers: partially installed Hooks still
+                // need preference updates and must be visible in diagnostics.
                 runningMods.add(instance);
+                try {
+                    instance.handleLoadPackageInternal(lpparam);
+                    modLoadStates.put(mod.getName(), "ACTIVE");
+                } catch (Throwable partialFailure) {
+                    modLoadStates.put(mod.getName(), "PARTIAL");
+                    log("[ Oxygen Customizer ] Partial Hook: " + mod.getName());
+                    log(partialFailure);
+                    continue;
+                }
                 if (BuildConfig.DEBUG) {
                     log("[ Oxygen Customizer ] Registered " + mod.getSimpleName()
                             + " for " + lpparam.processName);
                 }
             } catch (Throwable T) {
+                modLoadStates.put(mod.getName(), "FAILED");
                 log("Start Error Dump - Occurred in " + mod.getName());
                 log(T);
             }
@@ -249,7 +280,8 @@ public class XPLauncher implements ServiceConnection {
 
         new Thread(() -> {
             try {
-                while (rootProxyIPC == null) {
+                int attempts = 0;
+                while (rootProxyIPC == null && attempts++ < ROOT_CONNECT_RETRIES) {
                     if (SystemUtils.UserManager() == null
                             || !SystemUtils.UserManager().isUserUnlocked()) {
                         sleep(2000);
@@ -259,6 +291,11 @@ public class XPLauncher implements ServiceConnection {
                     connectRootService();
                     sleep(5000);
                 }
+                if (rootProxyIPC == null) {
+                    log("[ Oxygen Customizer ] Root proxy unavailable after bounded retries");
+                }
+            } catch (Throwable failure) {
+                log("[ Oxygen Customizer ] Root connector error: " + failure);
             } finally {
                 rootConnectWorkerRunning.set(false);
             }
@@ -292,13 +329,12 @@ public class XPLauncher implements ServiceConnection {
     public void onServiceConnected(ComponentName name, IBinder service) {
         bindInProgress.set(false);
         rootProxyIPC = IRootProviderProxy.Stub.asInterface(service);
+        ArrayList<ProxyRunnable> pending = new ArrayList<>();
         synchronized (proxyQueue) {
-            while (!proxyQueue.isEmpty()) {
-                try {
-                    Objects.requireNonNull(proxyQueue.poll()).run(rootProxyIPC);
-                } catch (Throwable ignored) {
-                }
-            }
+            while (!proxyQueue.isEmpty()) pending.add(Objects.requireNonNull(proxyQueue.poll()));
+        }
+        for (ProxyRunnable command : pending) {
+            dispatchProxyCommand(command);
         }
     }
 
@@ -309,16 +345,36 @@ public class XPLauncher implements ServiceConnection {
         forceConnectRootService();
     }
 
-    public static void enqueueProxyCommand(ProxyRunnable runnable) {
-        if (rootProxyIPC != null) {
+    private static void dispatchProxyCommand(ProxyRunnable command) {
+        ROOT_COMMAND_EXECUTOR.execute(() -> {
+            IRootProviderProxy proxy = rootProxyIPC;
+            if (proxy == null) {
+                enqueueProxyCommand(command);
+                return;
+            }
             try {
-                runnable.run(rootProxyIPC);
-            } catch (RemoteException ignored) {}
+                command.run(proxy);
+            } catch (RemoteException failure) {
+                log("[ Oxygen Customizer ] Root IPC failed: " + failure);
+            } catch (Throwable failure) {
+                log("[ Oxygen Customizer ] Root IPC callback failed: " + failure);
+            }
+        });
+    }
+
+    public static void enqueueProxyCommand(ProxyRunnable runnable) {
+        if (runnable == null) return;
+        if (rootProxyIPC != null) {
+            dispatchProxyCommand(runnable);
         } else {
             synchronized (proxyQueue) {
+                if (proxyQueue.size() >= MAX_PENDING_PROXY_COMMANDS) {
+                    proxyQueue.poll();
+                    log("[ Oxygen Customizer ] Root IPC queue full, dropped oldest command");
+                }
                 proxyQueue.add(runnable);
             }
-            instance.forceConnectRootService();
+            if (instance != null) instance.forceConnectRootService();
         }
     }
 
