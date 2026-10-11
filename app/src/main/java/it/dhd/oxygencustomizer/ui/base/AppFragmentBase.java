@@ -207,7 +207,7 @@ public abstract class AppFragmentBase extends BaseFragment {
         private boolean isViewAlive() {
             return mViewLifecycleOwner == null
                     || mViewLifecycleOwner.getLifecycle().getCurrentState()
-                            != Lifecycle.State.DESTROYED);
+                            != Lifecycle.State.DESTROYED;
         }
         private final OnPreTaskExecution preExecutionListener;
         private final boolean hasSlider;
