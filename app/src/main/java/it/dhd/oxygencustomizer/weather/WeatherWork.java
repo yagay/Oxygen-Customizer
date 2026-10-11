@@ -13,6 +13,8 @@ import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -43,6 +45,7 @@ public class WeatherWork extends ListenableWorker {
     private static final long OUTDATED_LOCATION_THRESHOLD_MILLIS = 10L * 60L * 1000L; // 10 minutes
     private static final int RETRY_DELAY_MS = 5000;
     private static final int RETRY_MAX_NUM = 5;
+    private static final long LOCATION_TIMEOUT_MS = 20_000L;
 
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
     private static final SimpleDateFormat dayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US);
@@ -89,17 +92,28 @@ public class WeatherWork extends ListenableWorker {
             }
 
             executor.execute(() -> {
-                getCurrentLocation().thenAccept(location -> {
-                    if (location != null) {
-                        Log.d(TAG, "Location retrieved");
-                        updateWeather(location, completer);
-                    } else if (WeatherConfig.isCustomLocation(mContext)) {
-                        Log.d(TAG, "Using custom location configuration");
-                        updateWeather(null, completer);
-                    } else {
-                        handleError(completer, EXTRA_ERROR_LOCATION, "Failed to retrieve location", true);
-                    }
-                });
+                try {
+                    CompletableFuture<Location> locationResult = getCurrentLocation();
+                    Handler mainHandler = new Handler(Looper.getMainLooper());
+                    Runnable timeout = () -> locationResult.complete(null);
+                    mainHandler.postDelayed(timeout, LOCATION_TIMEOUT_MS);
+                    locationResult.whenCompleteAsync((location, failure) -> {
+                        mainHandler.removeCallbacks(timeout);
+                        if (isStopped()) {
+                            completer.set(Result.failure());
+                        } else if (failure != null) {
+                            Log.e(TAG, "Location lookup failed", failure);
+                            handleError(completer, EXTRA_ERROR_LOCATION, "Location lookup failed", true);
+                        } else if (location != null || WeatherConfig.isCustomLocation(mContext)) {
+                            updateWeather(location, completer);
+                        } else {
+                            handleError(completer, EXTRA_ERROR_LOCATION, "Failed to retrieve location", true);
+                        }
+                    }, executor);
+                } catch (Throwable failure) {
+                    Log.e(TAG, "Location request could not start", failure);
+                    handleError(completer, EXTRA_ERROR_LOCATION, "Location request failed", true);
+                }
             });
 
             return completer;
@@ -151,7 +165,7 @@ public class WeatherWork extends ListenableWorker {
 
         LocationManager lm = (LocationManager) mContext.getSystemService(Context.LOCATION_SERVICE);
 
-        if (!doCheckLocationEnabled()) {
+        if (lm == null || !doCheckLocationEnabled()) {
             Log.w(TAG, "locations disabled");
             locationFuture.complete(null);
             return locationFuture;
@@ -208,7 +222,7 @@ public class WeatherWork extends ListenableWorker {
             AbstractWeatherProvider provider = WeatherConfig.getProvider(mContext);
             boolean isMetric = WeatherConfig.isMetric(mContext);
             int i = 0;
-            while (i < RETRY_MAX_NUM) {
+            while (i < RETRY_MAX_NUM && !isStopped()) {
                 if (location != null && !WeatherConfig.isCustomLocation(mContext)) {
                     w = provider.getLocationWeather(location, isMetric);
                 } else if (!TextUtils.isEmpty(WeatherConfig.getLocationLat(mContext)) && !TextUtils.isEmpty(WeatherConfig.getLocationLon(mContext)) ) {
@@ -231,7 +245,9 @@ public class WeatherWork extends ListenableWorker {
                         Log.w(TAG, "retry count = " + i);
                         try {
                             Thread.sleep(RETRY_DELAY_MS);
-                        } catch (InterruptedException ignored) {
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                            break;
                         }
                     }
                 }
