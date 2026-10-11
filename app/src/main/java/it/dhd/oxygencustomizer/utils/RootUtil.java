@@ -17,7 +17,8 @@ public class RootUtil {
     }
 
     public static boolean isKSUInstalled() {
-        return Shell.cmd("/data/adb/ksud -h").exec().isSuccess();
+        // A help command is allowed to exit non-zero even when KernelSU is installed.
+        return Shell.cmd("test -x /data/adb/ksud || command -v ksud >/dev/null 2>&1").exec().isSuccess();
     }
 
     public static boolean isApatchInstalled() {
@@ -76,8 +77,9 @@ public class RootUtil {
     }
 
     public static int getKsuVersion() {
-        String ksuVersion = Shell.cmd("ksud -V").exec().getOut().stream()
-                .reduce("", (acc, s) -> acc + s).trim();
+        String ksuVersion = Shell.cmd(
+                "if [ -x /data/adb/ksud ]; then /data/adb/ksud -V; else ksud -V; fi"
+        ).exec().getOut().stream().reduce("", (acc, s) -> acc + s).trim();
 
         Pattern pattern = Pattern.compile("\\b(\\d+)(?=\\.)");
         Matcher matcher = pattern.matcher(ksuVersion);

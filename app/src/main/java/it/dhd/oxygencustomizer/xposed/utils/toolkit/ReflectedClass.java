@@ -13,10 +13,12 @@ import android.util.ArraySet;
 import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedHelpers;
+import it.dhd.oxygencustomizer.BuildConfig;
 
 /*
     Reflection Toolkit by @Siavash79/PixelXpert
@@ -29,6 +31,13 @@ public class ReflectedClass {
 
     private static ClassLoader defaultClassloader = null;
     private static final boolean FLAG_DEBUG_HOOKS = false;
+    private static final Set<String> MISSING_TARGETS = ConcurrentHashMap.newKeySet();
+
+    private static void reportUnavailable(String target) {
+        if (BuildConfig.DEBUG && MISSING_TARGETS.add(target)) {
+            log("[Oxygen Customizer - HookDiagnostic] Unavailable target: " + target);
+        }
+    }
     Class<?> clazz;
 
     public ReflectedClass(Class<?> clazz) {
@@ -56,6 +65,7 @@ public class ReflectedClass {
                 }
             } catch (Throwable ignored) {}
         }
+        reportUnavailable(String.join(" | ", classes));
         return new ReflectedClass(null);
     }
 
@@ -68,6 +78,7 @@ public class ReflectedClass {
                 }
             } catch (Throwable ignored) {}
         }
+        reportUnavailable(String.join(" | ", classes));
         return new ReflectedClass(null);
     }
 
@@ -80,7 +91,9 @@ public class ReflectedClass {
     }
 
     public static ReflectedClass ofIfPossible(String name, ClassLoader loader) {
-        return new ReflectedClass(findClassIfExists(name, loader));
+        Class<?> found = findClassIfExists(name, loader);
+        if (found == null) reportUnavailable(name);
+        return new ReflectedClass(found);
     }
 
     public static ReflectedClass ofIfPossible(String name) {
@@ -88,7 +101,7 @@ public class ReflectedClass {
     }
 
     public BeforeMethodData before(Method method) {
-        return new BeforeMethodData(method.getClass(), null, method, false);
+        return new BeforeMethodData(method.getDeclaringClass(), null, method, false);
     }
 
     public BeforeMethodData before(String methodName) {
@@ -108,7 +121,7 @@ public class ReflectedClass {
     }
 
     public AfterMethodData after(Method method) {
-        return new AfterMethodData(method.getClass(), null, method, false);
+        return new AfterMethodData(method.getDeclaringClass(), null, method, false);
     }
 
     public AfterMethodDatas after(Pattern pattern) {
@@ -206,6 +219,7 @@ public class ReflectedClass {
                         runConsumerSafely(consumer, param);
                     }
                 });
+                if (unhooks.isEmpty()) reportUnavailable(clazz.getName() + "#" + methodName);
 
                 if (log || FLAG_DEBUG_HOOKS) {
                     StackTraceElement element = Thread.currentThread().getStackTrace()[2];
@@ -270,6 +284,7 @@ public class ReflectedClass {
                         runConsumerSafely(consumer, param);
                     }
                 });
+                if (unhooks.isEmpty()) reportUnavailable(clazz.getName() + "#" + methodName);
 
                 if (log || FLAG_DEBUG_HOOKS) {
                     StackTraceElement element = Thread.currentThread().getStackTrace()[2];

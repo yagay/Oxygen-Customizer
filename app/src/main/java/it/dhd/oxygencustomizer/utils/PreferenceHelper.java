@@ -347,6 +347,10 @@ public class PreferenceHelper {
         mPreferences = prefs;
         List<String> buildDisplay = Shell.cmd("getprop ro.build.display.id").exec().getOut();
         mOsVersion = buildDisplay.isEmpty() ? "" : buildDisplay.get(0);
+        // Merge both firmware identifiers: display.id and the OPlus ROM version are
+        // independent properties. An unset OPlus property must not disable all settings.
+        List<String> oplusDisplay = Shell.cmd("getprop ro.build.version.oplusrom.display").exec().getOut();
+        mOplusVersion = oplusDisplay.isEmpty() ? "" : oplusDisplay.get(0).trim();
         instance = this;
     }
 
@@ -651,7 +655,7 @@ public class PreferenceHelper {
                 return Build.VERSION.SDK_INT >= 35;
             }
             case QS_TILE_CUSTOM_COLOR_ACTIVE_ACCENT -> {
-                return is16010() || Build.VERSION.SDK_INT >= 37 &&
+                return (is16010() || Build.VERSION.SDK_INT >= 37) &&
                         instance.mPreferences.getBoolean(QS_TILE_CUSTOM_COLORS_SWITCH, false) &&
                         instance.mPreferences.getBoolean(QS_TILE_ACTIVE_COLOR_ENABLED, false);
             }

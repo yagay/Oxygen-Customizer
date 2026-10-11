@@ -78,7 +78,7 @@ public class UpdateWorker extends ListenableWorker {
         });
     }
 
-    private void showUpdateNotification() {
+    private void showUpdateNotification(String version) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU
                 && ContextCompat.checkSelfPermission(mContext, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {

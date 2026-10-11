@@ -48,6 +48,9 @@ public class XPLauncher implements ServiceConnection {
     private static final Queue<ProxyRunnable> proxyQueue = new LinkedList<>();
     private static final AtomicBoolean rootConnectWorkerRunning = new AtomicBoolean(false);
     private static final AtomicBoolean bindInProgress = new AtomicBoolean(false);
+    // Context hooks can fire more than once; installing a pack twice corrupts UI state.
+    private final AtomicBoolean modsLoaded = new AtomicBoolean(false);
+    private final AtomicBoolean recoveryScheduled = new AtomicBoolean(false);
     private static final int XPREFS_LOAD_RETRIES = 20;
     private static final long XPREFS_LOAD_RETRY_DELAY_MS = 100;
     @SuppressLint("StaticFieldLeak")
@@ -122,6 +125,7 @@ public class XPLauncher implements ServiceConnection {
     }
 
     private void onXPrefsReady(XC_LoadPackage.LoadPackageParam lpparam) {
+        if (!modsLoaded.compareAndSet(false, true)) return;
         if (isBootLooped(lpparam.packageName)) {
             log(String.format("Oxygen Customizer: Possible bootloop in %s. Will not load for now", lpparam.packageName));
             return;
@@ -145,10 +149,16 @@ public class XPLauncher implements ServiceConnection {
                     instance.updatePrefs();
                 } catch (Throwable throwable) {
                     instance.log(throwable);
+                    // Never install a hook with uninitialised preference state.
+                    continue;
                 }
                 instance.initResources();
                 instance.handleLoadPackageInternal(lpparam);
                 runningMods.add(instance);
+                if (BuildConfig.DEBUG) {
+                    log("[ Oxygen Customizer ] Registered " + mod.getSimpleName()
+                            + " for " + lpparam.processName);
+                }
             } catch (Throwable T) {
                 log("Start Error Dump - Occurred in " + mod.getName());
                 log(T);
@@ -181,7 +191,30 @@ public class XPLauncher implements ServiceConnection {
         }
 
         log("[ Oxygen Customizer ] Preferences unavailable for " + lpparam.packageName
-                + "; skipping hooks for this process instead of blocking startup");
+                + "; scheduling bounded asynchronous recovery");
+        // Do not stall the host process during early boot. Recover only once,
+        // on a background thread, if the preference provider becomes available.
+        if (recoveryScheduled.compareAndSet(false, true)) {
+            CompletableFuture.runAsync(() -> {
+                for (int attempt = 0; attempt < 60 && !modsLoaded.get(); attempt++) {
+                    try {
+                        Thread.sleep(500);
+                        if (Xprefs != null) {
+                            Xprefs.getBoolean("LoadTestBooleanValue", false);
+                            onXPrefsReady(lpparam);
+                            return;
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    } catch (Throwable ignored) {
+                        // Preference provider can be unavailable until user unlock.
+                    }
+                }
+                log("[ Oxygen Customizer ] Preference recovery exhausted for "
+                        + lpparam.processName);
+            });
+        }
     }
 
     private void forceConnectRootService() {
