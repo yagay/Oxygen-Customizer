@@ -1,41 +1,57 @@
 package it.dhd.oxygencustomizer.ui.fragments.mods.quicksettings;
 
-import android.os.Bundle;
 import androidx.preference.TwoStatePreference;
+
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.ui.base.ControlledPreferenceFragmentCompat;
 import it.dhd.oxygencustomizer.utils.Constants;
 
 public class QuickSettingsTiles extends ControlledPreferenceFragmentCompat {
 
+    private boolean updatingGridMode;
+
     @Override
-    public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
-        super.onCreatePreferences(savedInstanceState, rootKey);
-        String oldKey = Constants.Preferences.QsTiles.QS_CUSTOMIZE_TILES;
-        String newKey = Constants.Preferences.QsTiles.QS_NEW_GRID_ENABLED;
-        TwoStatePreference oldSwitch = findPreference(oldKey);
-        TwoStatePreference newSwitch = findPreference(newKey);
-        if (oldSwitch == null || newSwitch == null) return;
+    public void updateScreen(String changedKey) {
+        super.updateScreen(changedKey);
+        TwoStatePreference legacy = findPreference(Constants.Preferences.QsTiles.QS_CUSTOMIZE_TILES);
+        TwoStatePreference modern = findPreference(Constants.Preferences.QsTiles.QS_NEW_GRID_ENABLED);
+        if (legacy == null || modern == null || updatingGridMode) return;
 
-        // Migration: prefer the new grid when older preferences have both flags enabled.
-        if (oldSwitch.isChecked() && newSwitch.isChecked()) {
-            oldSwitch.setChecked(false);
+        // PreferenceHelper.setupAllPreferences() may replace change listeners.
+        // Reinstall the exclusive switch handling after the common setup.
+        legacy.setOnPreferenceChangeListener((preference, newValue) -> {
+            if (Boolean.TRUE.equals(newValue)) selectGridMode(modern);
+            return true;
+        });
+        modern.setOnPreferenceChangeListener((preference, newValue) -> {
+            if (Boolean.TRUE.equals(newValue)) selectGridMode(legacy);
+            return true;
+        });
+
+        if (legacy.isChecked() && modern.isChecked()) {
+            updatingGridMode = true;
+            try {
+                // Honor the switch the user just enabled, not always the newer one.
+                if (Constants.Preferences.QsTiles.QS_CUSTOMIZE_TILES.equals(changedKey)) {
+                    modern.setChecked(false);
+                } else {
+                    legacy.setChecked(false);
+                }
+            } finally {
+                updatingGridMode = false;
+            }
         }
-
-        oldSwitch.setOnPreferenceChangeListener((preference, next) -> {
-            if (Boolean.TRUE.equals(next)) {
-                newSwitch.setChecked(false);
-            }
-            return true;
-        });
-        newSwitch.setOnPreferenceChangeListener((preference, next) -> {
-            if (Boolean.TRUE.equals(next)) {
-                oldSwitch.setChecked(false);
-            }
-            return true;
-        });
     }
 
+    private void selectGridMode(TwoStatePreference other) {
+        if (updatingGridMode) return;
+        updatingGridMode = true;
+        try {
+            if (other.isChecked()) other.setChecked(false);
+        } finally {
+            updatingGridMode = false;
+        }
+    }
 
     @Override
     public String getTitle() {
