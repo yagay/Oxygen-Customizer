@@ -105,7 +105,9 @@ public class RoundnessCompiler {
             for (int i = 0; i < mOverlayName.length; i++) {
                     overlayNames[i] = "OxygenCustomizerComponent" + mOverlayName[i] + ".overlay";
                 }
-            OverlayUtil.disableOverlays(overlayNames);
+            for (String overlay : overlayNames) {
+                OverlayUtil.applyOverlayStateNow(overlay, false, false);
+            }
         }
     }
 
@@ -142,7 +144,11 @@ public class RoundnessCompiler {
                 for (int i = 0; i < mOverlayName.length; i++) {
                     overlayNames[i] = "OxygenCustomizerComponent" + mOverlayName[i] + ".overlay";
                 }
-                OverlayUtil.enableOverlays(overlayNames);
+                for (String overlay : overlayNames) {
+                    if (!OverlayUtil.applyOverlayStateNow(overlay, true, false)) {
+                        Log.e(TAG, "Failed to enable compiled overlay " + overlay);
+                    }
+                }
             } else {
                 for (String overlayName : mOverlayName) {
                     Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.BACKUP_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
