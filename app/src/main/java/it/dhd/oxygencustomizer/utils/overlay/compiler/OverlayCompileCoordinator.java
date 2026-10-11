@@ -134,9 +134,9 @@ public final class OverlayCompileCoordinator {
                         && destinations[i].endsWith("/" + apkFileName)) {
                     installAttempted[i] = true;
                     wasPackageInstalled[i] = installed;
-                    if (installed && !existed[i]) {
-                        // On Magisk/KSU overlays the prior APK may exist only at
-                        // the package manager's installed code path, not /system.
+                    if (installed) {
+                        // Snapshot the package actually registered by PackageManager,
+                        // even when a different system APK happens to exist.
                         if (!installedPath.startsWith("/") || !installedPath.endsWith(".apk")) {
                             throw new IOException("Invalid installed overlay path");
                         }
@@ -222,7 +222,8 @@ public final class OverlayCompileCoordinator {
                 String packageName = name.substring(0, name.length() - 4) + ".overlay";
                 try {
                     if (wasPackageInstalled[i]) {
-                        String original = existed[i] ? backups[i] : installedBackups[i];
+                        String original = installedBackups[i] != null
+                                ? installedBackups[i] : (existed[i] ? backups[i] : null);
                         if (original == null) {
                             Log.e("OC-OverlayCompile", "Cannot restore installed overlay "
                                     + packageName + ": original APK is unavailable");

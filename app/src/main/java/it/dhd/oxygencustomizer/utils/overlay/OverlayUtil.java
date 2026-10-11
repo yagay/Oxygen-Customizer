@@ -61,10 +61,11 @@ public class OverlayUtil {
         if (!isSafeIdentifier(componentName)) return Collections.emptyList();
         Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
         if (!result.isSuccess()) return Collections.emptyList();
-        String prefix = "OxygenCustomizerComponent" + componentName;
+        String exact = "OxygenCustomizerComponent" + componentName + ".overlay";
         java.util.ArrayList<String> matches = new java.util.ArrayList<>();
         for (String line : result.getOut()) {
-            if (line.contains(prefix)) matches.add(line);
+            String trimmed = line.trim();
+            if (trimmed.equals("[x] " + exact) || trimmed.equals("[ ] " + exact)) matches.add(line);
         }
         return matches;
     }
@@ -106,12 +107,9 @@ public class OverlayUtil {
 
     public static void checkOverlayEnabledAndEnable(String componentName) {
         if (!isSafeIdentifier(componentName)) return;
-        String prefix = "OxygenCustomizerComponent" + componentName;
-        for (String pkgName : getOverlayList()) {
-            if (pkgName.startsWith(prefix) && !isOverlayEnabled(pkgName)) {
-                enableOverlay(pkgName);
-                return;
-            }
+        String pkgName = "OxygenCustomizerComponent" + componentName + ".overlay";
+        if (getOverlayList().contains(pkgName) && isOverlayDisabled(pkgName)) {
+            enableOverlay(pkgName);
         }
     }
 

@@ -57,17 +57,21 @@ public abstract class TaskExecutor<Params, Progress, Result> {
                 if (!isCancelled()) {
                     final Result result = doInBackground(params);
                     if (!isCancelled()) {
-                        mHandler.post(() -> {
+                        if (!mHandler.post(() -> {
                             if (!isCancelled()) {
                                 try {
                                     onPostExecute(result);
                                 } catch (Throwable failure) {
                                     Log.e(TAG, "onPostExecute failed", failure);
+                                } finally {
+                                    mStatus = Status.FINISHED;
                                 }
                             } else {
-                                deliverCancellation();
+                                finishCancelled();
                             }
-                        });
+                        })) {
+                            mCancelled.set(true);
+                        }
                     }
                 }
             } catch (InterruptedException interruption) {
@@ -77,8 +81,7 @@ public abstract class TaskExecutor<Params, Progress, Result> {
                 Log.e(TAG, "Task failed", failure);
                 mCancelled.set(true);
             } finally {
-                mStatus = Status.FINISHED;
-                if (isCancelled()) deliverCancellation();
+                if (isCancelled()) finishCancelled();
                 mExecutor.shutdown();
             }
         });
