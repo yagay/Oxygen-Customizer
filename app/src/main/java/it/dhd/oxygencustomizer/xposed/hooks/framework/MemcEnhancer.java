@@ -72,7 +72,7 @@ public class MemcEnhancer extends XposedMods {
             new HashMap<>(), new HashMap<>(), new HashMap<>());
     private boolean mBroadcastRegistered = false;
     private boolean mSettingsBroadcastRegistered = false;
-    private boolean settingsUpdated = false;
+    private volatile boolean settingsUpdated = false;
     private boolean mIsFeatureOn = false;
     private boolean mIsPwX7Enable = false;
     private boolean mMemcEnable = false;
@@ -115,7 +115,7 @@ public class MemcEnhancer extends XposedMods {
     }
 
     @Override
-    public void updatePrefs(String... Key) {
+    public synchronized void updatePrefs(String... Key) {
         if (settingsUpdated) return;
 
         enableMemcFeature = Xprefs.getBoolean("force_memc_enabled", false);
@@ -374,6 +374,7 @@ public class MemcEnhancer extends XposedMods {
     }
 
     private void logLists() {
+        if (!mDebug) return;
         log("logLists: " + "\n" +
                 "enableMemcFeature: " + enableMemcFeature + "\n" +
                 "useCustomMemcConfig: " + useCustomMemcConfig + "\n" +
