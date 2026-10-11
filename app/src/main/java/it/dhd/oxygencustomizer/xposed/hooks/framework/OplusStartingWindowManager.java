@@ -6,149 +6,111 @@ import static de.robv.android.xposed.XposedHelpers.findClass;
 import static it.dhd.oxygencustomizer.utils.Constants.Packages.FRAMEWORK;
 import static it.dhd.oxygencustomizer.xposed.XPrefs.Xprefs;
 
-import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
-import android.os.Environment;
 import android.text.TextUtils;
 
 import java.lang.reflect.Method;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.Constants;
-import it.dhd.oxygencustomizer.xposed.XPLauncher;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 
+/** Keep system_server's high-frequency window hook free of shell I/O. */
 public class OplusStartingWindowManager extends XposedMods {
+    private static final String LISTEN_PACKAGE = FRAMEWORK;
 
-    private final static String listenPackage = FRAMEWORK;
+    private volatile boolean mEnableLagFix;
+    private volatile boolean mForceAllApps;
+    private volatile Set<String> mLagFixApps = Collections.emptySet();
+    private boolean broadcastRegistered;
 
-    private final String LOG_FILE = Environment.getExternalStorageDirectory() + "/.oxygen_customizer/OplusStartingWindowManager_fix.log";
-    private boolean mEnableLagFix = false;
-    private boolean mForceAllApps = false;
-    private Set<String> mLagFixApps = new HashSet<>();
-    private boolean settingsUpdated = false;
-    final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
+    private final BroadcastReceiver broadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (intent == null || !Constants.ACTION_SETTINGS_CHANGED.equals(intent.getAction())
+                    || !XPrefs.isTrustedInternalBroadcast(intent)) return;
+            if (!OplusStartingWindowManager.class.getSimpleName().equals(
+                    intent.getStringExtra("class"))) return;
             try {
-                String action = intent.getAction();
-                if (action == null) return;
-                String className = intent.getStringExtra("class");
-                if (action.equals(Constants.ACTION_SETTINGS_CHANGED)) {
-                    if (!TextUtils.isEmpty(className) && className.equals(this.getClass().getSimpleName())) {
-                        log("Intent received - will update preferences");
-                        settingsUpdated = false;
-                        updatePrefs();
-                    }
-                }
-            } catch (Throwable t) {
-                log(t);
+                updatePrefs();
+            } catch (Throwable failure) {
+                log(failure);
             }
         }
     };
-    private boolean broadcastRegistered = false;
 
     public OplusStartingWindowManager(Context context) {
         super(context);
     }
 
     @Override
-    public void updatePrefs(String... Key) {
-
-        if (settingsUpdated) return;
-
-        mEnableLagFix = Xprefs.getBoolean("fix_lag_switch", false);
-        mForceAllApps = Xprefs.getBoolean("fix_lag_force_all_apps", false);
-        mLagFixApps = Xprefs.getStringSet("lag_fix_apps", null);
-
-        log("Enabled Lag Fix: " + mEnableLagFix + " Force All Apps: " + mForceAllApps + " Lag Fix Apps: " + mLagFixApps);
+    public void updatePrefs(String... keys) {
         try {
-            XPLauncher.enqueueProxyCommand((proxy) -> proxy.runCommand("echo " + getFormattedDate() + " - updatePrefs: Enabled Lag Fix: " + mEnableLagFix + " Force All Apps: " + mForceAllApps + " Lag Fix Apps: " + mLagFixApps + " >> " + LOG_FILE));
-        } catch (Throwable ignored) {
+            Set<String> configured = Xprefs.getStringSet("lag_fix_apps", null);
+            Set<String> safe = new HashSet<>();
+            if (configured != null) {
+                for (String name : configured) {
+                    if (!TextUtils.isEmpty(name)) safe.add(name);
+                }
+            }
+            mLagFixApps = Collections.unmodifiableSet(safe);
+            mForceAllApps = Xprefs.getBoolean("fix_lag_force_all_apps", false);
+            mEnableLagFix = Xprefs.getBoolean("fix_lag_switch", false);
+            // No Root IPC or shell logging: this Hook runs in system_server.
+            log("Lag Fix preferences refreshed: enabled=" + mEnableLagFix
+                    + ", allApps=" + mForceAllApps + ", selectedApps=" + safe.size());
+        } catch (Throwable failure) {
+            log(failure);
         }
     }
 
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (Build.VERSION.SDK_INT < 34) return;
-
-        XPLauncher.enqueueProxyCommand((proxy) ->
-                proxy.runCommand("echo " + getFormattedDate() + " - OplusStartingWindowManager: hook started >> " + LOG_FILE));
-
         if (!broadcastRegistered) {
+            IntentFilter filter = new IntentFilter(Constants.ACTION_SETTINGS_CHANGED);
+            mContext.registerReceiver(broadcastReceiver, filter, RECEIVER_EXPORTED);
             broadcastRegistered = true;
-
-            IntentFilter intentFilter = new IntentFilter();
-            intentFilter.addAction(Constants.ACTION_SETTINGS_CHANGED);
-            mContext.registerReceiver(broadcastReceiver, intentFilter, RECEIVER_EXPORTED); //for Android 14, receiver flag is mandatory
         }
 
-
-        Class<?> OplusStartingWindowManager;
-        Method isLayerMatchToStartingWindow;
         try {
-            OplusStartingWindowManager = findClass("com.android.server.wm.OplusStartingWindowManager", lpparam.classLoader);
-            isLayerMatchToStartingWindow = OplusStartingWindowManager.getDeclaredMethod("isLayerMatchToStartingWindow", String.class);
-
-            hookMethod(isLayerMatchToStartingWindow, new XC_MethodHook() {
+            Class<?> clazz = findClass(
+                    "com.android.server.wm.OplusStartingWindowManager", lpparam.classLoader);
+            Method method = clazz.getDeclaredMethod("isLayerMatchToStartingWindow", String.class);
+            hookMethod(method, new XC_MethodHook() {
                 @Override
-                protected void beforeHookedMethod(XC_MethodHook.MethodHookParam param) throws Throwable {
-                    XPLauncher.enqueueProxyCommand((proxy) ->
-                            proxy.runCommand("echo " + getFormattedDate() + " - isLayerMatchToStartingWindow: " + param.args[0] + " >> " + LOG_FILE));
-                    if (mEnableLagFix) {
-                        XPLauncher.enqueueProxyCommand((proxy) ->
-                                proxy.runCommand("echo " + getFormattedDate() + " - lag fix enabled >> " + LOG_FILE));
-                        if (mForceAllApps) {
-                            XPLauncher.enqueueProxyCommand((proxy) ->
-                                    proxy.runCommand("echo " + getFormattedDate() + " - forced all apps, return ture >> " + LOG_FILE));
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    if (!mEnableLagFix) return;
+                    if (mForceAllApps) {
+                        param.setResult(true);
+                        return;
+                    }
+                    if (param.args.length == 0 || !(param.args[0] instanceof String layer)
+                            || TextUtils.isEmpty(layer)) return;
+                    for (String packageName : mLagFixApps) {
+                        if (layer.contains(packageName)) {
                             param.setResult(true);
-                        } else {
-                            String layer = (String) param.args[0];
-                            if (TextUtils.isEmpty(layer)) {
-                                XPLauncher.enqueueProxyCommand((proxy) ->
-                                        proxy.runCommand("echo " + getFormattedDate() + " - layer is empty, return >> " + LOG_FILE));
-                                return;
-                            }
-                            if (mLagFixApps != null) {
-                                mLagFixApps.forEach((app) -> {
-                                    if (layer.contains(app)) {
-                                        XPLauncher.enqueueProxyCommand((proxy) ->
-                                                proxy.runCommand("echo " + getFormattedDate() + " - lag fix app found '" + app + "', return ture >> " + LOG_FILE));
-                                        param.setResult(true);
-                                    }
-                                });
-                            }
+                            return;
                         }
-                    } else {
-                        XPLauncher.enqueueProxyCommand((proxy) ->
-                                proxy.runCommand("echo " + getFormattedDate() + " - lag fix disabled, do nothing >> " + LOG_FILE));
                     }
                 }
             });
-        } catch (Throwable t) {
-            log(t);
+        } catch (Throwable failure) {
+            log(failure);
         }
-
-    }
-
-    private String getFormattedDate() {
-        @SuppressLint("SimpleDateFormat") SimpleDateFormat sdf = new SimpleDateFormat("dd-MM-HH:mm:ss:SSS");
-        Date now = new Date();
-        return sdf.format(now);
     }
 
     @Override
     public boolean listensTo(String packageName) {
-        return listenPackage.equals(packageName);
+        return LISTEN_PACKAGE.equals(packageName);
     }
 }

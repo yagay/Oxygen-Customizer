@@ -13,6 +13,7 @@ import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
+import java.util.HashSet;
 import java.util.Set;
 
 import it.dhd.oxygencustomizer.R;
@@ -20,6 +21,7 @@ import it.dhd.oxygencustomizer.ui.adapters.AppAdapter;
 import it.dhd.oxygencustomizer.ui.base.AppFragmentBase;
 import it.dhd.oxygencustomizer.ui.models.AppModel;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 import it.dhd.oxygencustomizer.xposed.hooks.framework.OplusStartingWindowManager;
 
 public class LagFixAppChooser extends AppFragmentBase {
@@ -57,7 +59,12 @@ public class LagFixAppChooser extends AppFragmentBase {
 
     @Override
     public OnShowSystemChange getShowSystemChange() {
-        return showSystem -> ((AppAdapter) binding.recyclerView.getAdapter()).showSystem(showSystem);
+        return showSystem -> {
+            // The menu can be used before the asynchronous list has loaded.
+            if (binding != null && binding.recyclerView.getAdapter() instanceof AppAdapter adapter) {
+                adapter.showSystem(showSystem);
+            }
+        };
     }
 
     @Override
@@ -69,13 +76,16 @@ public class LagFixAppChooser extends AppFragmentBase {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        mEnabledApps = mPreferences.getStringSet("lag_fix_apps", new ArraySet<>());
+        // SharedPreferences owns the returned Set. Always work on a mutable snapshot.
+        mEnabledApps = new HashSet<>(mPreferences.getStringSet("lag_fix_apps", new ArraySet<>()));
         binding.appFunctionSwitch.setVisibility(View.GONE);
 
         new LoadAppsTask(getAppContext(), mEnabledApps, false, () -> {
+            if (binding == null || !isAdded()) return;
             binding.searchView.setEnabled(false);
             binding.progress.setVisibility(View.VISIBLE);
         }, appList -> {
+            if (binding == null || !isAdded()) return;
             binding.recyclerView.setLayoutManager(new LinearLayoutManager(getAppContext()));
             binding.recyclerView.setAdapter(new AppAdapter(appList,
                     this::onSwitchChange));
@@ -89,7 +99,9 @@ public class LagFixAppChooser extends AppFragmentBase {
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    ((AppAdapter) binding.recyclerView.getAdapter()).filter(s.toString());
+                    if (binding != null && binding.recyclerView.getAdapter() instanceof AppAdapter adapter) {
+                        adapter.filter(s.toString());
+                    }
                 }
 
                 @Override
@@ -110,13 +122,14 @@ public class LagFixAppChooser extends AppFragmentBase {
     }
 
     private void savePrefs() {
-        mPreferences.edit().putStringSet("lag_fix_apps", mEnabledApps).apply();
+        mPreferences.edit().putStringSet("lag_fix_apps", new HashSet<>(mEnabledApps)).apply();
 
 
         Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
         broadcast.putExtra("packageName", FRAMEWORK);
         broadcast.putExtra("class", OplusStartingWindowManager.class.getSimpleName());
         broadcast.setPackage(FRAMEWORK);
+        OCPreferences.addInternalBroadcastToken(broadcast);
         if (getContext() != null)
             getContext().sendBroadcast(broadcast);
     }

@@ -113,7 +113,9 @@ public class LocationBrowseActivity extends OplusActivity {
         }
 
         protected String getId() {
-            return mCity + "," + mCountryId;
+            // Different states/regions frequently contain cities with identical names.
+            // Include the displayed region and coordinates in the stable identity.
+            return mCity + "," + mCityExt + "," + mCountryId + "," + mLat + "," + mLon;
         }
 
         public double getLat() {
