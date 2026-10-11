@@ -55,6 +55,8 @@ public class QSTiles extends XposedMods {
     private final AtomicBoolean calculatorSeen = new AtomicBoolean(false);
     private final AtomicBoolean newGridInstalled = new AtomicBoolean(false);
     private final AtomicBoolean newGridUsed = new AtomicBoolean(false);
+    private final AtomicBoolean spanManagerSeen = new AtomicBoolean(false);
+    private final AtomicBoolean pagerManagerSeen = new AtomicBoolean(false);
     private static final String NEW_GRID_CLASS = "com.oplus.systemui.plugins.qs.customize.data.model.GridInfoEntity";
 
     public QSTiles(Context context) {
@@ -90,7 +92,7 @@ public class QSTiles extends XposedMods {
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (!listenPackage.equals(lpparam.packageName)) return;
 
-        XposedBridge.log("[OC-QSGrid] init: enabled=" + mCustomizeQSTiles
+        XposedBridge.log("[OC-QSGrid] init: legacyEnabled=" + mCustomizeQSTiles + " modernEnabled=" + mCustomizeNewGrid
                 + " rows=" + QSRowQty + " portraitColumns=" + QSColQty
                 + " landscapeColumns=" + QSColQtyL + " sdk=" + Build.VERSION.SDK_INT);
         ReflectedClass QuickQSPanel = ReflectedClass.ofIfPossible("com.android.systemui.qs.QuickQSPanel");
@@ -135,6 +137,7 @@ public class QSTiles extends XposedMods {
             // These methods are present in the supplied OOS16 SystemUI APK. They may be
             // loaded by a plugin ClassLoader; the compatibility diagnostic reports misses.
             installNewGridHookWhenLoaded(lpparam.classLoader);
+            installNewLayoutHooks();
 
             // OPlus uses its own container when Quick Settings is separated from notifications.
             // The AOSP TileLayout hooks above do not affect this layout.
@@ -216,6 +219,51 @@ public class QSTiles extends XposedMods {
             newGridInstalled.set(false);
             XposedBridge.log("[OC-QSGrid] OOS16 grid hook install failed: " + failure);
         }
+    }
+
+    /**
+     * OOS16 separates persisted GridInfo from the RecyclerView grid layout.
+     * Hook the live span calculation as the legacy implementation hooks
+     * TileLayout.updateColumns. Keep pager getters diagnostic-only: they are
+     * also used by customization/editor pages with their own page capacity.
+     */
+    private void installNewLayoutHooks() {
+        ReflectedClass spanManager = ReflectedClass.ofIfPossible(
+                "com.oplus.systemui.qs.base.widget.SpannedGridLayoutManager");
+        spanManager.after("getSpanCount").run(param -> {
+            if (!mCustomizeNewGrid || param.hasThrowable()) return;
+            Object original = param.getResult();
+            int columns = mContext.getResources().getConfiguration().orientation
+                    == Configuration.ORIENTATION_LANDSCAPE
+                    ? newGridLandscapeColumns : newGridColumns;
+            if (spanManagerSeen.compareAndSet(false, true)) {
+                XposedBridge.log("[OC-QSGrid] SpannedGridLayoutManager#getSpanCount "
+                        + "original=" + original + " requested=" + columns
+                        + " class=" + param.thisObject.getClass().getName());
+            }
+            if (original instanceof Integer) {
+                param.setResult(Math.max(1, Math.min(8, columns)));
+            }
+        });
+
+        ReflectedClass pagerManager = ReflectedClass.ofIfPossible(
+                "com.oplus.systemui.qs.base.customizer.OplusPagerGridLayoutManager");
+        pagerManager.after("getColumns").run(param -> {
+            if (!mCustomizeNewGrid || param.hasThrowable()) return;
+            if (pagerManagerSeen.compareAndSet(false, true)) {
+                XposedBridge.log("[OC-QSGrid] PagerGridLayoutManager active "
+                        + "columns=" + param.getResult()
+                        + " (editor/pager dimensions left unchanged)");
+            }
+        });
+        pagerManager.after("getRows").run(param -> {
+            if (!mCustomizeNewGrid || param.hasThrowable()) return;
+            if (pagerManagerSeen.compareAndSet(false, true)) {
+                XposedBridge.log("[OC-QSGrid] PagerGridLayoutManager active "
+                        + "rows=" + param.getResult()
+                        + " (editor/pager dimensions left unchanged)");
+            }
+        });
     }
 
     private void applyOplusGridSize(Object container) {
