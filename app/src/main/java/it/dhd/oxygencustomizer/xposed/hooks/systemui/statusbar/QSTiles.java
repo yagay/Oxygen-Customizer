@@ -1,6 +1,7 @@
 package it.dhd.oxygencustomizer.xposed.hooks.systemui.statusbar;
 
 import static de.robv.android.xposed.XposedHelpers.getIntField;
+import static de.robv.android.xposed.XposedHelpers.findFieldIfExists;
 import static de.robv.android.xposed.XposedHelpers.setIntField;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_COLUMNS;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_COLUMNS_LANDSCAPE;
@@ -101,27 +102,44 @@ public class QSTiles extends XposedMods {
                 });
 
         if (Build.VERSION.SDK_INT >= 35) {
-            // Columns and Rows for separate qs
-//            ReflectedClass OplusTileContainerView = ReflectedClass.of("com.oplus.systemui.plugins.qs.tile.OplusTileContainerView");
-//            OplusTileContainerView
-//                    .before("updateCell")
-//                    .run(param -> {
-//                        if (!mCustomizeQSTiles) return;
-//                        setIntField(param.thisObject, "mRows", QSRowQty);
-//                        setIntField(param.thisObject, "mColumns", QSColQty);
-//                        param.setResult(null);
-//                    });
+            // OPlus uses its own container when Quick Settings is separated from notifications.
+            // The AOSP TileLayout hooks above do not affect this layout.
+            ReflectedClass oplusContainer = ReflectedClass.ofIfPossible(
+                    "com.oplus.systemui.plugins.qs.tile.OplusTileContainerView");
+            oplusContainer.before("updateCell").run(param -> {
+                if (!mCustomizeQSTiles) return;
+                applyOplusGridSize(param.thisObject);
+            });
+            oplusContainer.after("updateCell").run(param -> {
+                if (!mCustomizeQSTiles) return;
+                applyOplusGridSize(param.thisObject);
+            });
 
-//            ReflectedClass DeviceProfile = ReflectedClass.of("com.oplus.systemui.plugins.qs.DeviceProfile$DefaultCellCalculator");
-//            DeviceProfile
-//                    .before("getMaxItemNum")
-//                    .run(param1 -> {
-//                        if (!mCustomizeQSTiles) return;
-//                        param1.setResult(QSRowQty * QSColQty);
-//                    });
-
+            ReflectedClass calculator = ReflectedClass.ofIfPossible(
+                    "com.oplus.systemui.plugins.qs.DeviceProfile$DefaultCellCalculator");
+            calculator.before("getMaxItemNum").run(param -> {
+                if (!mCustomizeQSTiles) return;
+                int columns = mContext.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_LANDSCAPE ? QSColQtyL : QSColQty;
+                param.setResult(Math.max(1, QSRowQty) * Math.max(1, columns));
+            });
         }
 
+    }
+
+    private void applyOplusGridSize(Object container) {
+        int orientation = mContext.getResources().getConfiguration().orientation;
+        int columns = orientation == Configuration.ORIENTATION_LANDSCAPE ? QSColQtyL : QSColQty;
+        setGridFieldIfPresent(container, "mColumns", Math.max(1, columns));
+        if (orientation != Configuration.ORIENTATION_LANDSCAPE) {
+            setGridFieldIfPresent(container, "mRows", Math.max(1, QSRowQty));
+        }
+    }
+
+    private static void setGridFieldIfPresent(Object target, String fieldName, int value) {
+        if (findFieldIfExists(target.getClass(), fieldName) != null) {
+            setIntField(target, fieldName, value);
+        }
     }
 
     @Override
