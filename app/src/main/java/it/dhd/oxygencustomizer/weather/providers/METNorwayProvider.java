@@ -109,17 +109,19 @@ public class METNorwayProvider extends AbstractWeatherProvider {
 
         int whileIndex = 0;
 
-        while (convertTimeZone(timeseries.getJSONObject(whileIndex).getString("time")).contains(yesterday)) {
+        while (whileIndex < count
+                && convertTimeZone(timeseries.getJSONObject(whileIndex).getString("time")).contains(yesterday)) {
             whileIndex++;
         }
 
-        boolean endDay = (whileIndex == 0) && isEndDay(convertTimeZone(timeseries.getJSONObject(whileIndex).getString("time")));
+        boolean endDay = whileIndex == 0 && count > 0
+                && isEndDay(convertTimeZone(timeseries.getJSONObject(whileIndex).getString("time")));
 
         for (int i = 0; i < 5; i++) {
             DayForecast item;
             try {
                 // temp = temperature
-                double temp_max = Double.MIN_VALUE;
+                double temp_max = -Double.MAX_VALUE;
                 double temp_min = Double.MAX_VALUE;
                 String day = getDay(i);
                 int symbolCode = 0;
@@ -130,7 +132,8 @@ public class METNorwayProvider extends AbstractWeatherProvider {
                 String conditionDescription = "";
                 String cdSixToEighteen = ""; // conditionDescription at 06:00 or 12:00
 
-                while (convertTimeZone(timeseries.getJSONObject(whileIndex).getString("time")).contains(day)) {
+                while (whileIndex < count
+                        && convertTimeZone(timeseries.getJSONObject(whileIndex).getString("time")).contains(day)) {
                     double tempI = timeseries.getJSONObject(whileIndex).getJSONObject("data").getJSONObject("instant").getJSONObject("details").getDouble("air_temperature");
 
                     if (tempI > temp_max) {
@@ -178,6 +181,10 @@ public class METNorwayProvider extends AbstractWeatherProvider {
                         }
                     }
                     whileIndex++;
+                }
+
+                if (temp_max == -Double.MAX_VALUE) {
+                    throw new JSONException("No temperature samples for forecast day " + day);
                 }
 
                 if(hasFastCondition) {

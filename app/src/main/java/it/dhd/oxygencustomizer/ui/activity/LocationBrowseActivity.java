@@ -128,6 +128,11 @@ public class LocationBrowseActivity extends OplusActivity {
         public boolean equals(@Nullable Object obj) {
             return obj instanceof LocationBrowseItem && getId().equals(((LocationBrowseItem) obj).getId());
         }
+
+        @Override
+        public int hashCode() {
+            return getId().hashCode();
+        }
     }
 
     public class LocationListAdapter extends RecyclerView.Adapter<LocationListAdapter.ViewHolder> {
