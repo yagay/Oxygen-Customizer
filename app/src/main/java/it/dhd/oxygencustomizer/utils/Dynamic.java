@@ -14,15 +14,51 @@ import it.dhd.oxygencustomizer.OxygenCustomizer;
 
 public class Dynamic {
 
-    // Grab number of overlays dynamically for each variant
-    public static final int TOTAL_ANDROID_THEMES = (Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentTH'").exec().getOut()).size();
-    public static final List<String> LIST_ANDROID_THEMES = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentTH'").exec().getOut();
-    public static final int TOTAL_ICON_PACKS = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentIPSUI'").exec().getOut().size();
-    public static final List<String> LIST_ICON_PACKS = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentIPSUI'").exec().getOut();
-    public static final int TOTAL_NOTIFICATIONS = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentNFN'").exec().getOut().size();
-    public static final int TOTAL_NAVBAR = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentNB'").exec().getOut().size();
-    public static final int TOTAL_SIGNAL_ICONS = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentSGIC'").exec().getOut().size();
-    public static final int TOTAL_WIFI_ICONS = Shell.cmd("cmd overlay list | grep '....OxygenCustomizerComponentWIFI'").exec().getOut().size();
+    // Kept as fields for legacy callers; updated from one current overlay-manager
+    // snapshot instead of permanently caching the first class-load result.
+    public static volatile int TOTAL_ANDROID_THEMES;
+    public static volatile List<String> LIST_ANDROID_THEMES = List.of();
+    public static volatile int TOTAL_ICON_PACKS;
+    public static volatile List<String> LIST_ICON_PACKS = List.of();
+    public static volatile int TOTAL_NOTIFICATIONS;
+    public static volatile int TOTAL_NAVBAR;
+    public static volatile int TOTAL_SIGNAL_ICONS;
+    public static volatile int TOTAL_WIFI_ICONS;
+
+    static {
+        refreshOverlayInventory();
+    }
+
+    public static synchronized void refreshOverlayInventory() {
+        Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
+        if (!result.isSuccess()) {
+            android.util.Log.w("OC-OverlayInventory", "Overlay list unavailable: " + result.getErr());
+            return;
+        }
+        java.util.ArrayList<String> themes = new java.util.ArrayList<>();
+        java.util.ArrayList<String> icons = new java.util.ArrayList<>();
+        int notifications = 0, navbar = 0, signal = 0, wifi = 0;
+        for (String line : result.getOut()) {
+            int start = line.indexOf("OxygenCustomizerComponent");
+            if (start < 0) continue;
+            String name = line.substring(start);
+            if (name.startsWith("OxygenCustomizerComponentTH")) themes.add(line);
+            if (name.startsWith("OxygenCustomizerComponentIPSUI")) icons.add(line);
+            if (name.startsWith("OxygenCustomizerComponentNFN")) notifications++;
+            if (name.startsWith("OxygenCustomizerComponentNB")) navbar++;
+            if (name.startsWith("OxygenCustomizerComponentSGIC")) signal++;
+            if (name.startsWith("OxygenCustomizerComponentWIFI")) wifi++;
+        }
+        LIST_ANDROID_THEMES = List.copyOf(themes);
+        LIST_ICON_PACKS = List.copyOf(icons);
+        TOTAL_ANDROID_THEMES = themes.size();
+        TOTAL_ICON_PACKS = icons.size();
+        TOTAL_NOTIFICATIONS = notifications;
+        TOTAL_NAVBAR = navbar;
+        TOTAL_SIGNAL_ICONS = signal;
+        TOTAL_WIFI_ICONS = wifi;
+    }
+
     // Overlay compiler tools
     public static final String NATIVE_LIBRARY_DIR = OxygenCustomizer.getAppContext().getApplicationInfo().nativeLibraryDir;
     public static final File AAPT2LIB = new File(NATIVE_LIBRARY_DIR, "libaapt2.so");
