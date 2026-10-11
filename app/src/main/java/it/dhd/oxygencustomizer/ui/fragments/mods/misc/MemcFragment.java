@@ -177,24 +177,40 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
         return output.isEmpty() ? defaultValue : output.get(0);
     }
 
+    private void refreshSecureSettingsAsync() {
+        final int request = settingsGeneration.incrementAndGet();
+        SETTINGS_WORKER.execute(() -> {
+            boolean enabled = "1".equals(getSecureSetting(
+                    SETTINGS_SECURE_OSIE_MOTION_FLUENCY_SWITCH, "0"));
+            boolean hdr = "1".equals(getSecureSetting(
+                    SETTINGS_SECURE_OSIE_VIDEO_SWITCH, "0"));
+            String mode = getSecureSetting(SETTINGS_SECURE_OSIE_MOTION_VALUE, "");
+            mainHandler.post(() -> {
+                if (request != settingsGeneration.get() || !isAdded() || getView() == null) return;
+                cachedMemcEnabled = enabled;
+                cachedSdr2hdrEnabled = hdr;
+                cachedMemcMode = mode;
+                setPrefs();
+            });
+        });
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        refreshSecureSettingsAsync();
+    }
+
     public boolean getMemcEnableFromSettings() {
-        return "1".equals(getSecureSetting(
-                SETTINGS_SECURE_OSIE_MOTION_FLUENCY_SWITCH,
-                "0"
-        ));
+        return cachedMemcEnabled;
     }
 
     public String getMemcModeFromSettings() {
-        return getSecureSetting(SETTINGS_SECURE_OSIE_MOTION_VALUE, "");
+        return cachedMemcMode;
     }
 
     public boolean getSdr2hdrEnableFromSettings() {
-        String ret = getSecureSetting(SETTINGS_SECURE_OSIE_VIDEO_SWITCH, "0");
-        if (!this.mVideoOsieSupport) {
-            return "1".equals(ret);
-        }
-        Log.d("MemcFragment", "mVideoOsieSupport on, not support pw sdr2hdr");
-        return false;
+        return !mVideoOsieSupport && cachedSdr2hdrEnabled;
     }
 
     @Override
@@ -250,6 +266,7 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
 
     @Override
     public void onDestroy() {
+        settingsGeneration.incrementAndGet();
         if (mReceiverRegistered && getContext() != null) {
             try {
                 requireContext().unregisterReceiver(mFeatureReceiver);
