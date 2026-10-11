@@ -54,7 +54,7 @@ public class AlbumArtLockscreen extends XposedMods {
         if (Xprefs == null) return;
 
         showAlbumArt = Xprefs.getBoolean("lockscreen_album_art", false);
-        albumArtFilter = Integer.parseInt(Xprefs.getString("lockscreen_album_art_filter", "0"));
+        albumArtFilter = Xprefs.getIntFromString("lockscreen_album_art_filter", "0");
         albumArtBlurAmount = (Xprefs.getSliderInt("lockscreen_media_blur", 30) / 100f) * 25f;
     }
 
