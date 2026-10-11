@@ -186,10 +186,15 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
         String expectedToken = Prefs.getString(key, "");
         String providedToken = intent.getStringExtra("updateToken");
         boolean valid = !TextUtils.isEmpty(expectedToken) && expectedToken.equals(providedToken);
-        if (valid) {
-            Prefs.clearPref(key);
+        if (!valid) return false;
+        if (id >= 0) {
+            // Keep the token while the system installer is open: users can
+            // cancel installation and tap the same notification again.
+            return it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver
+                    .isPendingInstallValid(this, id);
         }
-        return valid;
+        Prefs.clearPref(key);
+        return true;
     }
 
     @SuppressLint("NonConstantResourceId")

@@ -77,8 +77,10 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
                 File file = new File(saved.getString("path")).getCanonicalFile();
                 File downloads = Environment.getExternalStoragePublicDirectory(
                         Environment.DIRECTORY_DOWNLOADS).getCanonicalFile();
-                if (!file.isFile() || !file.getPath().startsWith(downloads.getPath() + File.separator)) {
+                if (!file.isFile() || !file.getPath().startsWith(downloads.getPath() + File.separator)
+                        || wasAppUpdatedSinceDownload(context, saved)) {
                     store.edit().remove(key).apply();
+                    Prefs.clearPref("pending_update_token_" + id);
                     continue;
                 }
                 if (newest == null || id > newest.id) {
@@ -93,6 +95,30 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
         return newest;
     }
     private static final String INPUT_ID = "downloadId";
+
+    private static long appLastUpdateTime(Context context) {
+        try {
+            return context.getPackageManager().getPackageInfo(
+                    BuildConfig.APPLICATION_ID, 0).lastUpdateTime;
+        } catch (PackageManager.NameNotFoundException error) {
+            Log.w(TAG, "Could not retrieve installed app update timestamp", error);
+            return -1L;
+        }
+    }
+
+    private static boolean wasAppUpdatedSinceDownload(Context context, JSONObject ready) {
+        long oldTimestamp = ready.optLong("installedAt", -1L);
+        long currentTimestamp = appLastUpdateTime(context);
+        return oldTimestamp > 0 && currentTimestamp > oldTimestamp;
+    }
+
+    /** Check both retained download identity and installed APK freshness. */
+    public static boolean isPendingInstallValid(Context context, long id) {
+        if (id < 0) return false;
+        // Reconciliation prunes completed installations and invalid files.
+        getPendingInstall(context);
+        return jobs(context).contains(READY_PREFIX + id);
+    }
 
     private static SharedPreferences jobs(Context context) {
         return context.getApplicationContext().getSharedPreferences(JOB_STORE, Context.MODE_PRIVATE);
@@ -276,6 +302,7 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
             try {
                 ready.put("path", file.getCanonicalPath());
                 ready.put("nightly", nightly);
+                ready.put("installedAt", appLastUpdateTime(context));
             } catch (Exception badPath) {
                 throw new IllegalStateException("Cannot preserve downloaded update", badPath);
             }

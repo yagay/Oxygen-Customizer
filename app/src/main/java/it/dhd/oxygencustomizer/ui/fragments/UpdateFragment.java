@@ -103,6 +103,7 @@ public class UpdateFragment extends BaseFragment {
     HashMap<String, Object> latestVersion = null;
     private LoadingDialog mLoadingDialog;
     private volatile int mUpdateRequestGeneration = 0;
+    private volatile int mNightlyExtractionGeneration = 0;
 
     private FragmentUpdatesBinding binding;
     private int currentVersionCode = -1;
@@ -148,6 +149,7 @@ public class UpdateFragment extends BaseFragment {
     }
 
     private void installNightly(String downloadPath) {
+        final int extractionGeneration = ++mNightlyExtractionGeneration;
         if (!isTrustedDownloadPath(downloadPath)) {
             mLoadingDialog.dismiss();
             Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
@@ -157,7 +159,8 @@ public class UpdateFragment extends BaseFragment {
             Activity activity = getActivity();
             if (activity == null) return;
             activity.runOnUiThread(() -> {
-                if (!isAdded()) return;
+                if (extractionGeneration != mNightlyExtractionGeneration
+                        || binding == null || !isAdded()) return;
                 mLoadingDialog.dismiss();
                 if (apkFile != null && !TextUtils.isEmpty(apkFile.getPath())) {
                     installApk(apkFile.getPath());
@@ -547,6 +550,8 @@ public class UpdateFragment extends BaseFragment {
     @Override
     public void onDestroyView() {
         ++mUpdateRequestGeneration;
+        ++mNightlyExtractionGeneration;
+        if (mLoadingDialog != null) mLoadingDialog.dismiss();
         super.onDestroyView();
         binding = null;
     }
