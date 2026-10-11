@@ -228,6 +228,7 @@ public class QSTiles extends XposedMods {
      * also used by customization/editor pages with their own page capacity.
      */
     private void installNewLayoutHooks() {
+        XposedBridge.log("[OC-QSGrid] installing layout hooks modernEnabled=" + mCustomizeNewGrid);
         ReflectedClass spanManager = ReflectedClass.ofIfPossible(
                 "com.oplus.systemui.qs.base.widget.SpannedGridLayoutManager");
         spanManager.after("getSpanCount").run(param -> {
@@ -247,7 +248,7 @@ public class QSTiles extends XposedMods {
         });
 
         ReflectedClass pagerManager = ReflectedClass.ofIfPossible(
-                "com.oplus.systemui.qs.base.customizer.OplusPagerGridLayoutManager");
+                "com.oplus.systemui.qs.base.widget.OplusPagerGridLayoutManager");
         pagerManager.after("getColumns").run(param -> {
             if (!mCustomizeNewGrid || param.hasThrowable()) return;
             if (pagerManagerSeen.compareAndSet(false, true)) {
