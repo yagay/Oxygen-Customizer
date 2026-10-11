@@ -43,12 +43,13 @@ import java.util.TreeSet;
 
 import it.dhd.oxygencustomizer.R;
 
-public class PackageListAdapter extends BaseAdapter implements Runnable {
+public class PackageListAdapter extends BaseAdapter {
 
     private final PackageManager mPm;
     private final LayoutInflater mInflater;
     private final List<PackageItem> mInstalledPackages = new LinkedList<>();
     private Set<String> mExcludedPackages = new HashSet<>();
+    private volatile int mLoadGeneration = 0;
 
     // Packages which don't have launcher icons, but which we want to show nevertheless
     private static final String[] PACKAGE_WHITELIST = new String[] {
@@ -60,6 +61,7 @@ public class PackageListAdapter extends BaseAdapter implements Runnable {
     private final Handler mHandler = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message msg) {
+            if (msg.arg1 != mLoadGeneration) return;
             PackageItem item = (PackageItem) msg.obj;
             int index = Collections.binarySearch(mInstalledPackages, item);
             if (index < 0) {
@@ -157,30 +159,33 @@ public class PackageListAdapter extends BaseAdapter implements Runnable {
     }
 
     private void reloadList() {
+        final int generation = ++mLoadGeneration;
+        mHandler.removeMessages(0);
         mInstalledPackages.clear();
-        new Thread(this).start();
+        notifyDataSetChanged();
+        final Set<String> excluded = new HashSet<>(mExcludedPackages);
+        new Thread(() -> loadList(generation, excluded), "OC-PackageList").start();
     }
 
-    @Override
-    public void run() {
+    private void loadList(int generation, Set<String> excluded) {
         final Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
         mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> installedAppsInfo = mPm.queryIntentActivities(mainIntent, 0);
 
         for (ResolveInfo info : installedAppsInfo) {
             ApplicationInfo appInfo = info.activityInfo.applicationInfo;
-            if (mExcludedPackages.contains(appInfo.packageName)) {
+            if (excluded.contains(appInfo.packageName)) {
                 continue;
             }
 
             final PackageItem item = new PackageItem(appInfo.packageName,
                     appInfo.loadLabel(mPm), appInfo.loadIcon(mPm));
             item.activityTitles.add(info.loadLabel(mPm));
-            mHandler.obtainMessage(0, item).sendToTarget();
+            mHandler.obtainMessage(0, generation, 0, item).sendToTarget();
         }
 
         for (String packageName : PACKAGE_WHITELIST) {
-            if (mExcludedPackages.contains(packageName)) {
+            if (excluded.contains(packageName)) {
                 continue;
             }
             try {
@@ -195,7 +200,7 @@ public class PackageListAdapter extends BaseAdapter implements Runnable {
     }
 
     public void setExcludedPackages(HashSet<String> packages) {
-        mExcludedPackages = packages;
+        mExcludedPackages = new HashSet<>(packages);
         reloadList();
     }
 

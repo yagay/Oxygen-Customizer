@@ -94,7 +94,14 @@ checks = [
     (JAVA / "ui/base/AppFragmentBase.java", [
         "executor.shutdown();",
     ]),
+    (JAVA / "ui/adapters/PackageListAdapter.java", [
+        "mLoadGeneration",
+        "if (msg.arg1 != mLoadGeneration) return;",
+        "new HashSet<>(mExcludedPackages)",
+        "new HashSet<>(packages)",
+    ]),
     (JAVA / "ui/adapters/AppAdapter.java", [
+        "holder.itemView.post(() -> filter(filterText));",
         "private final OnSwitchChange switchChangeListener;",
         "private final OnSliderChange sliderChangeListener;",
         "private final OnMenuChange menuChangeListener;",

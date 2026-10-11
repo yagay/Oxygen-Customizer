@@ -149,11 +149,15 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
             if (hasSlider) {
                 holder.binding.appSlider.setVisibility(isChecked ? View.VISIBLE : View.GONE);
             }
-            if (switchChangeListener != null && model.isEnabled() != isChecked) {
-                switchChangeListener.onSwitchChange(model, isChecked);
-                checkChange();
+            if (model.isEnabled() != isChecked) {
+                model.setEnabled(isChecked);
+                if (switchChangeListener != null) {
+                    switchChangeListener.onSwitchChange(model, isChecked);
+                }
+                // Filtering/sorting the RecyclerView while binding a toggle may invalidate
+                // the holder position; defer the refresh until this event is complete.
+                holder.itemView.post(() -> filter(filterText));
             }
-            model.setEnabled(isChecked);
         });
         holder.binding.appSwitch.setSwitchChecked(model.isEnabled());
         holder.binding.appSlider.setSliderValue(model.getDarkModeValue());
