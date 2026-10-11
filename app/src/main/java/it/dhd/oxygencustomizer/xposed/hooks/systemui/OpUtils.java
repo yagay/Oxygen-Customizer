@@ -87,7 +87,8 @@ public class OpUtils extends XposedMods {
                         break;
                 }
                 fakeData.putString("upOrDown", "up");
-                fakeData.putString("description", mContext.getString(mContext.getResources().getIdentifier(desc, "string", mContext.getPackageName())));
+                int descriptionId = mContext.getResources().getIdentifier(desc, "string", mContext.getPackageName());
+                fakeData.putString("description", descriptionId == 0 ? desc : mContext.getString(descriptionId));
                 fakeData.putString("imagePath", imagePath);
                 fakeData.putString("seedling_event", "ringModeEvent");
 
