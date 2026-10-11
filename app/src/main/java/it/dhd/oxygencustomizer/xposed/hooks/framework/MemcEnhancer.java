@@ -39,12 +39,7 @@ public class MemcEnhancer extends XposedMods {
     ));
 
     private static final String listenPackage = FRAMEWORK;
-    private static final ArrayList<String> sConfigPackage = new ArrayList<>();
-    private static final ArrayList<String> sConfigActivity = new ArrayList<>();
-    private static final HashMap<String, String> sSdr2hdrCommandMap = new HashMap<>();
-    private static final HashMap<String, String> sMemcCommandMap = new HashMap<>();
-    private static final HashMap<String, String> sAppScreenRateMap = new HashMap<>();
-    /** Snapshot retained by Hooks so preference refresh never mutates a live result. */
+     /** Snapshot retained by Hooks so preference refresh never mutates a live result. */
     private static final class ConfigSnapshot {
         final boolean force;
         final boolean custom;
@@ -72,7 +67,6 @@ public class MemcEnhancer extends XposedMods {
             new HashMap<>(), new HashMap<>(), new HashMap<>());
     private boolean mBroadcastRegistered = false;
     private boolean mSettingsBroadcastRegistered = false;
-    private volatile boolean settingsUpdated = false;
     private boolean mIsFeatureOn = false;
     private boolean mIsPwX7Enable = false;
     private boolean mMemcEnable = false;
@@ -87,8 +81,6 @@ public class MemcEnhancer extends XposedMods {
             getAndSendBroadcast();
         }
     };
-    private boolean enableMemcFeature = false;
-    private boolean useCustomMemcConfig = false;
     final BroadcastReceiver mSettingsBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -100,7 +92,6 @@ public class MemcEnhancer extends XposedMods {
                 if (action.equals(Constants.ACTION_SETTINGS_CHANGED)) {
                     if (!TextUtils.isEmpty(className) && className.equals(MemcEnhancer.class.getSimpleName())) {
                         log("Intent received - will update preferences");
-                        settingsUpdated = false;
                         updatePrefs();
                     }
                 }
@@ -116,12 +107,13 @@ public class MemcEnhancer extends XposedMods {
 
     @Override
     public synchronized void updatePrefs(String... Key) {
-        if (settingsUpdated) return;
-
-        enableMemcFeature = Xprefs.getBoolean("force_memc_enabled", false);
-        useCustomMemcConfig = Xprefs.getBoolean("custom_memc_config", false);
-
-        clearLists();
+        boolean force = Xprefs.getBoolean("force_memc_enabled", false);
+        boolean custom = Xprefs.getBoolean("custom_memc_config", false);
+        ArrayList<String> packages = new ArrayList<>();
+        ArrayList<String> activities = new ArrayList<>();
+        HashMap<String, String> sdr2hdr = new HashMap<>();
+        HashMap<String, String> memc = new HashMap<>();
+        HashMap<String, String> rates = new HashMap<>();
 
         Set<String> memcConfig = Xprefs.getStringSet("custom_memc_applications", new HashSet<>());
         for (String config : memcConfig) {
@@ -135,9 +127,9 @@ public class MemcEnhancer extends XposedMods {
             } catch (NumberFormatException ignored) {
                 continue;
             }
-            sConfigPackage.add(columns[0]);
-            sAppScreenRateMap.put(columns[0], values[0]);
-            sSdr2hdrCommandMap.put(columns[0], values[1]);
+            packages.add(columns[0]);
+            rates.put(columns[0], values[0]);
+            sdr2hdr.put(columns[0], values[1]);
         }
 
         Set<String> memcActivityConfig = Xprefs.getStringSet("custom_memc_activities", new HashSet<>());
@@ -147,24 +139,14 @@ public class MemcEnhancer extends XposedMods {
             if (columns.length != 2 || columns[1].isBlank()) continue;
             int slash = columns[0].indexOf('/');
             if (slash <= 0 || slash >= columns[0].length() - 1) continue;
-            sConfigActivity.add(columns[0].substring(slash + 1));
-            sMemcCommandMap.put(columns[0], columns[1]);
+            activities.add(columns[0].substring(slash + 1));
+            memc.put(columns[0], columns[1]);
         }
 
-        logLists();
-
-        configSnapshot = new ConfigSnapshot(
-                enableMemcFeature, useCustomMemcConfig, sConfigPackage, sConfigActivity,
-                sSdr2hdrCommandMap, sMemcCommandMap, sAppScreenRateMap);
-        settingsUpdated = true;
-    }
-
-    private void clearLists() {
-        sConfigPackage.clear();
-        sConfigActivity.clear();
-        sSdr2hdrCommandMap.clear();
-        sMemcCommandMap.clear();
-        sAppScreenRateMap.clear();
+        ConfigSnapshot snapshot = new ConfigSnapshot(
+                force, custom, packages, activities, sdr2hdr, memc, rates);
+        configSnapshot = snapshot;
+        logLists(snapshot);
     }
 
     @Override
@@ -373,16 +355,15 @@ public class MemcEnhancer extends XposedMods {
         });
     }
 
-    private void logLists() {
+    private void logLists(ConfigSnapshot snapshot) {
         if (!mDebug) return;
-        log("logLists: " + "\n" +
-                "enableMemcFeature: " + enableMemcFeature + "\n" +
-                "useCustomMemcConfig: " + useCustomMemcConfig + "\n" +
-                "sConfigPackage: " + Arrays.toString(sConfigPackage.toArray()) + "\n" +
-                "sConfigActivity: " + Arrays.toString(sConfigActivity.toArray()) + "\n" +
-                "sSdr2hdrCommandMap: " + sSdr2hdrCommandMap.toString() + "\n" +
-                "sMemcCommandMap: " + sMemcCommandMap.toString() + "\n" +
-                "sAppScreenRateMap: " + sAppScreenRateMap.toString());
+        log("MEMC config: force=" + snapshot.force
+                + ", custom=" + snapshot.custom
+                + ", packages=" + snapshot.packages
+                + ", activities=" + snapshot.activities
+                + ", sdr2hdr=" + snapshot.sdr2hdr
+                + ", memc=" + snapshot.memc
+                + ", rates=" + snapshot.rates);
     }
 
 }
