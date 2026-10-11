@@ -83,8 +83,9 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
     final BroadcastReceiver mFeatureReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent.getAction() == null) return;
-            if (intent.getAction().equals(ACTIONS_MEMC_FEATURE_RECEIVED)) {
+            if (intent == null || !ACTIONS_MEMC_FEATURE_RECEIVED.equals(intent.getAction())
+                    || !OCPreferences.isTrustedInternalBroadcast(intent)) return;
+            {
                 mIsFeatureOn = intent.hasExtra("feature_on") ? intent.getBooleanExtra("feature_on", false) : false;
                 mIsPwX7Enable = intent.hasExtra("pw_x7_enable") ? intent.getBooleanExtra("pw_x7_enable", false) : false;
                 mMemcEnable = intent.hasExtra("memc_enable") ? intent.getBooleanExtra("memc_enable", false) : getMemcEnableFromSettings();
@@ -113,8 +114,9 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
         mVideoOsieSupported = findPreference("video_osie_support");
         mMemcMode = findPreference("memc_mode");
 
-        Intent intent = new Intent(ACTIONS_MEMC_FEATURE_GET);
+        Intent intent = new Intent(ACTIONS_MEMC_FEATURE_GET).setPackage(FRAMEWORK);
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        OCPreferences.addInternalBroadcastToken(intent);
         requireContext().sendBroadcast(intent);
 
     }
