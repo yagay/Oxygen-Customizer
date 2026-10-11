@@ -122,8 +122,9 @@ public class DepthWallpaperFragment extends ControlledPreferenceFragmentCompat {
             });
 
     private void sendIntent(String action) {
-        Intent intent = new Intent(action);
+        Intent intent = new Intent(action).setPackage(SYSTEM_UI);
         intent.putExtra("packageName", SYSTEM_UI);
+        it.dhd.oxygencustomizer.utils.OCPreferences.addInternalBroadcastToken(intent);
         requireContext().sendBroadcast(intent);
     }
 
