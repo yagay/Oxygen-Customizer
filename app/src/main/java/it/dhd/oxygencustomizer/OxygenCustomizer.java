@@ -29,6 +29,11 @@ public class OxygenCustomizer extends Application {
         super.onCreate();
         contextReference = new WeakReference<>(getApplicationContext());
         ensureInternalBroadcastToken();
+        try {
+            it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver.recoverPendingDownloads(this);
+        } catch (RuntimeException error) {
+            android.util.Log.e("OxygenCustomizer", "Unable to recover pending updates", error);
+        }
         DynamicColors.applyToActivitiesIfAvailable(this);
     }
 

@@ -11,6 +11,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageInfo;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
@@ -37,6 +40,7 @@ import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.UUID;
 
+import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.ui.activity.MainActivity;
 import it.dhd.oxygencustomizer.ui.fragments.UpdateFragment;
@@ -86,7 +90,29 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
             manager.remove(id);
             throw new IllegalStateException("Unable to persist update job");
         }
+        // Always schedule a reconciliation after persisting the ID.
+        // Even if DownloadManager finishes before its broadcast can be
+        // matched, this worker will still see the completed download.
+        scheduleCheck(context, id);
         return id;
+    }
+
+    public static void recoverPendingDownloads(Context context) {
+        for (String key : jobs(context).getAll().keySet()) {
+            if (!key.startsWith(JOB_PREFIX)) continue;
+            try {
+                scheduleCheck(context, Long.parseLong(key.substring(JOB_PREFIX.length())));
+            } catch (NumberFormatException badKey) {
+                Log.w(TAG, "Ignoring malformed update tracking key", badKey);
+            }
+        }
+    }
+
+    private static void scheduleCheck(Context context, long id) {
+        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FinishWorker.class)
+                .setInputData(new Data.Builder().putLong(INPUT_ID, id).build()).build();
+        WorkManager.getInstance(context.getApplicationContext()).enqueueUniqueWork(
+                "oc-update-download-" + id, ExistingWorkPolicy.REPLACE, request);
     }
 
     @Override
@@ -94,10 +120,7 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
         if (intent == null || !DownloadManager.ACTION_DOWNLOAD_COMPLETE.equals(intent.getAction())) return;
         long id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1);
         if (id < 0 || !jobs(context).contains(JOB_PREFIX + id)) return;
-        OneTimeWorkRequest request = new OneTimeWorkRequest.Builder(FinishWorker.class)
-                .setInputData(new Data.Builder().putLong(INPUT_ID, id).build()).build();
-        WorkManager.getInstance(context.getApplicationContext()).enqueueUniqueWork(
-                "oc-update-download-" + id, ExistingWorkPolicy.KEEP, request);
+        scheduleCheck(context, id);
     }
 
     public static final class FinishWorker extends Worker {
@@ -139,7 +162,7 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
                                         Environment.DIRECTORY_DOWNLOADS).getCanonicalFile();
                                 if (actual.equals(expected) && actual.isFile()
                                         && actual.getPath().startsWith(downloads.getPath() + File.separator)
-                                        && verifyChecksum(actual, job.optString("sha256", ""))) {
+                                        && verifyChecksum(context, actual, job.optString("sha256", ""))) {
                                     notifyInstall(context, id, actual, job.optBoolean("nightly", false));
                                     success = true;
                                 } else {
@@ -159,8 +182,13 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
             return success ? Result.success() : Result.failure();
         }
 
-        private static boolean verifyChecksum(File file, String expected) {
-            if (TextUtils.isEmpty(expected) || "null".equals(expected)) return true;
+        private static boolean verifyChecksum(Context context, File file, String expected) {
+            if (TextUtils.isEmpty(expected) || "null".equals(expected)) {
+                // Some legacy update feeds lack SHA-256. For APKs, require
+                // exactly the app's installed signing identity instead.
+                // ZIPs also undergo APK signature verification after extraction.
+                return file.getName().endsWith(".zip") || hasMatchingAppSignature(context, file);
+            }
             if (!expected.matches("(?i)[0-9a-f]{64}")) return false;
             try (InputStream input = new FileInputStream(file)) {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -172,6 +200,30 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
                 return expected.equalsIgnoreCase(value.toString());
             } catch (Exception error) {
                 Log.e(TAG, "Unable to verify downloaded package", error);
+                return false;
+            }
+        }
+
+        public static boolean hasMatchingAppSignature(Context context, File apk) {
+            try {
+                PackageManager manager = context.getPackageManager();
+                PackageInfo installed = manager.getPackageInfo(
+                        BuildConfig.APPLICATION_ID, PackageManager.GET_SIGNING_CERTIFICATES);
+                PackageInfo archive = manager.getPackageArchiveInfo(
+                        apk.getAbsolutePath(), PackageManager.GET_SIGNING_CERTIFICATES);
+                if (archive == null || !BuildConfig.APPLICATION_ID.equals(archive.packageName)
+                        || installed.signingInfo == null || archive.signingInfo == null) return false;
+                Signature[] originalSigners = installed.signingInfo.getApkContentsSigners();
+                Signature[] archiveSigners = archive.signingInfo.getApkContentsSigners();
+                if (originalSigners == null || archiveSigners == null
+                        || originalSigners.length == 0
+                        || originalSigners.length != archiveSigners.length) return false;
+                java.util.HashSet<Signature> expected = new java.util.HashSet<>(
+                        java.util.Arrays.asList(originalSigners));
+                return expected.equals(new java.util.HashSet<>(
+                        java.util.Arrays.asList(archiveSigners)));
+            } catch (Exception error) {
+                Log.e(TAG, "Unable to validate update APK signing identity", error);
                 return false;
             }
         }
