@@ -36,9 +36,10 @@ public class OnDemandCompiler {
     public static boolean buildOverlay(String overlay_name, int style, String targetPackage, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
         String targetOverlay = "OxygenCustomizerComponent" + overlay_name + ".overlay";
-        boolean wasEnabled = force && OverlayUtil.isOverlayEnabled(targetOverlay);
+        boolean wasEnabled = false;
         boolean completed = false;
         try {
+        wasEnabled = force && OverlayUtil.isOverlayEnabled(targetOverlay);
         mOverlayName = overlay_name;
         mPackage = targetPackage;
         mStyle = style;
@@ -79,10 +80,13 @@ public class OnDemandCompiler {
         completed = true;
         return false;
         } finally {
-            if (!completed && wasEnabled) {
-                OverlayUtil.applyOverlayStateNow(targetOverlay, true, false);
+            try {
+                if (!completed && wasEnabled) {
+                    OverlayUtil.applyOverlayStateNow(targetOverlay, true, false);
+                }
+            } finally {
+                OverlayCompileCoordinator.LOCK.unlock();
             }
-            OverlayCompileCoordinator.LOCK.unlock();
         }
     }
 
@@ -91,22 +95,22 @@ public class OnDemandCompiler {
         BinaryInstaller.symLinkBinaries();
 
         // Clean data directory
-        Shell.cmd("rm -rf " + TEMP_DIR).exec();
-        Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand").exec();
+        OverlayCompileCoordinator.runChecked("rm -rf " + TEMP_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand", "Prepare overlay staging");
 
         // Extract overlay from assets
         FileUtil.copyAssets("CompileOnDemand/" + mPackage + "/" + mOverlayName + mStyle);
 
         // Create temp directory
-        Shell.cmd("rm -rf " + TEMP_DIR + "; mkdir -p " + TEMP_DIR).exec();
-        Shell.cmd("mkdir -p " + TEMP_OVERLAY_DIR).exec();
-        Shell.cmd("mkdir -p " + TEMP_CACHE_DIR).exec();
-        Shell.cmd("mkdir -p " + UNSIGNED_UNALIGNED_DIR).exec();
-        Shell.cmd("mkdir -p " + UNSIGNED_DIR).exec();
-        Shell.cmd("mkdir -p " + SIGNED_DIR).exec();
-        Shell.cmd("mkdir -p " + TEMP_CACHE_DIR + "/" + mPackage + "/").exec();
+        OverlayCompileCoordinator.runChecked("rm -rf " + TEMP_DIR + "; mkdir -p " + TEMP_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + TEMP_OVERLAY_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + TEMP_CACHE_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + UNSIGNED_UNALIGNED_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + UNSIGNED_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + SIGNED_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + TEMP_CACHE_DIR + "/" + mPackage + "/", "Prepare overlay staging");
         if (!mForce) {
-            Shell.cmd("mkdir -p " + BACKUP_DIR).exec();
+            OverlayCompileCoordinator.runChecked("mkdir -p " + BACKUP_DIR, "Prepare overlay staging");
         }
 
         if (mForce) {

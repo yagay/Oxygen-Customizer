@@ -24,24 +24,52 @@ import it.dhd.oxygencustomizer.utils.Prefs;
 
 public class OverlayUtil {
 
+    /** Read installed Oxygen Customizer overlays from the same user-scoped snapshot. */
+    private static List<String> queryOverlayPackages(Boolean enabled) {
+        Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
+        if (!result.isSuccess()) {
+            Log.w("OverlayUtil", "Unable to list overlays: " + result.getErr());
+            return Collections.emptyList();
+        }
+        java.util.ArrayList<String> packages = new java.util.ArrayList<>();
+        for (String line : result.getOut()) {
+            String item = line.trim();
+            if (!item.startsWith("[x] ") && !item.startsWith("[ ] ")) continue;
+            boolean isEnabled = item.startsWith("[x] ");
+            String name = item.substring(4).trim();
+            if (name.startsWith("OxygenCustomizerComponent")
+                    && (enabled == null || enabled == isEnabled)) {
+                packages.add(name);
+            }
+        }
+        return packages;
+    }
+
     public static List<String> getOverlayList() {
-        return Shell.cmd("cmd overlay list |  grep -E '....OxygenCustomizerComponent' | sed -E 's/^....//'").exec().getOut();
+        return queryOverlayPackages(null);
     }
 
     public static List<String> getEnabledOverlayList() {
-        return Shell.cmd("cmd overlay list |  grep -E '.x..OxygenCustomizerComponent' | sed -E 's/^.x..//'").exec().getOut();
+        return queryOverlayPackages(true);
     }
 
     public static List<String> getDisabledOverlayList() {
-        return Shell.cmd("cmd overlay list |  grep -E '. ..OxygenCustomizerComponent' | sed -E 's/^. ..//'").exec().getOut();
+        return queryOverlayPackages(false);
     }
 
     public static List<String> getOverlayForComponent(String componentName) {
         if (!isSafeIdentifier(componentName)) return Collections.emptyList();
-        return Shell.cmd("cmd overlay list | grep -F 'OxygenCustomizerComponent" + componentName + "'").exec().getOut();
+        Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
+        if (!result.isSuccess()) return Collections.emptyList();
+        String prefix = "OxygenCustomizerComponent" + componentName;
+        java.util.ArrayList<String> matches = new java.util.ArrayList<>();
+        for (String line : result.getOut()) {
+            if (line.contains(prefix)) matches.add(line);
+        }
+        return matches;
     }
 
-    // Keep writes ordered; never report the requested state as a successful operation
+        // Keep writes ordered; never report the requested state as a successful operation
     // before Android's overlay manager confirms it.
     public static final ReentrantLock OPERATION_LOCK = new ReentrantLock(true);
 
@@ -64,8 +92,8 @@ public class OverlayUtil {
             if (item.equals("[x] " + pkgName)) return true;
             if (item.equals("[ ] " + pkgName)) return false;
         }
-        // The package was not listed: absent is not an enabled overlay.
-        return false;
+        // Absence is unknown, not the same as an installed but disabled overlay.
+        return null;
     }
 
     public static boolean isOverlayEnabled(String pkgName) {
@@ -78,16 +106,16 @@ public class OverlayUtil {
 
     public static void checkOverlayEnabledAndEnable(String componentName) {
         if (!isSafeIdentifier(componentName)) return;
-        List<String> component = Shell.cmd(
-                "cmd overlay list | grep \".x..OxygenCustomizerComponent" + componentName + "\""
-        ).exec().getOut();
-        if (!component.isEmpty()) {
-            String num = component.get(0).split("OxygenCustomizerComponent" + componentName)[1].split("\\.overlay")[0];
-            enableOverlay("OxygenCustomizerComponent" + componentName + num + ".overlay");
+        String prefix = "OxygenCustomizerComponent" + componentName;
+        for (String pkgName : getOverlayList()) {
+            if (pkgName.startsWith(prefix) && !isOverlayEnabled(pkgName)) {
+                enableOverlay(pkgName);
+                return;
+            }
         }
     }
 
-    static boolean isOverlayInstalled(List<String> enabledOverlays, String pkgName) {
+        static boolean isOverlayInstalled(List<String> enabledOverlays, String pkgName) {
         return enabledOverlays.contains(pkgName);
     }
 
@@ -124,7 +152,7 @@ public class OverlayUtil {
         try {
         String command = enabled
                 ? "cmd overlay " + (exclusive ? "enable-exclusive --user current --category " : "enable --user current ")
-                    + pkgName + " && cmd overlay set-priority " + pkgName + " highest"
+                    + pkgName + " && cmd overlay set-priority --user current " + pkgName + " highest"
                 : "cmd overlay disable --user current " + pkgName;
         Shell.Result result = Shell.cmd(command).exec();
         Boolean actualState = queryOverlayState(pkgName);
@@ -154,7 +182,11 @@ public class OverlayUtil {
     }
 
     public static void enableOverlays(String... pkgNames) {
-        for (String pkgName : pkgNames) enableOverlay(pkgName);
+        executeOverlayBatch(() -> {
+            for (String pkgName : pkgNames) {
+                if (isSafeOverlayPackage(pkgName)) applyOverlayStateNow(pkgName, true, false);
+            }
+        });
     }
 
     public static void enableOverlayExclusiveInCategory(String pkgName) {
@@ -170,7 +202,11 @@ public class OverlayUtil {
     }
 
     public static void disableOverlays(String... pkgNames) {
-        for (String pkgName : pkgNames) disableOverlay(pkgName);
+        executeOverlayBatch(() -> {
+            for (String pkgName : pkgNames) {
+                if (isSafeOverlayPackage(pkgName)) applyOverlayStateNow(pkgName, false, false);
+            }
+        });
     }
 
     public static void disableOverlays(List<String> overlays) {

@@ -49,7 +49,9 @@ public class ReflectedClass {
     }
 
     public static ReflectedClass of(String name, ClassLoader loader) {
-        return new ReflectedClass(findClass(name, loader));
+        Class<?> found = findClassIfExists(name, loader);
+        if (found == null) reportUnavailable(name);
+        return new ReflectedClass(found);
     }
 
     public static ReflectedClass of(String name) {

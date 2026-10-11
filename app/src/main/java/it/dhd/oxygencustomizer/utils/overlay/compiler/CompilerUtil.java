@@ -104,7 +104,7 @@ public class CompilerUtil {
         File file = new File(filePath);
         String fileName = file.getName();
 
-        return fileName.replaceAll("OxygenCustomizerComponent|-unsigned|-unaligned|.apk", "");
+        return fileName.replaceAll("OxygenCustomizerComponent|-unsigned|-unaligned|\\.apk$", "");
     }
 
     private static String getCategory(String pkgName) {

@@ -93,6 +93,7 @@ public class VolumePanel extends XposedMods {
 
                     if (getBooleanField(param.thisObject, "mHovering")) {
                         param.setResult(callMethod(getObjectField(param.thisObject, "mAccessibilityMgr"), "getRecommendedTimeoutMillis", 16000, 4));
+                        return;
                     }
                     synchronized (getObjectField(param.thisObject, "mSafetyWarningLock")) {
                         if (getBooleanField(param.thisObject, "mExpanded")) {

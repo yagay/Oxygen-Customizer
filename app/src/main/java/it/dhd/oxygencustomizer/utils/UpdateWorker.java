@@ -55,7 +55,7 @@ public class UpdateWorker extends ListenableWorker {
         boolean isGoodNetwork = capabilities != null
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 && (!UpdateWifiOnly
-                    || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED));
+                    || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI));
 
         if (!isGoodNetwork) {
             return CallbackToFutureAdapter.getFuture(completer -> {

@@ -76,10 +76,10 @@ public class ModuleUtil {
         Log.d(TAG, "Magisk module does not exist, creating...");
 
         // Clean temporary directory
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_DIR).exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR).exec();
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_DIR).exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR).exec(), "Prepare root module files");
 
-        Shell.cmd(
+        requireModuleCommand(Shell.cmd(
                 "printf 'id=OxygenCustomizer\n" +
                         "name=Oxygen Customizer\n" +
                         "version=" + MODULE_VERSION_NAME + "\n" +
@@ -88,27 +88,27 @@ public class ModuleUtil {
                         "description=Systemless module for Oxygen Customizer.\n" +
                         "banner=banner.png\n" +
                         "' > " + ModuleConstants.TEMP_MODULE_DIR + "/module.prop"
-        ).exec();
+        ).exec(), "Prepare root module files");
 
-        Shell.cmd(
+        requireModuleCommand(Shell.cmd(
                 "printf 'MODDIR=${0%/*}\n\nmount --bind $MODDIR/my_product/etc/extension/com.oplus.oplus-feature.xml /my_product/etc/extension/com.oplus.oplus-feature.xml\nmount --bind $MODDIR/my_product/etc/permissions/oplus.product.display_features.xml /my_product/etc/permissions/oplus.product.display_features.xml' > " + ModuleConstants.TEMP_MODULE_DIR + "/post-fs-data.sh"
-        ).exec();
+        ).exec(), "Prepare root module files");
 
         Log.d(TAG, "skipped installation: " + skippedInstallation);
         if (!skippedInstallation) {
-            Shell.cmd("printf 'MODDIR=${0%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\nuntil [ -d /storage/emulated/0/Android ]; do\n  sleep 1\ndone\nsleep 3\n\n" + "sleep 6\n\ntheme=$(cmd overlay list | grep \".x..OxygenCustomizerComponentTH\")\nnum=$(echo $theme | cut -d \"H\" -f 2 | cut -d \".\" -f 1)\nif [ \"${#num}\" -gt 0 ]\nthen\n cmd overlay enable OxygenCustomizerComponentTH$num.overlay\n cmd overlay set-priority OxygenCustomizerComponentTH$num.overlay highest\nfi\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec();
+            requireModuleCommand(Shell.cmd("printf 'MODDIR=${0%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\nuntil [ -d /storage/emulated/0/Android ]; do\n  sleep 1\ndone\nsleep 3\n\n" + "sleep 6\n\ntheme=$(cmd overlay list | grep \".x..OxygenCustomizerComponentTH\")\nnum=$(echo $theme | cut -d \"H\" -f 2 | cut -d \".\" -f 1)\nif [ \"${#num}\" -gt 0 ]\nthen\n cmd overlay enable OxygenCustomizerComponentTH$num.overlay\n cmd overlay set-priority OxygenCustomizerComponentTH$num.overlay highest\nfi\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec(), "Prepare root module files");
         } else {
-            Shell.cmd("printf 'MODDIR=${0%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec();
+            requireModuleCommand(Shell.cmd("printf 'MODDIR=${0%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec(), "Prepare root module files");
         }
-        Shell.cmd("touch " + ModuleConstants.TEMP_MODULE_DIR + "/system.prop").exec();
-        Shell.cmd("touch " + ModuleConstants.TEMP_MODULE_DIR + "/auto_mount").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system/product").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system/product/overlay").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/extension").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/permissions").exec();
+        requireModuleCommand(Shell.cmd("touch " + ModuleConstants.TEMP_MODULE_DIR + "/system.prop").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("touch " + ModuleConstants.TEMP_MODULE_DIR + "/auto_mount").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system/product").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system/product/overlay").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/extension").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/permissions").exec(), "Prepare root module files");
         // The module cannot be safely activated without both firmware XML files.
         copyRequiredSystemFile("/my_product/etc/extension/com.oplus.oplus-feature.xml",
                 MY_PRODUCT_EXTENSION_DIR + "/");
@@ -129,13 +129,19 @@ public class ModuleUtil {
 
     private static void createMETAINF() {
         Log.d(TAG, "Creating META-INF directory");
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google").exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google/android").exec();
-        Shell.cmd("printf '" + ModuleConstants.MAGISK_UPDATE_BINARY + "' > " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google/android/update-binary").exec();
-        Shell.cmd("printf '#MAGISK' > " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google/android/updater-script").exec();
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google/android").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("printf '" + ModuleConstants.MAGISK_UPDATE_BINARY + "' > " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google/android/update-binary").exec(), "Prepare root module files");
+        requireModuleCommand(Shell.cmd("printf '#MAGISK' > " + ModuleConstants.TEMP_MODULE_DIR + "/META-INF/com/google/android/updater-script").exec(), "Prepare root module files");
         Log.d(TAG, "META-INF directory created");
+    }
+
+    private static void requireModuleCommand(Shell.Result result, String operation) {
+        if (!result.isSuccess()) {
+            throw new IllegalStateException(operation + " failed: " + result.getErr());
+        }
     }
 
     private static void writePostExec() {
@@ -160,7 +166,9 @@ public class ModuleUtil {
     }
 
     private static boolean shouldUseDefaultColors() {
-        return OverlayUtil.isOverlayDisabled("OxygenCustomizerComponentAMAC.overlay") && OverlayUtil.isOverlayDisabled("OxygenCustomizerComponentAMGC.overlay") && OverlayUtil.isOverlayDisabled("OxygenCustomizerComponentME.overlay");
+        return !OverlayUtil.isOverlayEnabled("OxygenCustomizerComponentAMAC.overlay")
+                && !OverlayUtil.isOverlayEnabled("OxygenCustomizerComponentAMGC.overlay")
+                && !OverlayUtil.isOverlayEnabled("OxygenCustomizerComponentME.overlay");
     }
 
     public static boolean moduleExists() {
@@ -218,7 +226,7 @@ public class ModuleUtil {
     public static void enablePocketStudio(boolean enable) {
         if (!moduleExists()) return;
 
-        List<String> fileRead = readXmlLines("/my_product/etc/extension/com.oplus.oplus-feature.xml");
+        List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml");
         if (fileRead.isEmpty()) return;
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
@@ -244,13 +252,40 @@ public class ModuleUtil {
     public static void enableMemcFeature(boolean enable) {
         if (!moduleExists()) return;
 
-        enableMemcOplusFeature(enable);
-        enableMemcOplusDisplayFeature(enable);
+        String featurePath = ModuleConstants.MODULE_DIR
+                + "/my_product/etc/extension/com.oplus.oplus-feature.xml";
+        String displayPath = ModuleConstants.MODULE_DIR
+                + "/my_product/etc/permissions/oplus.product.display_features.xml";
+        String featureBackup = featurePath + ".oc-txn";
+        String displayBackup = displayPath + ".oc-txn";
+        Shell.Result backup = Shell.cmd(
+                "cp -f " + shellQuote(featurePath) + " " + shellQuote(featureBackup)
+                + " && cp -f " + shellQuote(displayPath) + " " + shellQuote(displayBackup)
+        ).exec();
+        if (!backup.isSuccess()) {
+            Shell.cmd("rm -f " + shellQuote(featureBackup) + " " + shellQuote(displayBackup)).exec();
+            throw new IllegalStateException("Unable to back up MEMC module XML: " + backup.getErr());
+        }
+        try {
+            enableMemcOplusFeature(enable);
+            enableMemcOplusDisplayFeature(enable);
+        } catch (RuntimeException failure) {
+            Shell.Result restore = Shell.cmd(
+                    "cp -f " + shellQuote(featureBackup) + " " + shellQuote(featurePath)
+                    + " && cp -f " + shellQuote(displayBackup) + " " + shellQuote(displayPath)
+            ).exec();
+            if (!restore.isSuccess()) {
+                Log.e(TAG, "Failed to roll back MEMC XML: " + restore.getErr());
+            }
+            throw failure;
+        } finally {
+            Shell.cmd("rm -f " + shellQuote(featureBackup) + " " + shellQuote(displayBackup)).exec();
+        }
     }
 
     private static void enableMemcOplusFeature(boolean enable) {
-        List<String> fileRead = readXmlLines("/my_product/etc/extension/com.oplus.oplus-feature.xml");
-        if (fileRead.isEmpty()) return;
+        List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml");
+        if (fileRead.isEmpty()) throw new IllegalStateException("MEMC firmware XML is unavailable");
         Log.d(TAG, "com.oplus.oplus-feature: " + fileRead);
 
         Pattern pattern = Pattern.compile("name=\"(.*?)\"");
@@ -278,7 +313,7 @@ public class ModuleUtil {
                     if (!insertBeforeRootClosingTag(
                             fileRead,
                             String.format(OPLUS_FEATURE_XML, memcFeature)
-                    )) return;
+                    )) throw new IllegalStateException("MEMC XML root closing tag is unavailable");
                 }
             }
         }
@@ -290,8 +325,8 @@ public class ModuleUtil {
     }
 
     private static void enableMemcOplusDisplayFeature(boolean enable) {
-        List<String> fileRead = readXmlLines("/my_product/etc/permissions/oplus.product.display_features.xml");
-        if (fileRead.isEmpty()) return;
+        List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/permissions/oplus.product.display_features.xml");
+        if (fileRead.isEmpty()) throw new IllegalStateException("MEMC firmware XML is unavailable");
         Log.d(TAG, "oplus.product.display_features: " + fileRead);
 
         Pattern pattern = Pattern.compile("name=\"(.*?)\"");
@@ -320,7 +355,7 @@ public class ModuleUtil {
                     if (!insertBeforeRootClosingTag(
                             fileRead,
                             String.format(OPLUS_FEATURE_XML, memcFeature)
-                    )) return;
+                    )) throw new IllegalStateException("MEMC XML root closing tag is unavailable");
                 }
             }
         }
@@ -355,14 +390,15 @@ public class ModuleUtil {
     private static void writeXmlLines(String destinationPath, List<String> lines) {
         if (lines == null || lines.isEmpty()) {
             Log.e(TAG, "Refusing to write empty XML: " + destinationPath);
-            return;
+            throw new IllegalStateException("Refusing to write empty module XML: " + destinationPath);
         }
         String xml = String.join("\n", lines);
         Shell.Result result = Shell.cmd(
                 "printf %s " + shellQuote(xml) + " > " + shellQuote(destinationPath)
         ).exec();
         if (!result.isSuccess()) {
-            Log.e(TAG, "Failed to write XML: " + destinationPath);
+            Log.e(TAG, "Failed to write XML: " + destinationPath + ", stderr=" + result.getErr());
+            throw new IllegalStateException("Failed to write module XML: " + destinationPath);
         }
     }
 

@@ -145,8 +145,22 @@ public class RootProvider extends RootService {
             return value == null ? "" : value.replace("'", "''");
         }
 
+        private String shellQuote(String value) {
+            return "'" + value.replace("'", "'\\''") + "'";
+        }
+
         private List<String> runLSposedSQLiteQuery(String command) {
-            return Shell.cmd(String.format("%s %s \"%s\"", SQLITE_BIN, LSPD_DB_PATH, command)).exec().getOut();
+            if (command == null || command.indexOf('\0') >= 0) {
+                throw new IllegalArgumentException("Invalid LSPosed database query");
+            }
+            Shell.Result result = Shell.cmd(
+                    shellQuote(SQLITE_BIN) + " " + shellQuote(LSPD_DB_PATH)
+                            + " " + shellQuote(command)
+            ).exec();
+            if (!result.isSuccess()) {
+                throw new IllegalStateException("LSPosed database query failed: " + result.getErr());
+            }
+            return result.getOut();
         }
 
         @Override

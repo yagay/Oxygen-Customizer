@@ -65,11 +65,19 @@ public class CustomShortcut extends XposedMods {
         hookAllMethods(TopLevelSettingsClass, "onPreferenceTreeClick", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                if (param.args == null || param.args.length == 0 || param.args[0] == null) return;
+                try {
                 if ("Oxygen Customizer".equals(getObjectField(param.args[0], "mTitle"))) {
                     param.setResult(true);
 
                     Intent intent = mContext.getPackageManager().getLaunchIntentForPackage(BuildConfig.APPLICATION_ID);
-                    mContext.startActivity(intent);
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        mContext.startActivity(intent);
+                    }
+                }
+                } catch (Throwable t) {
+                    de.robv.android.xposed.XposedBridge.log("[OC-SettingsShortcut] Click failed: " + t);
                 }
             }
         });
@@ -82,8 +90,8 @@ public class CustomShortcut extends XposedMods {
         hookAllMethods(TopLevelSettingsClass, "onCreateAdapter", new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                if (!showInSettings) return;
-
+                if (!showInSettings || c == null) return;
+                try {
                 Object OCPreference = TopHomePreferenceClass.getConstructor(Context.class)
                         .newInstance(c);
 
@@ -101,6 +109,10 @@ public class CustomShortcut extends XposedMods {
                     }
                 }
 
+                if (mCategory == null) {
+                    de.robv.android.xposed.XposedBridge.log("[OC-SettingsShortcut] Settings category missing; skipping injection");
+                    return;
+                }
                 Drawable OCIcon = ResourcesCompat.getDrawable(ResourceManager.modRes,
                         Build.VERSION.SDK_INT >= 35 ?
                                 R.drawable.ic_navbar_mods_unchecked :
@@ -134,6 +146,9 @@ public class CustomShortcut extends XposedMods {
                 callMethod(OCPreference, "setOrder", Integer.MIN_VALUE);
                 callMethod(OCPreference, "setKey", "oxygen_customizer");
                 callMethod(mCategory, "addPreference", OCPreference);
+                } catch (Throwable t) {
+                    de.robv.android.xposed.XposedBridge.log("[OC-SettingsShortcut] Injection failed: " + t);
+                }
             }
         });
     }

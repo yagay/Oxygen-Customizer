@@ -33,18 +33,18 @@ public class SettingsIconsCompiler {
 
     private static final List<String> mPackages = new ArrayList<>() {{
         add(SETTINGS);
-        add(BuildConfig.APPLICATION_ID.replaceAll(".debug", ""));
+        add(BuildConfig.APPLICATION_ID.replace(".debug", ""));
     }};
 
     public static boolean buildOverlay(int iconSet, String resources, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
         String[] rollbackNames = {"OxygenCustomizerComponentSIP1.overlay", "OxygenCustomizerComponentSIP2.overlay"};
         boolean[] rollbackEnabled = new boolean[rollbackNames.length];
+        boolean completed = false;
+        try {
         if (force) {
             for (int i = 0; i < rollbackNames.length; i++) rollbackEnabled[i] = OverlayUtil.isOverlayEnabled(rollbackNames[i]);
         }
-        boolean completed = false;
-        try {
         mIconSet = iconSet;
         mForce = force;
 
@@ -104,8 +104,11 @@ public class SettingsIconsCompiler {
         completed = true;
         return false;
         } finally {
-            if (!completed && force) OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
-            OverlayCompileCoordinator.LOCK.unlock();
+            try {
+                if (!completed && force) OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
+            } finally {
+                OverlayCompileCoordinator.LOCK.unlock();
+            }
         }
     }
 
@@ -114,8 +117,8 @@ public class SettingsIconsCompiler {
         symLinkBinaries();
 
         // Clean data directory
-        Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
-        Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand").exec();
+        OverlayCompileCoordinator.runChecked("rm -rf " + ModuleConstants.TEMP_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand", "Prepare overlay staging");
 
         // Extract overlay from assets
         for (String packageName : mPackages) {
@@ -123,19 +126,19 @@ public class SettingsIconsCompiler {
         }
 
         // Create temp directory
-        Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR + "; mkdir -p " + ModuleConstants.TEMP_DIR).exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_OVERLAY_DIR).exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.TEMP_CACHE_DIR).exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.UNSIGNED_UNALIGNED_DIR).exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.UNSIGNED_DIR).exec();
-        Shell.cmd("mkdir -p " + ModuleConstants.SIGNED_DIR).exec();
+        OverlayCompileCoordinator.runChecked("rm -rf " + ModuleConstants.TEMP_DIR + "; mkdir -p " + ModuleConstants.TEMP_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.TEMP_OVERLAY_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.TEMP_CACHE_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.UNSIGNED_UNALIGNED_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.UNSIGNED_DIR, "Prepare overlay staging");
+        OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.SIGNED_DIR, "Prepare overlay staging");
 
         for (String packageName : mPackages) {
-            Shell.cmd("mkdir -p " + ModuleConstants.TEMP_CACHE_DIR + "/" + packageName + "/").exec();
+            OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.TEMP_CACHE_DIR + "/" + packageName + "/", "Prepare overlay staging");
         }
 
         if (!mForce) {
-            Shell.cmd("mkdir -p " + ModuleConstants.BACKUP_DIR).exec();
+            OverlayCompileCoordinator.runChecked("mkdir -p " + ModuleConstants.BACKUP_DIR, "Prepare overlay staging");
         } else {
             OverlayUtil.applyOverlayStateNow("OxygenCustomizerComponentSIP1.overlay", false, false);
             OverlayUtil.applyOverlayStateNow("OxygenCustomizerComponentSIP2.overlay", false, false);
