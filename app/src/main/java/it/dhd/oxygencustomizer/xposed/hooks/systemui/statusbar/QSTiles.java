@@ -60,8 +60,10 @@ public class QSTiles extends XposedMods {
     public void updatePrefs(String... Key) {
         if (Xprefs == null) return;
 
-        mCustomizeQSTiles = Xprefs.getBoolean(QS_CUSTOMIZE_TILES, false);
         mCustomizeNewGrid = Xprefs.getBoolean(QS_NEW_GRID_ENABLED, false);
+        // Never let legacy QS hooks compete with the OOS16 separated grid.
+        mCustomizeQSTiles = !mCustomizeNewGrid
+                && Xprefs.getBoolean(QS_CUSTOMIZE_TILES, false);
         newGridRows = Xprefs.getInt(QS_NEW_GRID_ROWS, 3);
         newGridColumns = Xprefs.getInt(QS_NEW_GRID_COLUMNS, 4);
         newGridLandscapeColumns = Xprefs.getInt(QS_NEW_GRID_LANDSCAPE_COLUMNS, 5);
