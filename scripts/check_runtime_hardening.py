@@ -82,6 +82,42 @@ checks = [
         "shellQuote(SQLITE_BIN)",
         "LSPosed database query failed",
     ]),
+    (JAVA / "ui/fragments/Mods.java", [
+        "SearchPreferenceResult.highlight(this, result.getKey())",
+        "executePendingTransactions()",
+    ]),
+    (JAVA / "ui/activity/MainActivity.java", [
+        "modsFragment.onSearchResultClicked(result)",
+        "executePendingTransactions()",
+    ]),
+    (JAVA / "ui/fragments/mods/quicksettings/QuickSettings.java", [
+        "pullDownIndicator != null && pullDownIndicator.getParent() instanceof ViewGroup",
+    ]),
+    (JAVA / "ui/fragments/uistyle/SettingsIcons.java", [
+        "boolean first = !OverlayUtil.isOverlayEnabled(firstPkg)",
+    ]),
+    (JAVA / "utils/overlay/manager/NotificationManager.java", [
+        "public static boolean enableOverlay(int style)",
+        "public static boolean disableOverlay(int style)",
+        "OverlayUtil.OPERATION_LOCK.lock()",
+    ]),
+    (JAVA / "ui/adapters/NotificationAdapter.java", [
+        "boolean finished = success",
+        "notifyDataSetChanged()",
+    ]),
+    (JAVA / "utils/BitmapSubjectSegmenter.java", [
+        "MASK_WORKER",
+        "Do not recycle inputBitmap",
+        "mask.remaining()",
+    ]),
+    (JAVA / "utils/overlay/compiler/OverlayCompiler.java", [
+        'OverlayCompiler.listContains(result.getErr(), "colorSurfaceHeader")',
+    ]),
+    (JAVA / "ui/fragments/mods/misc/MemcFragment.java", [
+        '"force_memc_enabled".equals(key)',
+        '"OC-UpdateMemcFeatures"',
+        "unregisterReceiver(mFeatureReceiver)",
+    ]),
 ]
 
 failures = []

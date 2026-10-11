@@ -17,8 +17,16 @@ import com.google.mlkit.vision.segmentation.subject.SubjectSegmenter;
 import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions;
 
 import java.nio.FloatBuffer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class BitmapSubjectSegmenter {
+    private static final ExecutorService MASK_WORKER = Executors.newSingleThreadExecutor(task -> {
+        Thread thread = new Thread(task, "OC-SubjectMaskWorker");
+        thread.setDaemon(true);
+        return thread;
+    });
+
 
     private SubjectSegmenter mSegmenter;
     final Context mContext;
@@ -76,37 +84,53 @@ public class BitmapSubjectSegmenter {
     }
 
     public void segmentSubject(Bitmap inputBitmap, SegmentResultListener listener) {
-        if (mSegmenter == null) {
+        if (mSegmenter == null || inputBitmap == null || inputBitmap.isRecycled()) {
             listener.onFail();
             return;
         }
 
-        int transparentColor = Color.alpha(Color.TRANSPARENT);
-
-        Bitmap resultBitmap = inputBitmap.copy(Bitmap.Config.ARGB_8888, true);
-
-        mSegmenter.process(InputImage.fromBitmap(inputBitmap, 0))
-                .addOnSuccessListener(subjectSegmentationResult -> {
-                    FloatBuffer mSubjectMask = subjectSegmentationResult.getForegroundConfidenceMask();
-
-                    resultBitmap.setHasAlpha(true);
-                    for (int y = 0; y < inputBitmap.getHeight(); y++) {
-                        for (int x = 0; x < inputBitmap.getWidth(); x++) {
-                            //noinspection DataFlowIssue
-                            if (mSubjectMask.get() < .5f) {
-                                resultBitmap.setPixel(x, y, transparentColor);
+        // Do not recycle inputBitmap: the wallpaper renderer may still own it.
+        try {
+            mSegmenter.process(InputImage.fromBitmap(inputBitmap, 0))
+                    .addOnSuccessListener(MASK_WORKER, result -> {
+                        Bitmap output = null;
+                        try {
+                            FloatBuffer mask = result.getForegroundConfidenceMask();
+                            int width = inputBitmap.getWidth();
+                            int height = inputBitmap.getHeight();
+                            if (mask == null || mask.remaining() < (long) width * height) {
+                                Log.e("BitmapSubjectSegmenter", "Missing or incomplete subject mask");
+                                listener.onFail();
+                                return;
                             }
+                            output = inputBitmap.copy(Bitmap.Config.ARGB_8888, true);
+                            if (output == null) throw new IllegalStateException("Bitmap copy failed");
+                            output.setHasAlpha(true);
+                            for (int y = 0; y < height; y++) {
+                                for (int x = 0; x < width; x++) {
+                                    if (mask.get() < .5f) {
+                                        output.setPixel(x, y, Color.TRANSPARENT);
+                                    }
+                                }
+                            }
+                            Bitmap completed = output;
+                            output = null; // Ownership passes to the listener.
+                            listener.onSuccess(completed);
+                        } catch (Throwable failure) {
+                            Log.e("BitmapSubjectSegmenter", "Subject mask processing failed", failure);
+                            listener.onFail();
+                        } finally {
+                            if (output != null && !output.isRecycled()) output.recycle();
                         }
-                    }
-
-                    inputBitmap.recycle();
-                    listener.onSuccess(resultBitmap);
-                })
-                .addOnFailureListener(e -> {
-                    inputBitmap.recycle();
-                    listener.onFail();
-                });
-
+                    })
+                    .addOnFailureListener(MASK_WORKER, failure -> {
+                        Log.e("BitmapSubjectSegmenter", "Subject segmentation failed", failure);
+                        listener.onFail();
+                    });
+        } catch (Throwable failure) {
+            Log.e("BitmapSubjectSegmenter", "Unable to start segmentation", failure);
+            listener.onFail();
+        }
     }
 
     public interface SegmentResultListener {

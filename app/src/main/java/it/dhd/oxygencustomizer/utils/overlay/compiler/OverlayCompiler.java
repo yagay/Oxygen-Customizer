@@ -58,16 +58,26 @@ public class OverlayCompiler {
         StringBuilder aaptCommand = buildAAPT2Command(source, name);
 
         String[] splitLocations = AppUtils.getSplitLocations(targetPackage);
-        for (String targetApk : splitLocations) {
-            aaptCommand.append(" -I ").append(targetApk);
+        if (splitLocations != null) {
+            for (String targetApk : splitLocations) {
+                if (targetApk != null && !targetApk.isBlank()) {
+                    aaptCommand.append(" -I '").append(targetApk.replace("'", "'\\''")).append("'");
+                }
+            }
         }
 
         String command = String.valueOf(aaptCommand);
         Shell.Result result = Shell.cmd(command).exec();
 
-        if (!result.isSuccess() && OverlayCompiler.listContains(result.getOut(), "colorSurfaceHeader")) {
-            Shell.cmd("find " + source + "/res -type f -name \"*.xml\" -exec sed -i '/colorSurfaceHeader/d' {} +").exec();
-            result = Shell.cmd(command).exec();
+        if (!result.isSuccess() && (OverlayCompiler.listContains(result.getOut(), "colorSurfaceHeader")
+                || OverlayCompiler.listContains(result.getErr(), "colorSurfaceHeader"))) {
+            Shell.Result sanitized = Shell.cmd("find '" + source.replace("'", "'\\''")
+                    + "/res' -type f -name '*.xml' -exec sed -i '/colorSurfaceHeader/d' {} +").exec();
+            if (sanitized.isSuccess()) {
+                result = Shell.cmd(command).exec();
+            } else {
+                Log.e(TAG, "Unable to remove incompatible colorSurfaceHeader: " + sanitized.getErr());
+            }
         }
 
         if (result.isSuccess()) Log.i(TAG + " - AAPT", "Successfully built APK for " + name);

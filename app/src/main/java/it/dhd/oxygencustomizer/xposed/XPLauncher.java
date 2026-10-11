@@ -281,13 +281,15 @@ public class XPLauncher implements ServiceConnection {
         new Thread(() -> {
             try {
                 int attempts = 0;
-                while (rootProxyIPC == null && attempts++ < ROOT_CONNECT_RETRIES) {
+                while (rootProxyIPC == null && attempts < ROOT_CONNECT_RETRIES) {
                     if (SystemUtils.UserManager() == null
                             || !SystemUtils.UserManager().isUserUnlocked()) {
-                        sleep(2000);
+                        // Waiting for the first unlock must not consume bind attempts.
+                        sleep(5000);
                         continue;
                     }
 
+                    attempts++;
                     connectRootService();
                     sleep(5000);
                 }

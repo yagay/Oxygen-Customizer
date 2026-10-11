@@ -236,10 +236,12 @@ public class SettingsIcons extends BaseFragment {
             new Thread(() -> {
                 boolean disabled;
                 try {
-                    boolean first = OverlayUtil.applyOverlayStateNow(
-                            "OxygenCustomizerComponentSIP1.overlay", false, false);
-                    boolean second = OverlayUtil.applyOverlayStateNow(
-                            "OxygenCustomizerComponentSIP2.overlay", false, false);
+                    String firstPkg = "OxygenCustomizerComponentSIP1.overlay";
+                    String secondPkg = "OxygenCustomizerComponentSIP2.overlay";
+                    boolean first = !OverlayUtil.isOverlayEnabled(firstPkg)
+                            || OverlayUtil.applyOverlayStateNow(firstPkg, false, false);
+                    boolean second = !OverlayUtil.isOverlayEnabled(secondPkg)
+                            || OverlayUtil.applyOverlayStateNow(secondPkg, false, false);
                     disabled = first && second;
                 } catch (Exception error) {
                     Log.e("SettingsIcons", "Unable to disable icons", error);

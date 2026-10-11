@@ -89,6 +89,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
     public void onViewAttachedToWindow(@NonNull ViewHolder holder) {
         super.onViewAttachedToWindow(holder);
 
+        if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION) return;
         if (Prefs.getBoolean(NOTIFICATION_KEY.get(holder.getBindingAdapterPosition()))) {
             holder.style_name.setTextColor(context.getResources().getColor(R.color.colorAccent, context.getTheme()));
             holder.container.findViewById(R.id.icon_selected).setVisibility(View.VISIBLE);
@@ -111,6 +112,7 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
     private void enableOnClickListener(ViewHolder holder) {
         // Set onClick operation for each item
         holder.container.setOnClickListener(v -> {
+            if (holder.getBindingAdapterPosition() == RecyclerView.NO_POSITION) return;
             selectedItem = selectedItem == holder.getBindingAdapterPosition() ? -1 : holder.getBindingAdapterPosition();
             refreshLayout(holder);
 
@@ -135,63 +137,40 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
             }
         });
 
-        // Set onClick operation for Enable button
-        holder.btn_enable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
+        // Work is performed synchronously on a worker and only then reflected in UI.
+        holder.btn_enable.setOnClickListener(v -> changeNotificationStyle(holder, true));
+        holder.btn_disable.setOnClickListener(v -> changeNotificationStyle(holder, false));
 
-            @SuppressLint("SetTextI18n") Runnable runnable = () -> {
-                NotificationManager.enableOverlay(holder.getBindingAdapterPosition() + 1);
+    }
 
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
+    private void changeNotificationStyle(ViewHolder holder, boolean enable) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
 
-                        holder.style_name.setTextColor(context.getResources().getColor(R.color.colorAccent, context.getTheme()));
-                        holder.container.findViewById(R.id.icon_selected).setVisibility(View.VISIBLE);
-
-                        // Change button visibility
-                        holder.btn_enable.setVisibility(View.GONE);
-                        holder.btn_disable.setVisibility(View.VISIBLE);
-                        refreshName(holder);
-
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                    }, 1000);
-                });
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        });
-
-        // Set onClick operation for Disable button
-        holder.btn_disable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-
-            Runnable runnable = () -> {
-                NotificationManager.disableOverlay(holder.getBindingAdapterPosition() + 1);
-
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        holder.style_name.setTextColor(context.getResources().getColor(R.color.textColorPrimary, context.getTheme()));
-                        holder.container.findViewById(R.id.icon_selected).setVisibility(View.INVISIBLE);
-
-                        // Change button visibility
-                        holder.btn_disable.setVisibility(View.GONE);
-                        holder.btn_enable.setVisibility(View.VISIBLE);
-                        refreshName(holder);
-
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_disabled), Toast.LENGTH_SHORT).show();
-                    }, 1000);
-                });
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        });
+        loadingDialog.show(context.getString(R.string.loading_dialog_wait));
+        new Thread(() -> {
+            boolean success;
+            try {
+                success = enable ? NotificationManager.enableOverlay(position + 1)
+                        : NotificationManager.disableOverlay(position + 1);
+            } catch (Throwable failure) {
+                android.util.Log.e("OC-NotificationAdapter", "Failed to change style", failure);
+                success = false;
+            }
+            boolean finished = success;
+            ((Activity) context).runOnUiThread(() -> {
+                loadingDialog.hide();
+                Activity activity = (Activity) context;
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+                if (finished) {
+                    // RecyclerView holders can be rebound while the operation runs.
+                    notifyDataSetChanged();
+                }
+                int message = !finished ? R.string.toast_error
+                        : enable ? R.string.toast_applied : R.string.toast_disabled;
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+            });
+        }, enable ? "OC-EnableNotificationStyle" : "OC-DisableNotificationStyle").start();
     }
 
     // Function to check for layout changes

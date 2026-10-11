@@ -401,7 +401,9 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
     @Override
     public void onSearchResultClicked(@NonNull SearchPreferenceResult result) {
         modsFragment = new Mods();
-        new Handler(getMainLooper()).post(() -> modsFragment.onSearchResultClicked(result));
+        replaceFragment(modsFragment);
+        getSupportFragmentManager().executePendingTransactions();
+        modsFragment.onSearchResultClicked(result);
     }
 
     @Override

@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat;
 import com.topjohnwu.superuser.Shell;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import it.dhd.oneplusui.preference.OplusPreference;
 import it.dhd.oxygencustomizer.OxygenCustomizer;
@@ -49,6 +50,7 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
     private boolean mVideoOsieSupport = false;
 
     private boolean mReceiverRegistered = false;
+    private final AtomicBoolean featureUpdateInProgress = new AtomicBoolean(false);
 
     private OplusPreference mFeatureOn, mPwX7Enable, mMemcEnabled, mSdr2hdrEnabled, mVideoOsieSupported, mMemcMode;
 
@@ -188,10 +190,9 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
 
         if (key == null) return;
 
-        switch (key) {
-            case "force_memc_enabled":
-                //enableMemc();
-                break;
+        if ("force_memc_enabled".equals(key)) {
+            enableMemc();
+            return;
         }
 
         Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
@@ -204,36 +205,48 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
     }
 
     private void enableMemc() {
-        if (!ModuleUtil.moduleExists()) return;
-
-        mLoadingDialog.show(getAppContextLocale().getResources().getString(R.string.loading_dialog_wait));
-
-        Runnable runnable = () -> {
-            // wait 500 millis
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                ModuleUtil.enableMemcFeature(mPreferences.getBoolean("force_memc_enabled", false));
-                // hide dialog
-                ((Activity) requireContext()).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        mLoadingDialog.hide();
-                        Toast.makeText(OxygenCustomizer.getAppContext(), getAppContextLocale().getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                    }, 1000);
-                });
-
-            }, 500);
-        };
-
-        Thread thread = new Thread(runnable);
-        thread.start();
-
-        Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
-
-        broadcast.putExtra("packageName", FRAMEWORK);
-        broadcast.putExtra("class", MemcEnhancer.class.getSimpleName());
-
-        if (getContext() != null)
-            getContext().sendBroadcast(broadcast);
+        if (!ModuleUtil.moduleExists() || mLoadingDialog == null) return;
+        if (!featureUpdateInProgress.compareAndSet(false, true)) return;
+        final boolean enabled = mPreferences.getBoolean("force_memc_enabled", false);
+        mLoadingDialog.show(getString(R.string.loading_dialog_wait));
+        new Thread(() -> {
+            boolean applied = false;
+            try {
+                ModuleUtil.enableMemcFeature(enabled);
+                applied = true;
+            } catch (Throwable failure) {
+                Log.e("MemcFragment", "Unable to update MEMC module features", failure);
+            }
+            final boolean success = applied;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                featureUpdateInProgress.set(false);
+                mLoadingDialog.hide();
+                if (!isAdded()) return;
+                if (success) {
+                    Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
+                    broadcast.putExtra("packageName", FRAMEWORK);
+                    broadcast.putExtra("class", MemcEnhancer.class.getSimpleName());
+                    requireContext().sendBroadcast(broadcast);
+                }
+                Toast.makeText(requireContext(), success ? R.string.toast_applied
+                        : R.string.toast_error, Toast.LENGTH_SHORT).show();
+            });
+        }, "OC-UpdateMemcFeatures").start();
     }
 
+
+    @Override
+    public void onDestroy() {
+        if (mReceiverRegistered && getContext() != null) {
+            try {
+                requireContext().unregisterReceiver(mFeatureReceiver);
+            } catch (IllegalArgumentException ignored) {
+                Log.w("MemcFragment", "MEMC receiver was already unregistered");
+            }
+            mReceiverRegistered = false;
+        }
+        if (mLoadingDialog != null) mLoadingDialog.dismiss();
+        super.onDestroy();
+    }
 
 }

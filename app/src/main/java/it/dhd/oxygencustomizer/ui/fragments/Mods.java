@@ -87,12 +87,13 @@ public class Mods extends ControlledPreferenceFragmentCompat {
     public void onSearchResultClicked(SearchPreferenceResult result) {
         if (result.getResourceFile() == R.xml.mods) {
             if (searchPreference != null) searchPreference.setVisible(false);
-            SearchPreferenceResult.highlight(new Mods(), result.getKey());
+            SearchPreferenceResult.highlight(this, result.getKey());
         } else {
             for (SearchPreferenceItem mItem : prefsList) {
                 if (mItem.getXml() == result.getResourceFile()) {
                     Fragment targetFragment = mItem.createFragment();
                     replaceFragment(targetFragment);
+                    requireActivity().getSupportFragmentManager().executePendingTransactions();
                     if (targetFragment instanceof ClockPickerFragment clockPicker) {
                         ControlledPreferenceFragmentCompat fragment = clockPicker.getPreferenceFragment();
                         clockPicker.scrollToPreference();

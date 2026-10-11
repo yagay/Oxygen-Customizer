@@ -44,14 +44,17 @@ public class QuickSettings extends ControlledPreferenceFragmentCompat {
 
     @Override
     public void onDestroy() {
-        ((ViewGroup) pullDownIndicator.getParent()).removeView(pullDownIndicator);
+        if (pullDownIndicator != null && pullDownIndicator.getParent() instanceof ViewGroup parent) {
+            parent.removeView(pullDownIndicator);
+        }
+        pullDownIndicator = null;
         super.onDestroy();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        pullDownIndicator.setVisibility(View.GONE);
+        if (pullDownIndicator != null) pullDownIndicator.setVisibility(View.GONE);
     }
 
     @Override
