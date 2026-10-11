@@ -103,21 +103,43 @@ public class DepthWallpaper extends XposedMods {
     final BroadcastReceiver mPluginReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // The external plugin does not support the internal token protocol.
-            // Ignore unsolicited or expired status signals until it supports nonce echoes.
-            if (pluginResponseDeadline == 0 || SystemClock.elapsedRealtime() > pluginResponseDeadline) return;
-            if (intent != null && intent.getAction() != null) {
-                pluginResponseDeadline = 0;
-                switch (intent.getAction()) {
-                    case ACTION_EXTRACT_SUCCESS -> {
-                        lockScreenSubjectCacheValid = false;
-                        sendAodIntent();
+            if (intent == null || intent.getAction() == null
+                    || pluginResponseDeadline == 0
+                    || SystemClock.elapsedRealtime() > pluginResponseDeadline) return;
+            final String plugin = "it.dhd.oxygencustomizer.aiplugin";
+            // Android 14+ reports the true broadcaster only when it is exposed by
+            // the sender. Reject an explicitly identified, incorrect sender.
+            if (Build.VERSION.SDK_INT >= 34) {
+                String sendingPackage = getSentFromPackage();
+                if (sendingPackage != null && !plugin.equals(sendingPackage)) return;
+                int senderUid = getSentFromUid();
+                if (senderUid != android.os.Process.INVALID_UID) {
+                    try {
+                        if (senderUid != context.getPackageManager()
+                                .getApplicationInfo(plugin, 0).uid) return;
+                    } catch (android.content.pm.PackageManager.NameNotFoundException missing) {
+                        return;
                     }
-                    case ACTION_EXTRACT_FAILURE -> {
-                        lockScreenSubjectCacheValid = false;
-                        String error = intent.getStringExtra("error");
-                        XposedBridge.log("Subject extraction failed \n" + error);
-                    }
+                }
+            }
+            String echoedId = intent.getStringExtra("requestId");
+            if (echoedId != null && !echoedId.equals(pluginRequestId)) return;
+            switch (intent.getAction()) {
+                case ACTION_EXTRACT_SUCCESS -> {
+                    File output = new File(getLockScreenSubjectCachePath());
+                    // Older plugin versions do not echo a request ID: require a
+                    // fresh, nonempty output before accepting their success signal.
+                    if (!output.isFile() || output.length() == 0
+                            || output.lastModified() < pluginRequestWallTime - 2000L) return;
+                    pluginResponseDeadline = 0;
+                    lockScreenSubjectCacheValid = false;
+                    sendAodIntent();
+                }
+                case ACTION_EXTRACT_FAILURE -> {
+                    // A legacy plugin failure broadcast has no verifiable output.
+                    // It is logged only; it must not invalidate a healthy cache.
+                    String error = intent.getStringExtra("error");
+                    log("Subject extraction reported failure: " + error);
                 }
             }
         }
@@ -126,6 +148,8 @@ public class DepthWallpaper extends XposedMods {
     private boolean mBroadcastRegistered = false;
     private boolean mPluginBroadcastRegistered = false;
     private volatile long pluginResponseDeadline;
+    private volatile long pluginRequestWallTime;
+    private volatile String pluginRequestId;
     private int mLastUiState = -1;
 
     public DepthWallpaper(Context context) {
@@ -337,6 +361,9 @@ public class DepthWallpaper extends XposedMods {
                                                     "it.dhd.oxygencustomizer.aiplugin.receivers.SubjectExtractionReceiver"));
                                             intent.putExtra("sourcePath", getLockScreenBitmapCachePath());
                                             intent.putExtra("destinationPath", getLockScreenSubjectCachePath());
+                                            pluginRequestId = java.util.UUID.randomUUID().toString();
+                                            pluginRequestWallTime = System.currentTimeMillis();
+                                            intent.putExtra("requestId", pluginRequestId);
                                             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
                                             pluginResponseDeadline = SystemClock.elapsedRealtime() + 120_000L;
                                             mContext.sendBroadcast(intent);
