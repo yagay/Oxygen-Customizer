@@ -1,6 +1,7 @@
 package it.dhd.oxygencustomizer.xposed.hooks.systemui.statusbar;
 
 import static de.robv.android.xposed.XposedHelpers.getIntField;
+import static de.robv.android.xposed.XposedHelpers.findClassIfExists;
 import static de.robv.android.xposed.XposedHelpers.findFieldIfExists;
 import static de.robv.android.xposed.XposedHelpers.setIntField;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_COLUMNS;
@@ -21,6 +22,7 @@ import android.os.Build;
 import it.dhd.oxygencustomizer.BuildConfig;
 import java.util.concurrent.atomic.AtomicBoolean;
 import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XC_MethodHook;
 
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.Constants;
@@ -51,6 +53,9 @@ public class QSTiles extends XposedMods {
     private final AtomicBoolean aospGridSeen = new AtomicBoolean(false);
     private final AtomicBoolean oplusGridSeen = new AtomicBoolean(false);
     private final AtomicBoolean calculatorSeen = new AtomicBoolean(false);
+    private final AtomicBoolean newGridInstalled = new AtomicBoolean(false);
+    private final AtomicBoolean newGridUsed = new AtomicBoolean(false);
+    private static final String NEW_GRID_CLASS = "com.oplus.systemui.plugins.qs.customize.data.model.GridInfoEntity";
 
     public QSTiles(Context context) {
         super(context);
@@ -129,22 +134,7 @@ public class QSTiles extends XposedMods {
             // New separated QS grid has its own preferences, independent of the legacy grid.
             // These methods are present in the supplied OOS16 SystemUI APK. They may be
             // loaded by a plugin ClassLoader; the compatibility diagnostic reports misses.
-            ReflectedClass gridInfo = ReflectedClass.ofIfPossible(
-                    "com.oplus.systemui.plugins.qs.customize.data.model.GridInfoEntity");
-            gridInfo.before("getGridCol").run(param -> {
-                if (!mCustomizeNewGrid) return;
-                int columns = mContext.getResources().getConfiguration().orientation
-                        == Configuration.ORIENTATION_LANDSCAPE
-                        ? newGridLandscapeColumns : newGridColumns;
-                param.setResult(Math.max(1, columns));
-            });
-            gridInfo.before("getGridRow").run(param -> {
-                if (!mCustomizeNewGrid) return;
-                if (mContext.getResources().getConfiguration().orientation
-                        == Configuration.ORIENTATION_PORTRAIT) {
-                    param.setResult(Math.max(1, newGridRows));
-                }
-            });
+            installNewGridHookWhenLoaded(lpparam.classLoader);
 
             // OPlus uses its own container when Quick Settings is separated from notifications.
             // The AOSP TileLayout hooks above do not affect this layout.
@@ -171,6 +161,61 @@ public class QSTiles extends XposedMods {
             });
         }
 
+    }
+
+    /**
+     * In OOS16 the separated QS implementation may be loaded by a plugin
+     * ClassLoader instead of the SystemUI application ClassLoader. Resolve the
+     * actual class at load time instead of assuming it is available at startup.
+     */
+    private void installNewGridHookWhenLoaded(ClassLoader systemUiLoader) {
+        tryInstallNewGridClass(findClassIfExists(NEW_GRID_CLASS, systemUiLoader));
+        tryInstallNewGridClass(findClassIfExists(NEW_GRID_CLASS, mContext.getClassLoader()));
+        if (newGridInstalled.get()) return;
+        XposedBridge.log("[OC-QSGrid] OOS16 grid not in startup loader, awaiting plugin ClassLoader");
+        XposedBridge.hookAllMethods(ClassLoader.class, "loadClass", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) {
+                if (newGridInstalled.get() || param.hasThrowable()
+                        || param.args.length == 0
+                        || !(param.args[0] instanceof String)
+                        || !NEW_GRID_CLASS.equals(param.args[0])) return;
+                Object loaded = param.getResult();
+                if (loaded instanceof Class<?>) {
+                    tryInstallNewGridClass((Class<?>) loaded);
+                }
+            }
+        });
+    }
+
+    private void tryInstallNewGridClass(Class<?> target) {
+        if (target == null || !newGridInstalled.compareAndSet(false, true)) return;
+        try {
+            XposedBridge.log("[OC-QSGrid] OOS16 grid found: " + target.getName()
+                    + " loader=" + target.getClassLoader());
+            ReflectedClass grid = ReflectedClass.of(target);
+            grid.before("getGridCol").run(param -> {
+                if (!mCustomizeNewGrid) return;
+                int columns = mContext.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_LANDSCAPE
+                        ? newGridLandscapeColumns : newGridColumns;
+                param.setResult(Math.max(1, columns));
+                if (newGridUsed.compareAndSet(false, true)) {
+                    XposedBridge.log("[OC-QSGrid] OOS16 grid getters active");
+                }
+            });
+            grid.before("getGridRow").run(param -> {
+                if (!mCustomizeNewGrid) return;
+                if (mContext.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_PORTRAIT) {
+                    param.setResult(Math.max(1, newGridRows));
+                }
+            });
+            XposedBridge.log("[OC-QSGrid] OOS16 grid getter hooks installed");
+        } catch (Throwable failure) {
+            newGridInstalled.set(false);
+            XposedBridge.log("[OC-QSGrid] OOS16 grid hook install failed: " + failure);
+        }
     }
 
     private void applyOplusGridSize(Object container) {
