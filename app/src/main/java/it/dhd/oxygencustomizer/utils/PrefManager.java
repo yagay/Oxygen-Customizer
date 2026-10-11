@@ -167,7 +167,7 @@ public class PrefManager {
                 case "boolean" -> {
                     boolean value = item.getBoolean("value");
                     editor.putBoolean(key, value);
-                    if (value && key.contains("overlay")) overlaysToApply.put(key, true);
+                    if (key.contains("overlay")) overlaysToApply.put(key, value);
                 }
                 case "string" -> editor.putString(key, item.getString("value"));
                 case "int" -> editor.putInt(key, item.getInt("value"));
@@ -185,8 +185,7 @@ public class PrefManager {
             }
         }
         if (!editor.commit()) return false;
-        applyRestoredOverlays(overlaysToApply);
-        return true;
+        return applyRestoredOverlays(overlaysToApply);
     }
 
     private static boolean isLegacySerializedStream(byte[] data) {
@@ -269,8 +268,8 @@ public class PrefManager {
             Object value = entry.getValue();
             if (value instanceof Boolean) {
                 editor.putBoolean(entry.getKey(), (Boolean) value);
-                if ((Boolean) value && entry.getKey().contains("overlay")) {
-                    overlaysToApply.put(entry.getKey(), true);
+                if (entry.getKey().contains("overlay")) {
+                    overlaysToApply.put(entry.getKey(), (Boolean) value);
                 }
             } else if (value instanceof String) {
                 editor.putString(entry.getKey(), (String) value);
@@ -285,24 +284,28 @@ public class PrefManager {
             }
         }
         if (!editor.commit()) return false;
-        applyRestoredOverlays(overlaysToApply);
-        return true;
+        return applyRestoredOverlays(overlaysToApply);
     }
 
-    private static void applyRestoredOverlays(Map<String, Boolean> overlays) {
-        for (String key : overlays.keySet()) {
+    /**
+     * Restore both true and false overlay preferences after the database commit.
+     * A failed platform transition is reported as a partial import, and the
+     * observed state is written back by OverlayUtil rather than guessed.
+     */
+    private static boolean applyRestoredOverlays(Map<String, Boolean> overlays) {
+        boolean allApplied = true;
+        for (Map.Entry<String, Boolean> entry : overlays.entrySet()) {
             try {
-                maybeEnableOverlay(key, true);
+                if (!OverlayUtil.applyOverlayStateNow(entry.getKey(), entry.getValue())) {
+                    Log.w(TAG, "Overlay state not applied: " + entry.getKey());
+                    allApplied = false;
+                }
             } catch (Throwable failure) {
-                Log.e(TAG, "Failed to restore overlay: " + key, failure);
+                Log.e(TAG, "Failed to restore overlay: " + entry.getKey(), failure);
+                allApplied = false;
             }
         }
-    }
-
-    private static void maybeEnableOverlay(String key, boolean value) {
-        if (value && key.contains("overlay")) {
-            OverlayUtil.enableOverlay(key);
-        }
+        return allApplied;
     }
 
     private static String getOrCreateInternalBroadcastToken(SharedPreferences preferences) {
