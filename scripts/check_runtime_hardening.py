@@ -294,10 +294,12 @@ checks.extend([
     (JAVA / "utils/overlay/compiler/OverlayCompileCoordinator.java", [
         "notePackageInstallAttempt(",
         "if (!installAttempted[i]) continue;",
+        "installedBackups[i] = fallback;",
     ]),
     (JAVA / "xposed/hooks/systemui/lockscreen/DepthWallpaper.java", [
         "catch (NumberFormatException invalidPreference)",
         "if (stateValue == null) return;",
+        "if (DWallpaperEnabled && (DWMode == 0 || DWMode == 2))",
     ]),
 ])
 failures = []

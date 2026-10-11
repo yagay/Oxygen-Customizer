@@ -96,6 +96,7 @@ public final class OverlayCompileCoordinator {
         private final boolean[] existed;
         private final boolean[] installAttempted;
         private final boolean[] wasPackageInstalled;
+        private final String[] installedBackups;
 
         private FileSnapshot(String[] destinations, String[] backups, boolean[] existed) {
             this.destinations = destinations;
@@ -103,6 +104,7 @@ public final class OverlayCompileCoordinator {
             this.existed = existed;
             this.installAttempted = new boolean[destinations.length];
             this.wasPackageInstalled = new boolean[destinations.length];
+            this.installedBackups = new String[destinations.length];
         }
 
         /**
@@ -118,16 +120,32 @@ public final class OverlayCompileCoordinator {
             if (!query.isSuccess()) {
                 throw new IOException("Unable to snapshot package installation: " + query.getErr());
             }
-            boolean installed = false;
+            String installedPath = null;
             for (String line : query.getOut()) {
-                if (line.startsWith("package:")) installed = true;
+                if (line.startsWith("package:")) {
+                    installedPath = line.substring("package:".length()).trim();
+                    break;
+                }
             }
+            boolean installed = installedPath != null;
             boolean found = false;
             for (int i = 0; i < destinations.length; i++) {
                 if (destinations[i].startsWith(ModuleConstants.SYSTEM_OVERLAY_DIR + "/")
                         && destinations[i].endsWith("/" + apkFileName)) {
                     installAttempted[i] = true;
                     wasPackageInstalled[i] = installed;
+                    if (installed && !existed[i]) {
+                        // On Magisk/KSU overlays the prior APK may exist only at
+                        // the package manager's installed code path, not /system.
+                        if (!installedPath.startsWith("/") || !installedPath.endsWith(".apk")) {
+                            throw new IOException("Invalid installed overlay path");
+                        }
+                        String fallback = ModuleConstants.DATA_DIR + "/overlay-rollback/installed-"
+                                + i + ".apk";
+                        runChecked("cp -p -- " + shellQuote(installedPath) + " " + shellQuote(fallback),
+                                "Snapshot installed overlay");
+                        installedBackups[i] = fallback;
+                    }
                     found = true;
                 }
             }
@@ -204,13 +222,14 @@ public final class OverlayCompileCoordinator {
                 String packageName = name.substring(0, name.length() - 4) + ".overlay";
                 try {
                     if (wasPackageInstalled[i]) {
-                        if (!existed[i]) {
+                        String original = existed[i] ? backups[i] : installedBackups[i];
+                        if (original == null) {
                             Log.e("OC-OverlayCompile", "Cannot restore installed overlay "
-                                    + packageName + ": original APK was not on disk");
+                                    + packageName + ": original APK is unavailable");
                             continue;
                         }
                         Shell.Result restored = Shell.cmd("pm install -r "
-                                + shellQuote(backups[i])).exec();
+                                + shellQuote(original)).exec();
                         if (!restored.isSuccess()) {
                             Log.e("OC-OverlayCompile", "Could not reinstall previous overlay "
                                     + packageName + ": " + restored.getErr());

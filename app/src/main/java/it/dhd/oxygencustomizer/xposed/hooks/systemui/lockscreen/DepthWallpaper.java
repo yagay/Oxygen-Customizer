@@ -208,18 +208,29 @@ public class DepthWallpaper extends XposedMods {
                 .run(param -> {
                     log("CentralSurfacesImpl started");
 
-                    View scrimBehind = (View) getObjectField(getScrimController(), "mScrimBehind");
-                    ViewGroup rootView = (ViewGroup) scrimBehind.getParent();
+                    Object scrimController = getScrimController();
+                    if (scrimController == null) return;
+                    Object candidate = getObjectField(scrimController, "mScrimBehind");
+                    if (!(candidate instanceof View scrimBehind)
+                            || !(scrimBehind.getParent() instanceof ViewGroup rootView)) return;
 
                     @SuppressLint("DiscouragedApi")
-                    ViewGroup targetView = rootView.findViewById(mContext.getResources().getIdentifier("notification_container_parent", "id", mContext.getPackageName()));
+                    int containerId = mContext.getResources().getIdentifier(
+                            "notification_container_parent", "id", mContext.getPackageName());
+                    if (containerId == 0) return;
+                    View container = rootView.findViewById(containerId);
+                    if (!(container instanceof ViewGroup targetView)) return;
 
-                    if (!mLayersCreated) {
-                        createLayers();
+                    if (!mLayersCreated) createLayers();
+                    if (mWallpaperBackground == null || mLockScreenSubject == null) return;
+                    if (mWallpaperBackground.getParent() instanceof ViewGroup previous) {
+                        previous.removeView(mWallpaperBackground);
                     }
-
-                    rootView.addView(mWallpaperBackground, 2);
-                    targetView.addView(mLockScreenSubject, 1);
+                    if (mLockScreenSubject.getParent() instanceof ViewGroup previous) {
+                        previous.removeView(mLockScreenSubject);
+                    }
+                    rootView.addView(mWallpaperBackground, Math.min(2, rootView.getChildCount()));
+                    targetView.addView(mLockScreenSubject, Math.min(1, targetView.getChildCount()));
 
                     if (DWMode == 1) {
                         setDepthBackground();
@@ -239,10 +250,11 @@ public class DepthWallpaper extends XposedMods {
                     Object mLockscreenWallpaper = param.thisObject;
                     Object mWallpaperChangeListener = getObjectField(param.thisObject, "mWallpaperChangeListener");
                     log("OplusLockScreenWallpaperController created");
+                    if (mWallpaperChangeListener == null) return;
                     hookAllMethods(mWallpaperChangeListener.getClass(), "onWallpaperChange", new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                            if (DWallpaperEnabled && DWMode == 0 || DWMode == 2) {
+                            if (DWallpaperEnabled && (DWMode == 0 || DWMode == 2)) {
                                 if (superPowerSave) return;
                                 log("Wallpaper Changed");
 
@@ -535,7 +547,9 @@ public class DepthWallpaper extends XposedMods {
 
     private void setDepthWallpaper() {
         if (!mLayersCreated || mScrimController == null || mLockScreenSubject == null) return;
-        Object stateValue = getObjectField(getScrimController(), "mState");
+        Object scrimController = getScrimController();
+        if (scrimController == null) return;
+        Object stateValue = getObjectField(scrimController, "mState");
         if (stateValue == null) return;
         String state = stateValue.toString();
         XposedBridge.log("DepthWallpaper - setDepthWallpaper: " + state);
@@ -651,10 +665,13 @@ public class DepthWallpaper extends XposedMods {
     }
 
     private Object getScrimController() {
-        if (mScrimController == null) {
-            log("ScrimController is null!");
+        if (mScrimController == null) return null;
+        try {
+            return callMethod(mScrimController, "getScrimController");
+        } catch (Throwable failure) {
+            log("DepthWallpaper: unable to resolve scrim controller: " + failure);
+            return null;
         }
-        return callMethod(mScrimController, "getScrimController");
     }
 
     private void setDepthBackground() {
