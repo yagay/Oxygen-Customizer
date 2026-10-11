@@ -104,42 +104,46 @@ public class OnDemandCompiler {
 
         if (mForce) {
             // Disable the overlay in case it is already enabled
-            OverlayUtil.disableOverlay("OxygenCustomizerComponent" + mOverlayName + ".overlay");
+            OverlayUtil.applyOverlayStateNow("OxygenCustomizerComponent" + mOverlayName + ".overlay", false, false);
         }
     }
 
-    private static void postExecute(boolean hasErroredOut) {
-        // Move all generated overlays to module
+    private static void postExecute(boolean hasErroredOut) throws IOException {
         if (!hasErroredOut) {
-            Shell.cmd("cp -rf " + SIGNED_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
-            RootUtil.setPermissions(644, OVERLAY_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk");
-
-            // Move to files dir and install
+            String name = "OxygenCustomizerComponent" + mOverlayName + ".apk";
+            String signed = SIGNED_DIR + "/" + name;
             if (mForce) {
-                Shell.cmd("cp -rf " + SIGNED_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
-                RootUtil.setPermissions(644, ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk");
-                Shell.cmd("pm install -r " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
-                Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
-
-                // Move to system overlay dir
+                String staging = ModuleConstants.DATA_DIR + "/" + name;
+                runChecked("cp -f " + signed + " " + staging, "Stage overlay APK");
+                RootUtil.setPermissions(644, staging);
+                runChecked("pm install -r " + staging, "Install overlay APK");
+                Shell.cmd("rm -f " + staging).exec();
                 SystemUtil.mountRW();
                 try {
-                    Shell.cmd("cp -rf " + SIGNED_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk " + SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
-                    RootUtil.setPermissions(644, "/system/product/overlay/OxygenCustomizerComponent" + mOverlayName + ".apk");
+                    runChecked("cp -f " + signed + " " + SYSTEM_OVERLAY_DIR + "/" + name,
+                            "Copy overlay to system");
+                    RootUtil.setPermissions(644, SYSTEM_OVERLAY_DIR + "/" + name);
                 } finally {
                     SystemUtil.mountRO();
                 }
-
-                // Enable the overlay
-                OverlayUtil.enableOverlay("OxygenCustomizerComponent" + mOverlayName + ".overlay");
+                if (!OverlayUtil.applyOverlayStateNow(
+                        "OxygenCustomizerComponent" + mOverlayName + ".overlay", true, false)) {
+                    throw new IOException("Overlay manager rejected " + mOverlayName);
+                }
             } else {
-                Shell.cmd("cp -rf " + SIGNED_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk " + BACKUP_DIR + "/OxygenCustomizerComponent" + mOverlayName + ".apk").exec();
+                runChecked("cp -f " + signed + " " + BACKUP_DIR + "/" + name,
+                        "Save overlay to backup");
             }
         }
-
-        // Clean temp directory
         Shell.cmd("rm -rf " + TEMP_DIR).exec();
         Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand").exec();
+    }
+
+    private static void runChecked(String command, String action) throws IOException {
+        Shell.Result result = Shell.cmd(command).exec();
+        if (!result.isSuccess()) {
+            throw new IOException(action + " failed: " + result.getErr());
+        }
     }
 
     private static void moveOverlaysToCache() {
