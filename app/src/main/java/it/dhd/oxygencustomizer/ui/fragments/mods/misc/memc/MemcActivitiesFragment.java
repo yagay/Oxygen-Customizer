@@ -46,6 +46,7 @@ import it.dhd.oxygencustomizer.ui.adapters.ActivitiesListAdapter;
 import it.dhd.oxygencustomizer.ui.adapters.MemcAppAdapter;
 import it.dhd.oxygencustomizer.ui.adapters.PackageListAdapter;
 import it.dhd.oxygencustomizer.ui.dialogs.MemcDialog;
+import it.dhd.oxygencustomizer.ui.base.MemcListLoader;
 import it.dhd.oxygencustomizer.ui.models.MemcAppModel;
 import it.dhd.oxygencustomizer.utils.Constants;
 import it.dhd.oxygencustomizer.utils.OCPreferences;
@@ -103,9 +104,8 @@ public class MemcActivitiesFragment extends Fragment {
             mEnabledApps.put(key, config);
         }
 
-        new LoadAppsTask(
-                mPackageManager,
-                mEnabledApps, () -> {
+        MemcListLoader.load(getViewLifecycleOwner(), mPackageManager,
+                mEnabledApps, true, () -> {
             if (!isAdded() || binding == null) return;
             binding.searchView.setEnabled(false);
             binding.progress.setVisibility(View.VISIBLE);
@@ -133,7 +133,7 @@ public class MemcActivitiesFragment extends Fragment {
                 public void afterTextChanged(Editable s) {
                 }
             });
-        }).execute();
+        });
 
     }
 
@@ -213,86 +213,6 @@ public class MemcActivitiesFragment extends Fragment {
     public void onDestroyView() {
         super.onDestroyView();
         binding = null;
-    }
-
-    public static class LoadAppsTask {
-        private Map<String, String> mEnabledApps;
-        private final PackageManager mPackageManager;
-        private final LoadAppsTask.OnTaskCompleted taskCompletedListener;
-        private final LoadAppsTask.OnPreTaskExecution preExecutionListener;
-
-        public interface OnTaskCompleted {
-            void onTaskCompleted(List<MemcAppModel> appList);
-        }
-
-        public interface OnPreTaskExecution {
-            void onPreTaskExecution();
-        }
-
-        public LoadAppsTask(PackageManager packageManager,
-                            Map<String, String> enabledApps,
-                            LoadAppsTask.OnPreTaskExecution preExecutionListener,
-                            LoadAppsTask.OnTaskCompleted taskCompleted) {
-            this.mPackageManager = packageManager;
-            this.mEnabledApps = new java.util.HashMap<>(enabledApps);
-            this.preExecutionListener = preExecutionListener;
-            this.taskCompletedListener = taskCompleted;
-        }
-
-        public void execute() {
-            ExecutorService executor = Executors.newSingleThreadExecutor();
-            Handler handler = new Handler(Looper.getMainLooper());
-
-            if (preExecutionListener != null) {
-                handler.post(preExecutionListener::onPreTaskExecution);
-            }
-
-            Callable<List<MemcAppModel>> callable = () -> {
-                List<MemcAppModel> appList = new ArrayList<>();
-                for (Map.Entry<String, String> entry : mEnabledApps.entrySet()) {
-                    String pkg = entry.getKey();
-                    String memcConfig = entry.getValue();
-                    int delimiter = pkg.indexOf('/');
-                    if (delimiter <= 0 || delimiter >= pkg.length() - 1) continue;
-                    try {
-                        ApplicationInfo appInfo = mPackageManager.getApplicationInfo(pkg.substring(0, delimiter), 0);
-                        String appName = (String) mPackageManager.getApplicationLabel(appInfo);
-                        Drawable appIcon = mPackageManager.getApplicationIcon(appInfo);
-
-                        appList.add(
-                                new MemcAppModel(
-                                        appName,
-                                        pkg.substring(0, pkg.indexOf("/")),
-                                        pkg.substring(pkg.indexOf("/") + 1),
-                                        appIcon,
-                                        true,
-                                        -4,
-                                        memcConfig));
-
-                    } catch (PackageManager.NameNotFoundException ignored) {
-                        // Do not mutate source preferences from the worker thread.
-                    }
-                }
-
-                return appList;
-            };
-
-            Future<List<MemcAppModel>> future = executor.submit(callable);
-
-            executor.execute(() -> {
-                try {
-                    final List<MemcAppModel> appList = future.get();
-                    handler.post(() -> {
-                        if (taskCompletedListener != null) {
-                            taskCompletedListener.onTaskCompleted(appList);
-                        }
-                    });
-                } catch (Exception e) {
-                    Log.e(this.getClass().getName(), "Executor error", e);
-                }
-            });
-            executor.shutdown();
-        }
     }
 
 }
