@@ -218,7 +218,7 @@ public class HeaderClock extends XposedMods {
         mCustomDateFormat = Xprefs.getString(QS_HEADER_CLOCK_CUSTOM_FORMAT, "");
 
         // Stock Header Prefs
-        stockClockRedStyle = Integer.parseInt(Xprefs.getString(QS_HEADER_CLOCK_STOCK_RED_MODE, "0"));
+        stockClockRedStyle = Xprefs.getIntFromString(QS_HEADER_CLOCK_STOCK_RED_MODE, "0");
         stockClockRedOverrideColor = Xprefs.getInt(QS_HEADER_CLOCK_STOCK_RED_MODE_COLOR, Color.RED);
         stockClockTimeColorSwitch = Xprefs.getBoolean(QsHeaderClock.QS_HEADER_CLOCK_STOCK_TIME_COLOR_SWITCH, false);
         stockClockTimeColor = Xprefs.getInt(QsHeaderClock.QS_HEADER_CLOCK_STOCK_TIME_COLOR, 0);
