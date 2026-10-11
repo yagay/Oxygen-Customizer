@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -30,7 +31,7 @@ public final class MemcListLoader {
     private static final String TAG = "MemcListLoader";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ThreadPoolExecutor WORKERS = new ThreadPoolExecutor(
-            1, 2, 30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(),
+            1, 2, 30L, TimeUnit.SECONDS, new LinkedBlockingQueue<>(32),
             runnable -> new Thread(runnable, "OC-MemcListLoader"));
     private static final AtomicLong NEXT_REQUEST = new AtomicLong();
     private static final Map<LifecycleOwner, Long> ACTIVE =
@@ -53,7 +54,8 @@ public final class MemcListLoader {
                 if (isCurrent(owner, request)) onStart.run();
             });
         }
-        WORKERS.execute(() -> {
+        try {
+            WORKERS.execute(() -> {
             List<MemcAppModel> result = new ArrayList<>();
             try {
                 for (Map.Entry<String, String> entry : snapshot.entrySet()) {
@@ -105,7 +107,16 @@ public final class MemcListLoader {
                     if (onComplete != null) onComplete.accept(result);
                 }
             });
-        });
+            });
+        } catch (RejectedExecutionException rejected) {
+            Log.w(TAG, "MEMC list queue is full", rejected);
+            MAIN.post(() -> {
+                if (isCurrent(owner, request)) {
+                    ACTIVE.remove(owner);
+                    if (onComplete != null) onComplete.accept(Collections.emptyList());
+                }
+            });
+        }
     }
 
     private static boolean isCurrent(LifecycleOwner owner, long request) {
