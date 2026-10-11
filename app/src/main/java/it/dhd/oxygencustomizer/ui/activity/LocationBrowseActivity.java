@@ -24,6 +24,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.Spannable;
 import android.text.SpannableString;
@@ -55,6 +56,8 @@ import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import it.dhd.oneplusui.appcompat.app.OplusActivity;
 import it.dhd.oxygencustomizer.R;
@@ -71,14 +74,14 @@ public class LocationBrowseActivity extends OplusActivity {
     private List<LocationBrowseItem> mLocationBrowseList = new ArrayList<>();
     private LocationListAdapter mAdapter;
     private ExecutorService mExecutorService = Executors.newSingleThreadExecutor();
-    private Handler mHandler = new Handler();
+    private Handler mHandler = new Handler(Looper.getMainLooper());
     private String mQueryString;
-    private String response;
 
     private Runnable mQueryRunnable = new Runnable() {
         @Override
         public void run() {
-            mExecutorService.submit(() -> getLocations(mQueryString));
+            final String query = mQueryString;
+            if (!mExecutorService.isShutdown()) mExecutorService.execute(() -> getLocations(query));
         }
     };
 
@@ -222,13 +225,13 @@ public class LocationBrowseActivity extends OplusActivity {
     }
 
     protected void getLocations(String input) {
-        mLocationBrowseList.clear();
+        List<LocationBrowseItem> results = new ArrayList<>();
 
         try {
             String lang = Locale.getDefault().getLanguage().replaceFirst("_", "-");
             String url = String.format(URL_PLACES, Uri.encode(input.trim()), lang);
-            getResponse(url);
-            if (response != null) {
+            String response = getResponse(url);
+            if (response != null && !response.isEmpty()) {
                 JSONArray jsonResults = new JSONObject(response).getJSONArray("geonames");
                 int count = jsonResults.length();
                 Log.d(TAG, "URL = " + url + " returning a response of count = " + count);
@@ -250,9 +253,9 @@ public class LocationBrowseActivity extends OplusActivity {
                     double lon = result.getDouble("lng");
 
                     LocationBrowseItem locationItem = new LocationBrowseItem(cityExt, countryId, city, lat, lon);
-                    if (!mLocationBrowseList.contains(locationItem)) {
-                        mLocationBrowseList.add(locationItem);
-                        if (mLocationBrowseList.size() == 5) {
+                    if (!results.contains(locationItem)) {
+                        results.add(locationItem);
+                        if (results.size() == 5) {
                             break;
                         }
                     }
@@ -262,34 +265,40 @@ public class LocationBrowseActivity extends OplusActivity {
             Log.e(TAG, "Received malformed location data input=" + input, e);
         } finally {
             mHandler.post(() -> {
+                if (isFinishing() || isDestroyed() || !input.equals(mQueryString)) return;
+                mLocationBrowseList.clear();
+                mLocationBrowseList.addAll(results);
                 hideProgress();
                 mAdapter.notifyDataSetChanged();
             });
         }
     }
 
-    private void getResponse(String url) {
-        response = "";
+    private String getResponse(String url) {
         CountDownLatch latch = new CountDownLatch(1);
-
+        AtomicReference<String> resultText = new AtomicReference<>("");
         NetworkUtils.asynchronousGetRequest(url, null, result -> {
-            if (!TextUtils.isEmpty(result)) {
-                Log.d(TAG, "Download success " + result);
-                response = result;
-            } else {
-                response = "";
-                Log.d(TAG, "Download failed");
-            }
+            resultText.set(result == null ? "" : result);
             latch.countDown();
         });
 
         try {
-            latch.await(); // Wait until the response is set
+            if (!latch.await(15, TimeUnit.SECONDS)) {
+                Log.w(TAG, "Location lookup timed out");
+                return "";
+            }
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt(); // Restore interrupt status
-            Log.e(TAG, "retrieve interrupted", e);
+            Thread.currentThread().interrupt();
+            return "";
         }
+        return resultText.get();
+    }
 
+    @Override
+    protected void onDestroy() {
+        mHandler.removeCallbacksAndMessages(null);
+        mExecutorService.shutdownNow();
+        super.onDestroy();
     }
 
     private void showProgress() {

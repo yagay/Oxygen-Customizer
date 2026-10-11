@@ -35,6 +35,12 @@ checks = [
         "if (mCategory == null)",
         "intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);",
     ]),
+    (JAVA / "ui/activity/LocationBrowseActivity.java", [
+        "latch.await(15, TimeUnit.SECONDS)",
+        "mExecutorService.shutdownNow();",
+        "!input.equals(mQueryString)",
+        "mLocationBrowseList.addAll(results)",
+    ]),
     (JAVA / "utils/PackageModeParser.java", [
         "public static Map<String, Integer> parse(Set<String> values, int maxMode)",
         "catch (NumberFormatException ignored)",
