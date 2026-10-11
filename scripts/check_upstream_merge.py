@@ -42,9 +42,28 @@ def check() -> None:
     assert_contains(controllers, "instance.mUiStateChangedListeners.add(callback)")
     assert_contains(launcher, "recoveryScheduled.compareAndSet(false, true)")
     assert_contains(launcher, "modsLoaded.compareAndSet(false, true)")
-    assert_contains(overlays, "boolean actualState = isOverlayEnabled(pkgName);")
+    assert_contains(overlays, "Boolean actualState = queryOverlayState(pkgName);")
+    assert_contains(overlays, "if (actualState != null) {")
+    assert_contains(overlays, "return Boolean.FALSE.equals(queryOverlayState(pkgName));")
     assert_contains(overlays, "Prefs.putBoolean(pkgName, actualState);")
 
+    module_constants = "app/src/main/java/it/dhd/oxygencustomizer/utils/ModuleConstants.java"
+    module_util = "app/src/main/java/it/dhd/oxygencustomizer/utils/ModuleUtil.java"
+    fabricated = "app/src/main/java/it/dhd/oxygencustomizer/utils/overlay/FabricatedUtil.java"
+    compiler = "app/src/main/java/it/dhd/oxygencustomizer/utils/overlay/compiler/"
+    assert_contains(module_constants, 'MY_PRODUCT_PERMISSIONS_DIR = MY_PRODUCT_ETC_DIR + "/permissions"')
+    assert_contains(module_util, "${0%/*}")
+    if "${0%%/*}" in read(module_util):
+        raise AssertionError("Generated module scripts must resolve MODDIR from an absolute path")
+    assert_contains(fabricated, "OVERLAY_WRITER.execute(")
+    assert_contains(fabricated, "refreshPostExecScript()")
+    for name in ("OnDemandCompiler.java", "RoundnessCompiler.java", "SettingsIconsCompiler.java"):
+        assert_contains(compiler + name, "OverlayCompileCoordinator.LOCK.lock();")
+        assert_contains(compiler + name, "OverlayCompileCoordinator.LOCK.unlock();")
+    assert_contains(
+        "app/src/main/java/it/dhd/oxygencustomizer/xposed/utils/ExtendedRemotePreferences.java",
+        "getIntFromString(String key, String defaultValue)"
+    )
     assert_contains("app/src/main/assets/xposed_init", "it.dhd.oxygencustomizer.xposed.MainHook")
     assert_contains("app/src/main/AndroidManifest.xml", 'android:name="xposedmodule"')
 
