@@ -95,6 +95,7 @@ public class QsHeaderImage extends ControlledPreferenceFragmentCompat {
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
                     Intent data = result.getData();
+                    if (data == null || data.getData() == null || !isAdded()) return;
                     String path = getRealPath(data);
 
                     if (path != null && moveToOCHiddenDir(path, HEADER_IMAGE_DIR)) {
