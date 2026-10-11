@@ -77,8 +77,9 @@ public class RootUtil {
     }
 
     public static int getKsuVersion() {
-        String ksuVersion = Shell.cmd("ksud -V").exec().getOut().stream()
-                .reduce("", (acc, s) -> acc + s).trim();
+        String ksuVersion = Shell.cmd(
+                "if [ -x /data/adb/ksud ]; then /data/adb/ksud -V; else ksud -V; fi"
+        ).exec().getOut().stream().reduce("", (acc, s) -> acc + s).trim();
 
         Pattern pattern = Pattern.compile("\\b(\\d+)(?=\\.)");
         Matcher matcher = pattern.matcher(ksuVersion);
