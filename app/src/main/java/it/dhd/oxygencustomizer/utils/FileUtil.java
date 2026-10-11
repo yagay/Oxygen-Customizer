@@ -105,51 +105,70 @@ public class FileUtil {
     public static String getRealPath(Object obj) {
         if (obj instanceof Intent) {
             return getRealPathFromURI(((Intent) obj).getData());
-        } else if (obj instanceof Uri) {
-            return getRealPathFromURI((Uri) obj);
-        } else {
-            throw new IllegalArgumentException("Object must be an Intent or Uri");
         }
+        if (obj instanceof Uri) {
+            return getRealPathFromURI((Uri) obj);
+        }
+        return null;
     }
 
     private static String getRealPathFromURI(Uri uri) {
-        File file;
-        try (Cursor returnCursor = getAppContext().getContentResolver()
-                .query(uri, null, null, null, null)) {
-            if (returnCursor == null || !returnCursor.moveToFirst()) return null;
-
-            int nameIndex = returnCursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-            if (nameIndex < 0) return null;
-
-            String name = returnCursor.getString(nameIndex);
-            if (name == null || name.isBlank()) return null;
-
-            file = new File(getAppContext().getFilesDir(), name);
-            try (InputStream inputStream = getAppContext().getContentResolver().openInputStream(uri);
-                 FileOutputStream outputStream = new FileOutputStream(file)) {
-                if (inputStream == null) return null;
-
-                int read;
-                final byte[] buffer = new byte[8192];
-                while ((read = inputStream.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, read);
+        if (uri == null) return null;
+        File temp = null;
+        try {
+            // DISPLAY_NAME belongs to the document provider: never turn it into a file path.
+            String suffix = ".bin";
+            try (Cursor cursor = getAppContext().getContentResolver()
+                    .query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    if (column >= 0) {
+                        String displayName = cursor.getString(column);
+                        if (displayName != null) {
+                            int dot = displayName.lastIndexOf('.');
+                            if (dot >= 0 && dot < displayName.length() - 1) {
+                                String extension = displayName.substring(dot);
+                                if (extension.matches("\\.[A-Za-z0-9]{1,8}")) suffix = extension;
+                            }
+                        }
+                    }
                 }
-                outputStream.flush();
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+
+            temp = File.createTempFile("oc-import-", suffix, getAppContext().getFilesDir());
+            try (InputStream input = getAppContext().getContentResolver().openInputStream(uri);
+                 FileOutputStream output = new FileOutputStream(temp)) {
+                if (input == null) throw new IOException("Unable to open imported document");
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = input.read(buffer)) != -1) {
+                    output.write(buffer, 0, read);
+                }
+                output.flush();
+            }
+            return temp.getAbsolutePath();
+        } catch (Exception error) {
+            Log.e("FileUtil", "Unable to import document", error);
+            if (temp != null && !temp.delete()) {
+                Log.w("FileUtil", "Unable to delete failed document import");
+            }
             return null;
         }
-        return file.getPath();
     }
 
     public static boolean moveToOCHiddenDir(String source, String destination) {
-        return Shell.cmd(
-                new String[]{
-                        "mkdir -p " + Constants.XPOSED_RESOURCE_TEMP_DIR,
-                        "rm -f \"" + destination + "\"",
-                        "mv -f \"" + source + "\" \"" + destination + "\""}
-                ).exec().isSuccess();
+        if (source == null || destination == null || source.isBlank() || destination.isBlank()
+                || source.indexOf('\u0000') >= 0 || destination.indexOf('\u0000') >= 0) {
+            return false;
+        }
+        // Replace only after a successful move: avoid deleting the existing image first.
+        return Shell.cmd("mkdir -p " + shellQuote(Constants.XPOSED_RESOURCE_TEMP_DIR)
+                + " && mv -f -- " + shellQuote(source) + " " + shellQuote(destination))
+                .exec().isSuccess();
+    }
+
+    private static String shellQuote(String path) {
+        return "'" + path.replace("'", "'\\''") + "'";
     }
 
     public static void launchFilePicker(ActivityResultLauncher<Intent> launcher, String type) {

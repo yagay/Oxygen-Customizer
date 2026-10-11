@@ -94,6 +94,9 @@ public class DepthWallpaperFragment extends ControlledPreferenceFragmentCompat {
             result -> {
                 if (result.getResultCode() == RESULT_OK) {
                     Intent data = result.getData();
+                    if (data == null || data.getData() == null || !isAdded()) {
+                        return;
+                    }
                     String path = getRealPath(data);
 
                     String dest = switch (mPick) {
@@ -126,14 +129,17 @@ public class DepthWallpaperFragment extends ControlledPreferenceFragmentCompat {
 
     private void checkAiStatus() {
         mAiStatus = findPreference("DWAIStatus");
+        if (mAiStatus == null || getContext() == null) return;
         mAiStatus.setOnPreferenceClickListener(null);
         if (mPreferences.getString("DWMode", "0").equals("0")) {
-            new BitmapSubjectSegmenter(getActivity()).checkModelAvailability(moduleAvailabilityResponse ->
-                    mAiStatus
-                            .setSummary(
-                                    moduleAvailabilityResponse.areModulesAvailable()
-                                            ? R.string.depth_wallpaper_model_ready
-                                            : R.string.depth_wallpaper_model_not_available));
+            new BitmapSubjectSegmenter(requireContext().getApplicationContext())
+                    .checkModelAvailability(response -> {
+                        if (isAdded() && mAiStatus != null) {
+                            mAiStatus.setSummary(response.areModulesAvailable()
+                                    ? R.string.depth_wallpaper_model_ready
+                                    : R.string.depth_wallpaper_model_not_available);
+                        }
+                    });
             mAiStatus.setJumpEnabled(false);
         } else if (mPreferences.getString("DWMode", "0").equals("2")) {
             mAiStatus.setJumpEnabled(true);
@@ -141,7 +147,11 @@ public class DepthWallpaperFragment extends ControlledPreferenceFragmentCompat {
                 mAiStatus.setSummary(R.string.depth_wallpaper_plugin_installed);
                 mAiStatus.setOnPreferenceClickListener(preference -> {
                     Intent intent = requireContext().getPackageManager().getLaunchIntentForPackage("it.dhd.oxygencustomizer.aiplugin");
-                    startActivity(intent);
+                    if (intent != null) {
+                        startActivity(intent);
+                    } else {
+                        mAiStatus.setSummary(R.string.depth_wallpaper_plugin_not_installed);
+                    }
                     return true;
                 });
             } else {

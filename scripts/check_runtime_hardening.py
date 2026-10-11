@@ -118,6 +118,17 @@ checks = [
         '"OC-UpdateMemcFeatures"',
         "unregisterReceiver(mFeatureReceiver)",
     ]),
+    (JAVA / "utils/FileUtil.java", [
+        'File.createTempFile("oc-import-", suffix, getAppContext().getFilesDir())',
+        '&& mv -f --',
+        'shellQuote(source)',
+        'shellQuote(destination)',
+    ]),
+    (JAVA / "ui/fragments/mods/lockscreen/DepthWallpaperFragment.java", [
+        'data == null || data.getData() == null || !isAdded()',
+        'if (mAiStatus == null || getContext() == null) return;',
+        'if (isAdded() && mAiStatus != null)',
+    ]),
 ]
 
 failures = []
@@ -140,6 +151,13 @@ if compiler.find("try {") > compiler.find(
     "wasEnabled = force && OverlayUtil.isOverlayEnabled(targetOverlay);"
 ):
     failures.append("OnDemandCompiler: snapshot must be inside the lock-protected try")
+
+# The file-import temp name must not originate from an untrusted document provider.
+file_util = (BASE / JAVA / "utils/FileUtil.java").read_text(encoding="utf-8")
+if "new File(getAppContext().getFilesDir(), name)" in file_util:
+    failures.append("FileUtil: unsafe document provider file name")
+if 'rm -f \\"' + ' + destination' in file_util:
+    failures.append("FileUtil: destination removed before a verified move")
 
 # Reject regressions whose syntax can compile but whose behavior is wrong.
 for filename, forbidden in [

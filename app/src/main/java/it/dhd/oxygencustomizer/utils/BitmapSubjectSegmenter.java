@@ -52,35 +52,44 @@ public class BitmapSubjectSegmenter {
     }
 
     public void downloadModelIfNeeded() {
-
-        ModuleInstallClient moduleInstallClient = ModuleInstall.getClient(mContext);
-
-        moduleInstallClient
-                .areModulesAvailable(mSegmenter)
-                .addOnSuccessListener(
-                        response -> {
-                            if (!response.areModulesAvailable()) {
-                                moduleInstallClient
-                                        .installModules(
-                                                ModuleInstallRequest.newBuilder()
-                                                        .addApi(mSegmenter)
-                                                        .build());
-                            }
-                        });
-    }
-
-    public void checkModelAvailability(OnSuccessListener<ModuleAvailabilityResponse> resultListener) {
-
         if (mSegmenter == null) {
-            resultListener.onSuccess(new ModuleAvailabilityResponse(false, 0));
+            Log.w("BitmapSubjectSegmenter", "Model installation skipped: segmenter unavailable");
             return;
         }
+        try {
+            ModuleInstallClient client = ModuleInstall.getClient(mContext);
+            client.areModulesAvailable(mSegmenter)
+                    .addOnSuccessListener(availability -> {
+                        if (!availability.areModulesAvailable()) {
+                            client.installModules(ModuleInstallRequest.newBuilder()
+                                            .addApi(mSegmenter).build())
+                                    .addOnFailureListener(error ->
+                                            Log.e("BitmapSubjectSegmenter", "Model download failed", error));
+                        }
+                    })
+                    .addOnFailureListener(error ->
+                            Log.e("BitmapSubjectSegmenter", "Model availability query failed", error));
+        } catch (RuntimeException error) {
+            Log.e("BitmapSubjectSegmenter", "Model installer could not start", error);
+        }
+    }
 
-        ModuleInstallClient moduleInstallClient = ModuleInstall.getClient(mContext);
-        moduleInstallClient.areModulesAvailable(mSegmenter).addOnSuccessListener(resultListener).addOnFailureListener(e -> {
-            Log.e("BitmapSubjectSegmenter", "checkModelAvailability failed", e);
-            resultListener.onSuccess(new ModuleAvailabilityResponse(false, 0));
-        });
+    public void checkModelAvailability(OnSuccessListener<ModuleAvailabilityResponse> listener) {
+        if (mSegmenter == null) {
+            listener.onSuccess(new ModuleAvailabilityResponse(false, 0));
+            return;
+        }
+        try {
+            ModuleInstall.getClient(mContext).areModulesAvailable(mSegmenter)
+                    .addOnSuccessListener(listener)
+                    .addOnFailureListener(error -> {
+                        Log.e("BitmapSubjectSegmenter", "Model availability check failed", error);
+                        listener.onSuccess(new ModuleAvailabilityResponse(false, 0));
+                    });
+        } catch (RuntimeException failure) {
+            Log.e("BitmapSubjectSegmenter", "Model availability check could not start", failure);
+            listener.onSuccess(new ModuleAvailabilityResponse(false, 0));
+        }
     }
 
     public void segmentSubject(Bitmap inputBitmap, SegmentResultListener listener) {
