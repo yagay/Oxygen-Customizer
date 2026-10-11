@@ -35,6 +35,7 @@ import it.dhd.oxygencustomizer.utils.overlay.OverlayUtil;
 public class PrefManager {
     private static final String TAG = "Pref Exporter";
     private static final int SCHEMA_VERSION = 2;
+    private static final int MAX_BACKUP_BYTES = 8 * 1024 * 1024;
 
     @SuppressWarnings("UnusedReturnValue")
     public static boolean exportPrefs(SharedPreferences preferences,
@@ -106,6 +107,9 @@ public class PrefManager {
             byte[] chunk = new byte[8192];
             int read;
             while ((read = source.read(chunk)) != -1) {
+                if (buffer.size() + read > MAX_BACKUP_BYTES) {
+                    throw new IOException("Preference backup exceeds 8 MiB limit");
+                }
                 buffer.write(chunk, 0, read);
             }
             data = buffer.toByteArray();
@@ -144,6 +148,7 @@ public class PrefManager {
         }
 
         String internalToken = getOrCreateInternalBroadcastToken(sharedPreferences);
+        Map<String, Boolean> overlaysToApply = new HashMap<>();
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.clear();
         editor.putString(
@@ -154,6 +159,7 @@ public class PrefManager {
         Iterator<String> keys = values.keys();
         while (keys.hasNext()) {
             String key = keys.next();
+            if (Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN.equals(key)) continue;
             JSONObject item = values.getJSONObject(key);
             String type = item.getString("type");
 
@@ -161,7 +167,7 @@ public class PrefManager {
                 case "boolean" -> {
                     boolean value = item.getBoolean("value");
                     editor.putBoolean(key, value);
-                    maybeEnableOverlay(key, value);
+                    if (value && key.contains("overlay")) overlaysToApply.put(key, true);
                 }
                 case "string" -> editor.putString(key, item.getString("value"));
                 case "int" -> editor.putInt(key, item.getInt("value"));
@@ -178,7 +184,9 @@ public class PrefManager {
                 default -> Log.w(TAG, "Skipping unknown preference type " + type + " for " + key);
             }
         }
-        return editor.commit();
+        if (!editor.commit()) return false;
+        applyRestoredOverlays(overlaysToApply);
+        return true;
     }
 
     private static boolean isLegacySerializedStream(byte[] data) {
@@ -246,6 +254,7 @@ public class PrefManager {
     private static boolean applyLegacyMap(SharedPreferences sharedPreferences,
                                           Map<String, Object> map) {
         String internalToken = getOrCreateInternalBroadcastToken(sharedPreferences);
+        Map<String, Boolean> overlaysToApply = new HashMap<>();
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.clear();
         editor.putString(
@@ -260,7 +269,9 @@ public class PrefManager {
             Object value = entry.getValue();
             if (value instanceof Boolean) {
                 editor.putBoolean(entry.getKey(), (Boolean) value);
-                maybeEnableOverlay(entry.getKey(), (Boolean) value);
+                if ((Boolean) value && entry.getKey().contains("overlay")) {
+                    overlaysToApply.put(entry.getKey(), true);
+                }
             } else if (value instanceof String) {
                 editor.putString(entry.getKey(), (String) value);
             } else if (value instanceof Integer) {
@@ -273,7 +284,19 @@ public class PrefManager {
                 editor.putStringSet(entry.getKey(), (Set<String>) value);
             }
         }
-        return editor.commit();
+        if (!editor.commit()) return false;
+        applyRestoredOverlays(overlaysToApply);
+        return true;
+    }
+
+    private static void applyRestoredOverlays(Map<String, Boolean> overlays) {
+        for (String key : overlays.keySet()) {
+            try {
+                maybeEnableOverlay(key, true);
+            } catch (Throwable failure) {
+                Log.e(TAG, "Failed to restore overlay: " + key, failure);
+            }
+        }
     }
 
     private static void maybeEnableOverlay(String key, boolean value) {
