@@ -443,7 +443,7 @@ public class QsTileCustomization extends XposedMods {
                 "com.oplus.systemui.qs.tileimpl.OplusQSTileViewImpl" /* OOS15 */,
                 "com.oplus.systemui.qs.qstileimpl.OplusQSTileView" /* OOS14 */,
                 "com.oplusos.systemui.qs.qstileimpl.OplusQSTileView" /* OOS13 */);
-        if (OplusQSTileView == null) {
+        if (OplusQSTileView.getClazz() == null) {
             log(new Throwable("OplusQSTileView not found"));
         }
 
@@ -691,7 +691,8 @@ public class QsTileCustomization extends XposedMods {
                 .before("getBgOutlineProvider")
                 .run(param -> {
                     if (!customHighlightTileRadius) return;
-                    param.setResult(getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius)));
+                    Object outline = getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius));
+                    if (outline != null) param.setResult(outline);
                 });
         ReflectedClass OplusQSHighlightTileViewImpl = ReflectedClass.of(
                 "com.oplus.systemui.qs.tileimpl.OplusQSHighlightTileViewImpl", // OOS 16
@@ -700,18 +701,20 @@ public class QsTileCustomization extends XposedMods {
                 .before("getOutlineProviderForHighlightTile")
                 .run(param -> {
                     if (!customHighlightTileRadius) return;
-                    param.setResult(getTileOutlineTest((View) param.args[0], dp2px(mContext, highlightTileRadius)));
+                    Object outline = getTileOutlineTest((View) param.args[0], dp2px(mContext, highlightTileRadius));
+                    if (outline != null) param.setResult(outline);
                 });
         QsViewOutlineProviderKtClz
                 .before("getOutlineProviderForHighlightTile")
                 .run(param -> {
                     if (!customHighlightTileRadius) return;
-                    param.setResult(getTileOutlineTest((View) param.args[0], dp2px(mContext, highlightTileRadius)));
+                    Object outline = getTileOutlineTest((View) param.args[0], dp2px(mContext, highlightTileRadius));
+                    if (outline != null) param.setResult(outline);
                 });
         OplusQSHighlightTileView
                 .after("onShapeChanged")
                 .run(param -> {
-                    callMethod(getObjectField(param.thisObject, "getBgOutlineProvider"), "invalidateOutline");
+                    if (param.thisObject instanceof View tile) tile.invalidateOutline();
                 });
 
         // Base Classic
@@ -745,13 +748,15 @@ public class QsTileCustomization extends XposedMods {
                 .before("getBgOutlineProvider")
                 .run(param -> {
                     if (!customTileRadius) return;
-                    param.setResult(getTileOutlineTest((View) param.thisObject, dp2px(mContext, tileRadius)));
+                    Object outline = getTileOutlineTest((View) param.thisObject, dp2px(mContext, tileRadius));
+                    if (outline != null) param.setResult(outline);
                 });
         QsViewOutlineProviderKtClz
                 .before("getTileViewOutlineProvider")
                 .run(param -> {
                     if (!customTileRadius) return;
-                    param.setResult(getTileOutlineTest((View) param.args[0], dp2px(mContext, tileRadius)));
+                    Object outline = getTileOutlineTest((View) param.args[0], dp2px(mContext, tileRadius));
+                    if (outline != null) param.setResult(outline);
                 });
 
 
@@ -775,13 +780,15 @@ public class QsTileCustomization extends XposedMods {
 //                .before("getBgOutlineProvider")
 //                .run(param -> {
 //                    if (!customHighlightTileRadius) return;
-//                    param.setResult(getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius)));
+//                    Object outline = getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius));
+//                    if (outline != null) param.setResult(outline);
 //                });
 //        OplusQSResizeableTileViewTwoXOne
 //                .before("createBgOutlineProvider")
 //                .run(param -> {
 //                    if (!customHighlightTileRadius) return;
-//                    param.setResult(getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius)));
+//                    Object outline = getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius));
+//                    if (outline != null) param.setResult(outline);
 //                });
         ReflectedClass OplusQSHighlightPluginTileView = ReflectedClass.ofIfPossible("com.oplus.systemui.plugins.qs.tile.OplusQSHighlightTileViewImpl");
         OplusQSHighlightPluginTileView
@@ -799,7 +806,8 @@ public class QsTileCustomization extends XposedMods {
                 .before("getBgOutlineProvider")
                 .run(param -> {
                     if (!customHighlightTileRadius) return;
-                    param.setResult(getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius)));
+                    Object outline = getTileOutlineTest((View) param.thisObject, dp2px(mContext, highlightTileRadius));
+                    if (outline != null) param.setResult(outline);
                 });
 
         // Highlight icon background
@@ -878,7 +886,8 @@ public class QsTileCustomization extends XposedMods {
                 .run(param -> {
                     if (!customMediaTileRadius) return;
                     try {
-                        param.setResult(getTileOutlineTest((View) param.thisObject, dp2px(mContext, mediaTileRadius)));
+                        Object outline = getTileOutlineTest((View) param.thisObject, dp2px(mContext, mediaTileRadius));
+                    if (outline != null) param.setResult(outline);
                     } catch (Throwable ignored) {
                     } // 16.0.10
                 });
@@ -1085,7 +1094,10 @@ public class QsTileCustomization extends XposedMods {
                     if (mQsWidgetsEnabled) return;
                     mOplusQsMediaDefaultBackground = mOplusQsMediaView.getBackground();
                     if (mOplusQsMediaDefaultBackground != null) {
-                        mOplusQsMediaDrawable = mOplusQsMediaDefaultBackground.getConstantState().newDrawable().mutate();
+                        Drawable.ConstantState state = mOplusQsMediaDefaultBackground.getConstantState();
+                        mOplusQsMediaDrawable = state != null
+                                ? state.newDrawable().mutate()
+                                : mOplusQsMediaDefaultBackground.mutate();
                     }
                     if (Build.VERSION.SDK_INT < 35) {
                         if (qsCustomMediaTileColor) {

@@ -298,23 +298,25 @@ public class DepthWallpaper extends XposedMods {
                                 log("cacheIsValid " + cacheIsValid);
 
                                 if (!cacheIsValid) {
-                                    XPLauncher.enqueueProxyCommand(proxy -> {
-                                        if (DWMode == 0) {
-                                            proxy.extractSubject(finalScaledWallpaperBitmap, getLockScreenSubjectCachePath());
-                                        } else if (DWMode == 2) {
-                                            try {
-                                                Intent intent = new Intent(ACTION_EXTRACT_SUBJECT);
-                                                intent.setComponent(new ComponentName("it.dhd.oxygencustomizer.aiplugin", "it.dhd.oxygencustomizer.aiplugin.receivers.SubjectExtractionReceiver"));
-                                                intent.putExtra("sourcePath", getLockScreenBitmapCachePath());
-                                                intent.putExtra("destinationPath", getLockScreenSubjectCachePath());
-                                                intent.setPackage(mContext.getPackageName());
-                                                intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-                                                mContext.sendBroadcast(intent);
-                                            } catch (Throwable t) {
-                                                log(t);
-                                            }
+                                    if (DWMode == 0) {
+                                        // Root service is necessary only for built-in segmentation.
+                                        XPLauncher.enqueueProxyCommand(proxy ->
+                                                proxy.extractSubject(finalScaledWallpaperBitmap, getLockScreenSubjectCachePath()));
+                                    } else if (DWMode == 2) {
+                                        // AI plugin IPC is a broadcast; it must not wait for Root.
+                                        try {
+                                            Intent intent = new Intent(ACTION_EXTRACT_SUBJECT);
+                                            intent.setComponent(new ComponentName(
+                                                    "it.dhd.oxygencustomizer.aiplugin",
+                                                    "it.dhd.oxygencustomizer.aiplugin.receivers.SubjectExtractionReceiver"));
+                                            intent.putExtra("sourcePath", getLockScreenBitmapCachePath());
+                                            intent.putExtra("destinationPath", getLockScreenSubjectCachePath());
+                                            intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+                                            mContext.sendBroadcast(intent);
+                                        } catch (Throwable failure) {
+                                            log(failure);
                                         }
-                                    });
+                                    }
                                 }
                             }
                         }

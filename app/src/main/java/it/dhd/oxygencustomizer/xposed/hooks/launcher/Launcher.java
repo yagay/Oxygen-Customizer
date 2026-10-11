@@ -344,7 +344,7 @@ public class Launcher extends XposedMods {
             OplusFastScrollLayoutClass
                     .afterConstruction()
                     .run(param -> {
-                        if (param.getClass().getSimpleName().contains("LetterIndexFastScrollHelper")) { // OOS13
+                        if (param.thisObject.getClass().getSimpleName().contains("LetterIndexFastScrollHelper")) { // OOS13
                             OplusFastScroll = (View) getObjectField(param.thisObject, "mFastScroll");
                         } else {
                             OplusFastScroll = (View) param.thisObject;
