@@ -14,6 +14,9 @@ import static it.dhd.oxygencustomizer.xposed.XPrefs.Xprefs;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.os.Build;
+import it.dhd.oxygencustomizer.BuildConfig;
+import java.util.concurrent.atomic.AtomicBoolean;
+import de.robv.android.xposed.XposedBridge;
 
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.Constants;
@@ -37,6 +40,9 @@ public class QSTiles extends XposedMods {
     private static int QSColQtyL = QS_COL_NOT_SET;
 
     private boolean mCustomizeQSTiles = false;
+    private final AtomicBoolean aospGridSeen = new AtomicBoolean(false);
+    private final AtomicBoolean oplusGridSeen = new AtomicBoolean(false);
+    private final AtomicBoolean calculatorSeen = new AtomicBoolean(false);
 
     public QSTiles(Context context) {
         super(context);
@@ -65,6 +71,9 @@ public class QSTiles extends XposedMods {
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
         if (!listenPackage.equals(lpparam.packageName)) return;
 
+        XposedBridge.log("[OC-QSGrid] init: enabled=" + mCustomizeQSTiles
+                + " rows=" + QSRowQty + " portraitColumns=" + QSColQty
+                + " landscapeColumns=" + QSColQtyL + " sdk=" + Build.VERSION.SDK_INT);
         ReflectedClass QuickQSPanel = ReflectedClass.ofIfPossible("com.android.systemui.qs.QuickQSPanel");
         QuickQSPanel
                 .before("getNumQuickTiles")
@@ -82,6 +91,7 @@ public class QSTiles extends XposedMods {
                             mContext.getResources().getConfiguration().orientation == Configuration.ORIENTATION_LANDSCAPE)
                         return;
 
+                    if (aospGridSeen.compareAndSet(false, true)) XposedBridge.log("[OC-QSGrid] AOSP TileLayout active");
                     int mRows = getIntField(param.thisObject, "mRows");
                     setIntField(param.thisObject, "mRows", QSRowQty);
                     param.setResult(mRows != QSRowQty);
@@ -108,6 +118,7 @@ public class QSTiles extends XposedMods {
                     "com.oplus.systemui.plugins.qs.tile.OplusTileContainerView");
             oplusContainer.before("updateCell").run(param -> {
                 if (!mCustomizeQSTiles) return;
+                if (oplusGridSeen.compareAndSet(false, true)) XposedBridge.log("[OC-QSGrid] OPlus updateCell active: " + param.thisObject.getClass().getName());
                 applyOplusGridSize(param.thisObject);
             });
             oplusContainer.after("updateCell").run(param -> {
@@ -119,6 +130,7 @@ public class QSTiles extends XposedMods {
                     "com.oplus.systemui.plugins.qs.DeviceProfile$DefaultCellCalculator");
             calculator.before("getMaxItemNum").run(param -> {
                 if (!mCustomizeQSTiles) return;
+                if (calculatorSeen.compareAndSet(false, true)) XposedBridge.log("[OC-QSGrid] OPlus getMaxItemNum active");
                 int columns = mContext.getResources().getConfiguration().orientation
                         == Configuration.ORIENTATION_LANDSCAPE ? QSColQtyL : QSColQty;
                 param.setResult(Math.max(1, QSRowQty) * Math.max(1, columns));
@@ -139,6 +151,8 @@ public class QSTiles extends XposedMods {
     private static void setGridFieldIfPresent(Object target, String fieldName, int value) {
         if (findFieldIfExists(target.getClass(), fieldName) != null) {
             setIntField(target, fieldName, value);
+        } else if (BuildConfig.DEBUG) {
+            XposedBridge.log("[OC-QSGrid] missing field " + target.getClass().getName() + "." + fieldName);
         }
     }
 
