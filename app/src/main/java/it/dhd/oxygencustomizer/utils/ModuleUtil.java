@@ -279,6 +279,99 @@ public class ModuleUtil {
     }
 
     /**
+     * Write a group of Root-owned text files as a single recoverable change.
+     * Every previous file is snapshotted before the first replacement.
+     * Missing originals are restored by removing the newly created file.
+     * A failed rollback retains backups instead of destroying recovery data.
+     */
+    public static void writeRootTextFilesAtomically(Map<String, String> files) {
+        if (files == null || files.isEmpty()) {
+            throw new IllegalArgumentException("No Root text files to write");
+        }
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
+            List<String> paths = new ArrayList<>(files.keySet());
+            List<Boolean> previouslyPresent = new ArrayList<>();
+            for (String path : paths) {
+                if (path == null || !path.startsWith("/data/") || path.indexOf('\0') >= 0
+                        || files.get(path) == null) {
+                    throw new IllegalArgumentException("Unsafe Root text file transaction");
+                }
+                String backup = path + ".oc-txn";
+                if (!Shell.cmd("test ! -e " + shellQuote(backup)
+                        + " && test ! -L " + shellQuote(backup)).exec().isSuccess()) {
+                    throw new IllegalStateException("Unresolved Root rollback snapshot: " + backup);
+                }
+                if (Shell.cmd("test -L " + shellQuote(path)).exec().isSuccess()) {
+                    throw new IllegalStateException("Refusing symlink Root write: " + path);
+                }
+            }
+            try {
+                for (String path : paths) {
+                    boolean exists = Shell.cmd("test -e " + shellQuote(path)).exec().isSuccess();
+                    previouslyPresent.add(exists);
+                    if (exists) {
+                        Shell.Result saved = Shell.cmd("cp -p -- " + shellQuote(path)
+                                + " " + shellQuote(path + ".oc-txn")).exec();
+                        if (!saved.isSuccess()) {
+                            throw new IllegalStateException("Cannot snapshot Root file: " + path);
+                        }
+                    }
+                }
+            } catch (RuntimeException | Error failure) {
+                // No production file was changed before all snapshots succeeded.
+                for (String path : paths) {
+                    Shell.cmd("rm -f -- " + shellQuote(path + ".oc-txn")).exec();
+                }
+                throw failure;
+            }
+            boolean backupsMayBeDeleted = false;
+            try {
+                for (int i = 0; i < paths.size(); i++) {
+                    String path = paths.get(i);
+                    String staging = path + ".oc-write";
+                    String prepare = previouslyPresent.get(i)
+                            ? "cp -p -- " + shellQuote(path) + " " + shellQuote(staging) + " && "
+                            : "";
+                    Shell.Result written = Shell.cmd(
+                            "rm -f -- " + shellQuote(staging) + " && "
+                            + prepare + "printf %s " + shellQuote(files.get(path))
+                            + " > " + shellQuote(staging) + " && mv -f -- "
+                            + shellQuote(staging) + " " + shellQuote(path)).exec();
+                    if (!written.isSuccess()) {
+                        throw new IllegalStateException("Cannot replace Root file: " + path
+                                + ", " + written.getErr());
+                    }
+                }
+                backupsMayBeDeleted = true;
+            } catch (RuntimeException | Error failure) {
+                boolean restored = true;
+                for (int i = 0; i < paths.size(); i++) {
+                    String path = paths.get(i);
+                    Shell.Result recovery = Shell.cmd(previouslyPresent.get(i)
+                            ? "cp -p -- " + shellQuote(path + ".oc-txn") + " " + shellQuote(path)
+                            : "rm -f -- " + shellQuote(path)).exec();
+                    if (!recovery.isSuccess()) {
+                        restored = false;
+                        Log.e(TAG, "Root file rollback failed: " + path + ", " + recovery.getErr());
+                    }
+                }
+                backupsMayBeDeleted = restored;
+                throw failure;
+            } finally {
+                for (String path : paths) {
+                    Shell.cmd("rm -f -- " + shellQuote(path + ".oc-write")).exec();
+                    if (backupsMayBeDeleted) {
+                        Shell.cmd("rm -f -- " + shellQuote(path + ".oc-txn")).exec();
+                    }
+                }
+            }
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
+        }
+    }
+
+    /**
      * Root XML writers share the overlay/module lock and retain snapshots when rollback
      * fails. Do not overwrite an unresolved recovery snapshot on a later attempt.
      */
