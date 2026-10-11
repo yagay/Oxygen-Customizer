@@ -97,16 +97,16 @@ public class AodEdgeLight extends XposedMods {
     @Override
     public void updatePrefs(String... Key) {
         mEdgeLightEnabled = Xprefs.getBoolean(EDGE_LIGHT_ENABLED, false);
-        mEdgeLightStyle = Integer.parseInt(Xprefs.getString(EDGE_LIGHT_STYLE, "0"));
+        mEdgeLightStyle = Xprefs.getIntFromString(EDGE_LIGHT_STYLE, "0");
         mEdgeLightWidth = Xprefs.getSliderFloat(EDGE_LIGHT_WIDTH, 20f);
-        mEdgeLightColorMode = getColorMode(Integer.parseInt(Xprefs.getString(EDGE_LIGHT_COLOR_MODE, "0")));
+        mEdgeLightColorMode = getColorMode(Xprefs.getIntFromString(EDGE_LIGHT_COLOR_MODE, "0"));
         mAlwaysTriggerOnPulse = Xprefs.getBoolean(EDGE_LIGHT_ALWAYS_TRIGGER_ON_PULSE, false);
         mRetick = Xprefs.getBoolean(EDGE_LIGHT_RETICK, false);
-        mRetickDuration = getRetickerDuration(Integer.parseInt(Xprefs.getString(EDGE_LIGHT_RETICK_DURATION, "0")));
+        mRetickDuration = getRetickerDuration(Xprefs.getIntFromString(EDGE_LIGHT_RETICK_DURATION, "0"));
         mEdgeLightCustomColor = Xprefs.getInt(EDGE_LIGHT_CUSTOM_COLOR, Color.RED);
         mEdgeDrawBlur = Xprefs.getBoolean(EDGE_LIGHT_DRAW_BLUR, false);
-        mEdgeBlurType = Integer.parseInt(Xprefs.getString(EDGE_LIGHT_BLUR_TYPE, "0"));
-        mEdgeBlurMode = Integer.parseInt(Xprefs.getString(EDGE_LIGHT_BLUR_MODE, "0"));
+        mEdgeBlurType = Xprefs.getIntFromString(EDGE_LIGHT_BLUR_TYPE, "0");
+        mEdgeBlurMode = Xprefs.getIntFromString(EDGE_LIGHT_BLUR_MODE, "0");
 
         refreshEdgeLight();
     }
