@@ -17,6 +17,27 @@ public class ExtendedRemotePreferences extends RemotePreferences {
         super(context, authority, prefFileName, strictMode);
     }
 
+    /**
+     * A restored backup or an older UI can contain an invalid choice value.
+     * Never let a single malformed integer disable an entire SystemUI Hook pack.
+     */
+    public int getIntFromString(String key, String defaultValue) {
+        int fallback;
+        try {
+            fallback = Integer.parseInt(defaultValue);
+        } catch (NumberFormatException ignored) {
+            fallback = 0;
+        }
+        try {
+            String value = getString(key, defaultValue);
+            return Integer.parseInt(value);
+        } catch (NumberFormatException | ClassCastException invalid) {
+            android.util.Log.w("OC-PreferenceParse", "Invalid integer preference: " + key
+                    + "; falling back to " + fallback, invalid);
+            return fallback;
+        }
+    }
+
     public int getSliderInt(String key, int defaultVal) {
         return OplusSliderPreference.getSingleIntValue(this, key, defaultVal);
     }
