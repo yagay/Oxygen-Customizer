@@ -7,6 +7,9 @@ import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getOverlayForCom
 import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getStringFromOverlay;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -85,26 +88,46 @@ public class IconPacks extends BaseFragment {
     private final IconsAdapter.OnButtonClick onButtonClick = new IconsAdapter.OnButtonClick() {
         @Override
         public void onEnableClick(int position, IconModel item) {
-            disableAllIcons(position);
-            OverlayUtil.enableOverlayExclusiveInCategory(item.getPackageName());
-            checkOverlayEnabledAndEnable("SGIC");
-            checkOverlayEnabledAndEnable("WIFI");
+            final String selected = item.getPackageName();
+            OverlayUtil.executeOverlayBatch(() -> {
+                // Exclusive enablement can disable previously active signal/WiFi
+                // icon packages; preserve and restore their real prior state.
+                List<String> previouslyEnabled = OverlayUtil.getEnabledOverlayList();
+                boolean success = OverlayUtil.applyOverlayStateNow(selected, true, true);
+                if (success) {
+                    for (String pkg : previouslyEnabled) {
+                        if (pkg.startsWith("OxygenCustomizerComponentSGIC")
+                                || pkg.startsWith("OxygenCustomizerComponentWIFI")) {
+                            success &= OverlayUtil.applyOverlayStateNow(pkg, true, false);
+                        }
+                    }
+                }
+                refreshVisibleIcons(success);
+            });
         }
 
         @Override
         public void onDisableClick(int position, IconModel item) {
-            Prefs.putBoolean(iconPacks.get(position).getPackageName(), false);
-            OverlayUtil.disableOverlay(iconPacks.get(position).getPackageName());
-            iconPacks.get(position).setEnabled(false);
+            OverlayUtil.executeOverlayBatch(() -> {
+                boolean success = OverlayUtil.applyOverlayStateNow(item.getPackageName(), false, false);
+                refreshVisibleIcons(success);
+            });
         }
     };
 
-    private void disableAllIcons(int position) {
-        for (int i=0; i<iconPacks.size(); i++) {
-            Prefs.putBoolean(iconPacks.get(i).getPackageName(), i == position);
-            iconPacks.get(i).setEnabled(i == position);
-            disableOverlay(iconPacks.get(i).getPackageName());
+    private void refreshVisibleIcons(boolean operationSucceeded) {
+        final boolean[] enabled = new boolean[iconPacks.size()];
+        for (int i = 0; i < iconPacks.size(); i++) {
+            enabled[i] = OverlayUtil.isOverlayEnabled(iconPacks.get(i).getPackageName());
         }
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (!isAdded() || binding == null) return;
+            for (int i = 0; i < enabled.length; i++) iconPacks.get(i).setEnabled(enabled[i]);
+            if (binding.recyclerViewFragment.getAdapter() != null)
+                binding.recyclerViewFragment.getAdapter().notifyDataSetChanged();
+            if (!operationSucceeded)
+                Toast.makeText(requireContext(), R.string.toast_error, Toast.LENGTH_SHORT).show();
+        });
     }
 
 }

@@ -5,6 +5,9 @@ import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getOverlayForCom
 import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getStringFromOverlay;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -69,21 +72,48 @@ public class SignalIcons extends BaseFragment {
     private final IconsAdapter.OnButtonClick onButtonClick = new IconsAdapter.OnButtonClick() {
         @Override
         public void onEnableClick(int position, IconModel item) {
-            for (int i = 0; i <= signalIcons.size()-1; i++) {
-                signalIcons.get(i).setEnabled(i == position);
-                OverlayUtil.disableOverlay(signalIcons.get(i).getPackageName());
-            }
-            OverlayUtil.enableOverlay("OxygenCustomizerComponentCOMMONSGIC.overlay");
-            OverlayUtil.enableOverlay(item.getPackageName());
+            final String selected = item.getPackageName();
+            OverlayUtil.executeOverlayBatch(() -> {
+                boolean success = true;
+                for (IconModel choice : signalIcons) {
+                    success &= OverlayUtil.applyOverlayStateNow(choice.getPackageName(), false, false);
+                }
+                success &= OverlayUtil.applyOverlayStateNow(
+                        "OxygenCustomizerComponentCOMMONSGIC.overlay", true, false);
+                success &= OverlayUtil.applyOverlayStateNow(selected, true, false);
+                refreshVisibleIcons(success);
+            });
         }
 
         @Override
         public void onDisableClick(int position, IconModel item) {
-            item.setEnabled(false);
-            OverlayUtil.disableOverlay("OxygenCustomizerComponentCOMMONSGIC.overlay");
-            OverlayUtil.disableOverlay(item.getPackageName());
+            OverlayUtil.executeOverlayBatch(() -> {
+                boolean success = OverlayUtil.applyOverlayStateNow(item.getPackageName(), false, false);
+                boolean anyEnabled = false;
+                for (IconModel choice : signalIcons) {
+                    anyEnabled |= OverlayUtil.isOverlayEnabled(choice.getPackageName());
+                }
+                if (!anyEnabled) success &= OverlayUtil.applyOverlayStateNow(
+                        "OxygenCustomizerComponentCOMMONSGIC.overlay", false, false);
+                refreshVisibleIcons(success);
+            });
         }
     };
+
+    private void refreshVisibleIcons(boolean succeeded) {
+        boolean[] states = new boolean[signalIcons.size()];
+        for (int i = 0; i < signalIcons.size(); i++) {
+            states[i] = OverlayUtil.isOverlayEnabled(signalIcons.get(i).getPackageName());
+        }
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (!isAdded() || binding == null) return;
+            for (int i = 0; i < states.length; i++) signalIcons.get(i).setEnabled(states[i]);
+            if (binding.recyclerViewFragment.getAdapter() != null)
+                binding.recyclerViewFragment.getAdapter().notifyDataSetChanged();
+            if (!succeeded) Toast.makeText(requireContext(), R.string.toast_error,
+                    Toast.LENGTH_SHORT).show();
+        });
+    }
 
     @Override
     public void onDestroy() {

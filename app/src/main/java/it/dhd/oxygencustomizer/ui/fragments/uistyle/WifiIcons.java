@@ -5,6 +5,9 @@ import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getOverlayForCom
 import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getStringFromOverlay;
 
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -68,21 +71,48 @@ public class WifiIcons extends BaseFragment {
     private final IconsAdapter.OnButtonClick onButtonClick = new IconsAdapter.OnButtonClick() {
         @Override
         public void onEnableClick(int position, IconModel item) {
-            for (int i = 0; i <= wifiIcons.size()-1; i++) {
-                wifiIcons.get(i).setEnabled(i == position);
-                OverlayUtil.disableOverlay(wifiIcons.get(i).getPackageName());
-            }
-            OverlayUtil.enableOverlay("OxygenCustomizerComponentCOMMONWIFI.overlay");
-            OverlayUtil.enableOverlay(item.getPackageName());
+            final String selected = item.getPackageName();
+            OverlayUtil.executeOverlayBatch(() -> {
+                boolean success = true;
+                for (IconModel choice : wifiIcons) {
+                    success &= OverlayUtil.applyOverlayStateNow(choice.getPackageName(), false, false);
+                }
+                success &= OverlayUtil.applyOverlayStateNow(
+                        "OxygenCustomizerComponentCOMMONWIFI.overlay", true, false);
+                success &= OverlayUtil.applyOverlayStateNow(selected, true, false);
+                refreshVisibleIcons(success);
+            });
         }
 
         @Override
         public void onDisableClick(int position, IconModel item) {
-            item.setEnabled(false);
-            OverlayUtil.disableOverlay("OxygenCustomizerComponentCOMMONWIFI.overlay");
-            OverlayUtil.disableOverlay(item.getPackageName());
+            OverlayUtil.executeOverlayBatch(() -> {
+                boolean success = OverlayUtil.applyOverlayStateNow(item.getPackageName(), false, false);
+                boolean anyEnabled = false;
+                for (IconModel choice : wifiIcons) {
+                    anyEnabled |= OverlayUtil.isOverlayEnabled(choice.getPackageName());
+                }
+                if (!anyEnabled) success &= OverlayUtil.applyOverlayStateNow(
+                        "OxygenCustomizerComponentCOMMONWIFI.overlay", false, false);
+                refreshVisibleIcons(success);
+            });
         }
     };
+
+    private void refreshVisibleIcons(boolean succeeded) {
+        boolean[] states = new boolean[wifiIcons.size()];
+        for (int i = 0; i < wifiIcons.size(); i++) {
+            states[i] = OverlayUtil.isOverlayEnabled(wifiIcons.get(i).getPackageName());
+        }
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (!isAdded() || binding == null) return;
+            for (int i = 0; i < states.length; i++) wifiIcons.get(i).setEnabled(states[i]);
+            if (binding.recyclerViewFragment.getAdapter() != null)
+                binding.recyclerViewFragment.getAdapter().notifyDataSetChanged();
+            if (!succeeded) Toast.makeText(requireContext(), R.string.toast_error,
+                    Toast.LENGTH_SHORT).show();
+        });
+    }
 
     @Override
     public void onDestroy() {
