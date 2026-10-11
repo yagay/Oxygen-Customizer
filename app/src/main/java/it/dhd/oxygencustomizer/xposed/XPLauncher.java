@@ -50,6 +50,7 @@ public class XPLauncher implements ServiceConnection {
     private static final AtomicBoolean bindInProgress = new AtomicBoolean(false);
     // Context hooks can fire more than once; installing a pack twice corrupts UI state.
     private final AtomicBoolean modsLoaded = new AtomicBoolean(false);
+    private final AtomicBoolean loadingMods = new AtomicBoolean(false);
     private final AtomicBoolean recoveryScheduled = new AtomicBoolean(false);
     private static final int XPREFS_LOAD_RETRIES = 20;
     private static final long XPREFS_LOAD_RETRY_DELAY_MS = 100;
@@ -125,15 +126,23 @@ public class XPLauncher implements ServiceConnection {
     }
 
     private void onXPrefsReady(XC_LoadPackage.LoadPackageParam lpparam) {
-        if (!modsLoaded.compareAndSet(false, true)) return;
-        if (isBootLooped(lpparam.packageName)) {
-            log(String.format("Oxygen Customizer: Possible bootloop in %s. Will not load for now", lpparam.packageName));
-            return;
+        if (modsLoaded.get() || !loadingMods.compareAndSet(false, true)) return;
+        try {
+            if (isBootLooped(lpparam.packageName)) {
+                log("Oxygen Customizer: startup protection active in " + lpparam.packageName);
+                modsLoaded.set(true);
+                return;
+            }
+            new SystemUtils(mContext);
+            loadModpacks(lpparam);
+            modsLoaded.set(true);
+        } catch (Throwable failure) {
+            log("[ Oxygen Customizer ] Hook startup failed in " + lpparam.processName);
+            log(failure);
+            // A transient failure before pack installation can be retried.
+        } finally {
+            loadingMods.set(false);
         }
-
-        new SystemUtils(mContext);
-
-        loadModpacks(lpparam);
     }
 
     private void loadModpacks(XC_LoadPackage.LoadPackageParam lpparam) {
