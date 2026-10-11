@@ -296,7 +296,7 @@ public class PrefManager {
         boolean allApplied = true;
         for (Map.Entry<String, Boolean> entry : overlays.entrySet()) {
             try {
-                if (!OverlayUtil.applyOverlayStateNow(entry.getKey(), entry.getValue())) {
+                if (!OverlayUtil.applyOverlayStateNow(entry.getKey(), entry.getValue(), false)) {
                     Log.w(TAG, "Overlay state not applied: " + entry.getKey());
                     allApplied = false;
                 }
