@@ -474,6 +474,51 @@ checks.extend([
         '[ -d "$MODDIR" ] || exit 0',
     ]),
 ])
+# Behavioral-contract source guards for the October 11 full audit batch.
+checks.extend([
+    (JAVA / "utils/PrefManager.java", [
+        "return applyRestoredOverlays(overlaysToApply);",
+        "OverlayUtil.applyOverlayStateNow(entry.getKey(), entry.getValue())",
+    ]),
+    (JAVA / "ui/fragments/Settings.java", [
+        "SETTINGS_IO.execute(() ->",
+        "if (!isAdded() || getView() == null) return;",
+    ]),
+    (JAVA / "utils/ModuleUtil.java", [
+        "public static void writeRootTextFilesAtomically(Map<String, String> files)",
+        "Unresolved Root rollback snapshot:",
+        "boolean restored = true;",
+    ]),
+    (JAVA / "ui/fragments/mods/ColorsFragment.java", [
+        "viewRequest != viewGeneration.get()",
+        "writeRootTextFilesAtomically(files)",
+        "applyInProgress.compareAndSet(false, true)",
+    ]),
+    (JAVA / "ui/fragments/mods/misc/MemcFragment.java", [
+        "secureSettingsLoaded = available;",
+        'putBoolean("force_memc_enabled", !enabled)',
+        "refreshSecureSettingsAsync();",
+    ]),
+    (JAVA / "ui/base/AppFragmentBase.java", [
+        "clearLifecycleObserver();",
+        "if (!isViewAlive()) return;",
+    ]),
+    (JAVA / "xposed/hooks/framework/MemcEnhancer.java", [
+        "ConfigSnapshot snapshot = new ConfigSnapshot(",
+        "configSnapshot = snapshot;",
+        "logLists(snapshot);",
+    ]),
+    (JAVA / "xposed/hooks/settings/OtaCard.java", [
+        "imageRequestGeneration.incrementAndGet()",
+        "requestId == imageRequestGeneration.get()",
+    ]),
+    (JAVA / "xposed/hooks/systemui/lockscreen/DepthWallpaper.java", [
+        "getSentFromPackage()",
+        "getSentFromUid()",
+        "output.lastModified() < pluginRequestWallTime",
+        'intent.putExtra("requestId", pluginRequestId)',
+    ]),
+])
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")
