@@ -60,6 +60,11 @@ checks = [
     ]),
     (JAVA / "ui/fragments/mods/misc/DarkMode.java", [
         "PackageModeParser.parse(enabledApps, 4)",
+        "if (isChecked) {",
+        "mEnabledApps.remove(model.getPackageName());",
+    ]),
+    (JAVA / "ui/base/AppFragmentBase.java", [
+        "executor.shutdown();",
     ]),
     (JAVA / "ui/fragments/mods/statusbar/StatusbarNotificationChoice.java", [
         "PackageModeParser.parse(enabledApps, 2)",

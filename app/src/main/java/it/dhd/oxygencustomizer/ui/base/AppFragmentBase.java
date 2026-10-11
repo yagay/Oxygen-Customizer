@@ -298,6 +298,8 @@ public abstract class AppFragmentBase extends BaseFragment {
                     Log.e(this.getClass().getName(), "Executor error", e);
                 }
             });
+            // Do not retain a live worker thread after the queued app scan completes.
+            executor.shutdown();
         }
     }
 

@@ -120,10 +120,10 @@ public class DarkMode extends AppFragmentBase {
 
     private void onSwitchChange(AppModel model, boolean isChecked) {
         model.setEnabled(isChecked);
-        if (mEnabledApps.containsKey(model.getPackageName())) {
-            if (!isChecked) mEnabledApps.remove(model.getPackageName());
-        } else {
+        if (isChecked) {
             mEnabledApps.put(model.getPackageName(), model.getDarkModeValue());
+        } else {
+            mEnabledApps.remove(model.getPackageName());
         }
         savePrefs();
     }
