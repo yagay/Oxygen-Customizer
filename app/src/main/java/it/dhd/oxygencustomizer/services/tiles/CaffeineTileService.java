@@ -35,7 +35,10 @@ public class CaffeineTileService extends TileService {
     @Override
     public void onTileRemoved() {
         super.onTileRemoved();
-        sendBroadcast(new Intent(ACTION_TILE_REMOVED));
+        Intent notification = new Intent(ACTION_TILE_REMOVED)
+                .setPackage("com.android.systemui");
+        it.dhd.oxygencustomizer.utils.OCPreferences.addInternalBroadcastToken(notification);
+        sendBroadcast(notification);
     }
 
 }
