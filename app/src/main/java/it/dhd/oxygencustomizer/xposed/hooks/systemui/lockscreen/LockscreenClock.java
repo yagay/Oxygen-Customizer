@@ -207,7 +207,7 @@ public class LockscreenClock extends XposedMods {
 
         customLockscreenClock = Xprefs.getBoolean(LOCKSCREEN_CLOCK_SWITCH, false);
         lockscreenClockStyle = Xprefs.getInt(LOCKSCREEN_CLOCK_STYLE, 0);
-        mStockClockRed = Integer.parseInt(Xprefs.getString(LOCKSCREEN_STOCK_CLOCK_RED_ONE, "0"));
+        mStockClockRed = Xprefs.getIntFromString(LOCKSCREEN_STOCK_CLOCK_RED_ONE, "0");
         mStockClockRedColor = Xprefs.getInt(LOCKSCREEN_STOCK_CLOCK_RED_ONE_COLOR, Color.WHITE);
         accent1 = Xprefs.getInt(
                 LOCKSCREEN_CLOCK_COLOR_CODE_ACCENT1,
