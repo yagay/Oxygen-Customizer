@@ -494,10 +494,16 @@ public class ModuleUtil {
             throw new IllegalStateException("Refusing to write empty module XML: " + destinationPath);
         }
         String xml = String.join("\n", lines);
+        // Preserve the original file metadata; replace only after a complete write.
+        String staging = destinationPath + ".oc-write";
         Shell.Result result = Shell.cmd(
-                "printf %s " + shellQuote(xml) + " > " + shellQuote(destinationPath)
+                "rm -f -- " + shellQuote(staging)
+                + " && cp -a -- " + shellQuote(destinationPath) + " " + shellQuote(staging)
+                + " && printf %s " + shellQuote(xml) + " > " + shellQuote(staging)
+                + " && mv -f -- " + shellQuote(staging) + " " + shellQuote(destinationPath)
         ).exec();
         if (!result.isSuccess()) {
+            Shell.cmd("rm -f -- " + shellQuote(staging)).exec();
             Log.e(TAG, "Failed to write XML: " + destinationPath + ", stderr=" + result.getErr());
             throw new IllegalStateException("Failed to write module XML: " + destinationPath);
         }
