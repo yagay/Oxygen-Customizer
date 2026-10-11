@@ -203,6 +203,7 @@ public class SettingsIconsCompiler {
                     String staging = ModuleConstants.DATA_DIR + "/" + name;
                     OverlayCompileCoordinator.runChecked("cp -f " + signed + " " + staging, "Stage settings icons");
                     try {
+                mFileSnapshot.notePackageInstallAttempt(name);
                         OverlayCompileCoordinator.runChecked("pm install -r " + staging, "Install settings icons");
                     } finally {
                         Shell.cmd("rm -f " + staging).exec();

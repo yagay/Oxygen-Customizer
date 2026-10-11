@@ -156,6 +156,7 @@ public class RoundnessCompiler {
                     String staging = ModuleConstants.DATA_DIR + "/" + file;
                     OverlayCompileCoordinator.runChecked("cp -f " + signed + " " + staging, "Stage roundness APK");
                     try {
+                mFileSnapshot.notePackageInstallAttempt(file);
                         OverlayCompileCoordinator.runChecked("pm install -r " + staging, "Install roundness APK");
                     } finally {
                         Shell.cmd("rm -f " + staging).exec();

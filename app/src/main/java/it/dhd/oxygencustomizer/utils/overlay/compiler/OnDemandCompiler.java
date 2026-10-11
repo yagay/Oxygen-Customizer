@@ -139,6 +139,7 @@ public class OnDemandCompiler {
                 String staging = ModuleConstants.DATA_DIR + "/" + name;
                 runChecked("cp -f " + signed + " " + staging, "Stage overlay APK");
                 RootUtil.setPermissions(644, staging);
+                mFileSnapshot.notePackageInstallAttempt(name);
                 runChecked("pm install -r " + staging, "Install overlay APK");
                 Shell.cmd("rm -f " + staging).exec();
                 SystemUtil.mountRW();

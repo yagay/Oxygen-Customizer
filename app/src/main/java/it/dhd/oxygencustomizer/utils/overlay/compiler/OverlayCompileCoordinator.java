@@ -94,11 +94,44 @@ public final class OverlayCompileCoordinator {
         private final String[] destinations;
         private final String[] backups;
         private final boolean[] existed;
+        private final boolean[] installAttempted;
+        private final boolean[] wasPackageInstalled;
 
         private FileSnapshot(String[] destinations, String[] backups, boolean[] existed) {
             this.destinations = destinations;
             this.backups = backups;
             this.existed = existed;
+            this.installAttempted = new boolean[destinations.length];
+            this.wasPackageInstalled = new boolean[destinations.length];
+        }
+
+        /**
+         * Called BEFORE invoking pm install. The system APK can be untouched
+         * even if PackageManager has already replaced its installed version.
+         */
+        public void notePackageInstallAttempt(String apkFileName) throws IOException {
+            if (apkFileName == null || !apkFileName.matches("OxygenCustomizerComponent[A-Za-z0-9._-]+\\.apk")) {
+                throw new IOException("Unsafe overlay APK name");
+            }
+            String packageName = apkFileName.substring(0, apkFileName.length() - 4) + ".overlay";
+            Shell.Result query = Shell.cmd("pm path " + shellQuote(packageName)).exec();
+            if (!query.isSuccess()) {
+                throw new IOException("Unable to snapshot package installation: " + query.getErr());
+            }
+            boolean installed = false;
+            for (String line : query.getOut()) {
+                if (line.startsWith("package:")) installed = true;
+            }
+            boolean found = false;
+            for (int i = 0; i < destinations.length; i++) {
+                if (destinations[i].startsWith(ModuleConstants.SYSTEM_OVERLAY_DIR + "/")
+                        && destinations[i].endsWith("/" + apkFileName)) {
+                    installAttempted[i] = true;
+                    wasPackageInstalled[i] = installed;
+                    found = true;
+                }
+            }
+            if (!found) throw new IOException("No system overlay snapshot for " + apkFileName);
         }
 
         private boolean needsRestore(int index) {
@@ -161,17 +194,40 @@ public final class OverlayCompileCoordinator {
                         }
                     }
                 }
-                // A prior pm install -r may have registered the new APK.
-                // Reinstall the original system APK where available.
-                for (int i = 0; i < destinations.length; i++) {
-                    if (dirty[i] && existed[i]
-                            && destinations[i].startsWith(ModuleConstants.SYSTEM_OVERLAY_DIR + "/")) {
-                        Shell.Result result = Shell.cmd("pm install -r " + shellQuote(backups[i])).exec();
-                        if (!result.isSuccess()) {
-                            Log.e("OC-OverlayCompile", "Could not reinstall prior overlay: "
-                                    + destinations[i] + " " + result.getErr());
+
+            }
+            // PackageManager's installed version is independent of whether
+            // the system overlay APK changed. Restore it after restoring files.
+            for (int i = 0; i < destinations.length; i++) {
+                if (!installAttempted[i]) continue;
+                String name = destinations[i].substring(destinations[i].lastIndexOf('/') + 1);
+                String packageName = name.substring(0, name.length() - 4) + ".overlay";
+                try {
+                    if (wasPackageInstalled[i]) {
+                        if (!existed[i]) {
+                            Log.e("OC-OverlayCompile", "Cannot restore installed overlay "
+                                    + packageName + ": original APK was not on disk");
+                            continue;
+                        }
+                        Shell.Result restored = Shell.cmd("pm install -r "
+                                + shellQuote(backups[i])).exec();
+                        if (!restored.isSuccess()) {
+                            Log.e("OC-OverlayCompile", "Could not reinstall previous overlay "
+                                    + packageName + ": " + restored.getErr());
+                        }
+                    } else {
+                        Shell.Result query = Shell.cmd("pm path " + shellQuote(packageName)).exec();
+                        if (query.isSuccess() && !query.getOut().isEmpty()) {
+                            Shell.Result removed = Shell.cmd("pm uninstall "
+                                    + shellQuote(packageName)).exec();
+                            if (!removed.isSuccess()) Log.e("OC-OverlayCompile",
+                                    "Could not unregister newly installed overlay: "
+                                            + removed.getErr());
                         }
                     }
+                } catch (Throwable failure) {
+                    Log.e("OC-OverlayCompile", "Installed overlay rollback failed: "
+                            + packageName, failure);
                 }
             }
         }
