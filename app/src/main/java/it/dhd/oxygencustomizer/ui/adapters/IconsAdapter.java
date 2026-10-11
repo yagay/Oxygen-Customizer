@@ -132,7 +132,11 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
     public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
         super.onAttachedToRecyclerView(recyclerView);
 
-        linearLayoutManager = (LinearLayoutManager)    private void enableOnClickListener(ViewHolder holder) {
+        linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+    }
+
+    // Function for onClick events
+    private void enableOnClickListener(ViewHolder holder) {
         holder.container.setOnClickListener(v -> {
             int position = holder.getBindingAdapterPosition();
             if (position == RecyclerView.NO_POSITION) return;
@@ -219,11 +223,6 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
                         : R.string.toast_error, Toast.LENGTH_SHORT).show();
             });
         }, "OC-IconSelection").start();
-    }
-
-read = new Thread(runnable);
-            thread.start();
-        });
     }
 
     // Function to check for layout changes
