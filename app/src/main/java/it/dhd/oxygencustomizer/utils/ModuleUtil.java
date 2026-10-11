@@ -56,9 +56,11 @@ public class ModuleUtil {
 
     public static void handleModuleUninstall() {
         OverlayCompileCoordinator.LOCK.lock();
+        java.util.List<String> previous = java.util.Collections.emptyList();
         try {
             if (moduleExists()) {
-                for (String pkg : OverlayUtil.getEnabledOverlayList()) {
+                previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayList());
+                for (String pkg : previous) {
                     if (!OverlayUtil.applyOverlayStateNow(pkg, false, false)) {
                         throw new IllegalStateException("Unable to disable overlay before uninstall: " + pkg);
                     }
@@ -66,6 +68,18 @@ public class ModuleUtil {
             }
             Shell.Result deleted = Shell.cmd("rm -rf " + ModuleConstants.INSTALLED_MODULE_DIR).exec();
             if (!deleted.isSuccess()) throw new IllegalStateException("Root module removal failed: " + deleted.getErr());
+        } catch (RuntimeException failure) {
+            // A failed disable or file operation must not leave an accidental
+            // mixture of selected overlays. Restore those that still exist.
+            if (moduleExists()) {
+                for (String pkg : previous) {
+                    if (!OverlayUtil.isOverlayEnabled(pkg)
+                            && !OverlayUtil.applyOverlayStateNow(pkg, true, false)) {
+                        Log.e(TAG, "Uninstall rollback could not enable " + pkg);
+                    }
+                }
+            }
+            throw failure;
         } finally {
             OverlayCompileCoordinator.LOCK.unlock();
         }
