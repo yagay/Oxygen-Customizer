@@ -160,7 +160,10 @@ public class StatusbarClock extends XposedMods {
 
         if (!listensTo(context.getPackageName())) return;
 
-        rightClockPadding = mContext.getResources().getDimensionPixelSize(mContext.getResources().getIdentifier("status_bar_clock_starting_padding", "dimen", mContext.getPackageName()));
+        int paddingId = mContext.getResources().getIdentifier(
+                "status_bar_clock_starting_padding", "dimen", mContext.getPackageName());
+        rightClockPadding = paddingId == 0 ? 0
+                : mContext.getResources().getDimensionPixelSize(paddingId);
     }
 
     @Override
