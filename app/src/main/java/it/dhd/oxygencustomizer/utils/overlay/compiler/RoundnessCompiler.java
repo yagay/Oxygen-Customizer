@@ -102,9 +102,9 @@ public class RoundnessCompiler {
         if (mForce) {
             // Disable the overlay in case it is already enabled
             String[] overlayNames = new String[mOverlayName.length];
-            for (int i = 1; i <= mOverlayName.length; i++) {
-                overlayNames[i - 1] = "OxygenCustomizerComponentCRN" + i + ".overlay";
-            }
+            for (int i = 0; i < mOverlayName.length; i++) {
+                    overlayNames[i] = "OxygenCustomizerComponent" + mOverlayName[i] + ".overlay";
+                }
             OverlayUtil.disableOverlays(overlayNames);
         }
     }
@@ -139,8 +139,8 @@ public class RoundnessCompiler {
 
                 // Enable the overlays
                 String[] overlayNames = new String[mOverlayName.length];
-                for (int i = 1; i <= mOverlayName.length; i++) {
-                    overlayNames[i - 1] = "OxygenCustomizerComponentCRN" + i + ".overlay";
+                for (int i = 0; i < mOverlayName.length; i++) {
+                    overlayNames[i] = "OxygenCustomizerComponent" + mOverlayName[i] + ".overlay";
                 }
                 OverlayUtil.enableOverlays(overlayNames);
             } else {
