@@ -196,11 +196,10 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
             return;
         }
 
-        Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
-
+        Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED).setPackage(FRAMEWORK);
         broadcast.putExtra("packageName", FRAMEWORK);
         broadcast.putExtra("class", MemcEnhancer.class.getSimpleName());
-
+        OCPreferences.addInternalBroadcastToken(broadcast);
         if (getContext() != null)
             getContext().sendBroadcast(broadcast);
     }
