@@ -812,7 +812,7 @@ public class BatteryStyleManager extends XposedMods {
                 .after("initViews")
                 .run(param -> {
                     View v = (View) getObjectField(param.thisObject, "mBatteryIconView");
-                    v.addOnAttachStateChangeListener(listener);
+                    if (v != null) v.addOnAttachStateChangeListener(listener);
                 });
         StatBatteryMeterView
                 .after("onBatteryLevelChanged")
@@ -835,10 +835,8 @@ public class BatteryStyleManager extends XposedMods {
                     int batteryLevel = (int) param.args[0];//getCurrentLevel();
                     if (CustomBatteryEnabled && mBatteryIcon != null) {
 
-                        if (mHidePercentage)
-                            batteryPercentOutView.setVisibility(View.GONE);
-                        else {
-                            batteryPercentOutView.setVisibility(View.VISIBLE);
+                        if (batteryPercentOutView != null) {
+                            batteryPercentOutView.setVisibility(mHidePercentage ? View.GONE : View.VISIBLE);
                         }
                         BatteryDrawable mBatteryDrawable = getNewBatteryDrawable(mContext);
                         if (mBatteryDrawable == null) return;

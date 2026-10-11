@@ -242,7 +242,11 @@ public class GestureNavbarManager extends XposedMods {
                                 Point mDisplaySize = (Point) getObjectField(param.thisObject, "mDisplaySize");
                                 boolean isLeftSide = x < (mDisplaySize.x / 3f);
                                 mDirection = isLeftSide ? 0 : 1;
-                                int mBottomGestureHeight = mContext.getResources().getDimensionPixelSize(mContext.getResources().getIdentifier("bottom_gesture_area_height", "dimen", listenPackage));
+                                int gestureHeightId = mContext.getResources().getIdentifier(
+                                        "bottom_gesture_area_height", "dimen", listenPackage);
+                                if (gestureHeightId == 0) return;
+                                int mBottomGestureHeight = mContext.getResources()
+                                        .getDimensionPixelSize(gestureHeightId);
                                 int rotation = (int) getFloatField(param.thisObject, "mRotation");
                                 if (notWithinInsets(x,
                                         y,

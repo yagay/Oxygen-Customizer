@@ -120,13 +120,14 @@ public class MainActivity extends BaseActivity implements PreferenceFragmentComp
                 replaceFragment(new Mods());
                 replaceFragment(new WeatherSettings());
             } else if (getIntent().hasExtra("launch")) {
+                String requestedLaunch = getIntent().getStringExtra("launch");
                 replaceFragment(new Mods());
-                if (getIntent().getStringExtra("launch").equals("qs_header_options")) {
+                if ("qs_header_options".equals(requestedLaunch)) {
                     replaceFragment(new QsHeader());
-                } else if (getIntent().getStringExtra("launch").equals("qs_widget_options") ||
-                        getIntent().getStringExtra("launch").equals("qs_separate_layout")) {
+                } else if ("qs_widget_options".equals(requestedLaunch) ||
+                        "qs_separate_layout".equals(requestedLaunch)) {
                     replaceFragment(new QuickSettings());
-                    replaceFragment(getIntent().getStringExtra("launch").equals("qs_widget_options") ?
+                    replaceFragment("qs_widget_options".equals(requestedLaunch) ?
                             new QuickSettingsWidgets() :
                             new QsSeparateMods());
                 }

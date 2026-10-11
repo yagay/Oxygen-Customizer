@@ -147,12 +147,11 @@ public class OpenMeteoProvider extends AbstractWeatherProvider {
         JSONArray weatherCodeJson = forecasts.getJSONArray("weather_code_best_match");
         JSONArray altWeatherCodeJson = forecasts.getJSONArray("weather_code_gfs_seamless");
         String currentDay = new SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Calendar.getInstance().getTime());
-
-        int startIndex = 1;
-        if (currentDay.equals(timeJson.getString(0)))
-            startIndex = 0;
-        else if (currentDay.equals(timeJson.getString(2)))
-            startIndex = 2;
+        int startIndex = 0;
+        while (startIndex < timeJson.length()
+                && timeJson.getString(startIndex).compareTo(currentDay) < 0) {
+            startIndex++;
+        }
 
         for (int i = startIndex; i < timeJson.length() && result.size() < 5; i++) {
             WeatherInfo.DayForecast item;
@@ -205,13 +204,15 @@ public class OpenMeteoProvider extends AbstractWeatherProvider {
         JSONArray temperature = forecasts.getJSONArray("temperature_2m_best_match");
         JSONArray weatherCodeJson = forecasts.getJSONArray("weather_code_best_match");
         JSONArray altWeatherCodeJson = forecasts.getJSONArray("weather_code_gfs_seamless");
-        String currentDay = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).format(Calendar.getInstance().getTime());
-
-        int startIndex = 1;
-        if (currentDay.equals(timeJson.getString(0)))
-            startIndex = 0;
-        else if (currentDay.equals(timeJson.getString(2)))
-            startIndex = 2;
+        Calendar hour = Calendar.getInstance();
+        hour.set(Calendar.MINUTE, 0);
+        hour.set(Calendar.SECOND, 0);
+        String currentHour = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.US).format(hour.getTime());
+        int startIndex = 0;
+        while (startIndex < timeJson.length()
+                && timeJson.getString(startIndex).compareTo(currentHour) < 0) {
+            startIndex++;
+        }
 
         for (int i = startIndex; i < timeJson.length() && result.size() < 10; i++) {
             WeatherInfo.HourForecast item;

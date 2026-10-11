@@ -41,7 +41,9 @@ public class AdvancedReboot extends XposedMods {
 
     public AdvancedReboot(Context context) {
         super(context);
-        mAdvancedRebootDrawable = ResourcesCompat.getDrawable(mContext.getResources(), mContext.getResources().getIdentifier("oplus_reboot", "drawable", listenPackage), mContext.getTheme());
+        int iconId = mContext.getResources().getIdentifier("oplus_reboot", "drawable", listenPackage);
+        mAdvancedRebootDrawable = iconId == 0 ? null
+                : ResourcesCompat.getDrawable(mContext.getResources(), iconId, mContext.getTheme());
     }
 
     @Override
@@ -101,7 +103,8 @@ public class AdvancedReboot extends XposedMods {
 
     private void drawAdvancedReboot(Canvas canvas, Object param) {
         buttonPaint = new Paint();
-        buttonPaint.setColor(mContext.getColor(mContext.getResources().getIdentifier("oplus_road_color", "color", listenPackage)));
+        int colorId = mContext.getResources().getIdentifier("oplus_road_color", "color", listenPackage);
+        buttonPaint.setColor(colorId == 0 ? Color.DKGRAY : mContext.getColor(colorId));
         buttonPaint.setStyle(Paint.Style.FILL);
 
         int density = Resources.getSystem().getConfiguration().densityDpi;
@@ -113,8 +116,9 @@ public class AdvancedReboot extends XposedMods {
 
         int viewWidth = (int) callMethod(param, "getWidth");
 
-        radius = (int) (mContext.getResources().getDimensionPixelSize(
-                mContext.getResources().getIdentifier("oplus_default_bar_radius", "dimen", listenPackage)) / 2.0f);
+        int radiusId = mContext.getResources().getIdentifier("oplus_default_bar_radius", "dimen", listenPackage);
+        radius = Math.max(dp2px(mContext, 20), radiusId == 0 ? dp2px(mContext, 20)
+                : mContext.getResources().getDimensionPixelSize(radiusId) / 2);
 
         centerX = viewWidth / 2;
         centerY = radius + dp2px(mContext, 50) + dp2px(mContext, yOffset);
