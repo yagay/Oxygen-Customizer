@@ -25,6 +25,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -47,6 +50,8 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
             work -> new Thread(work, "OC-ColorWorker"));
     private final Handler mainThread = new Handler(Looper.getMainLooper());
     private final AtomicInteger generation = new AtomicInteger();
+    private final AtomicInteger viewGeneration = new AtomicInteger();
+    private final AtomicBoolean applyInProgress = new AtomicBoolean();
 
     @Override
     public String getTitle() {
@@ -112,6 +117,7 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
 
         mPrimaryColor = findPreference("primary_color");
         mApplyColors = findPreference("apply_colors");
+        mColorToApply = mPreferences.getInt("primary_color", 0);
 
         mApplyColors.setOnPreferenceClickListener(preference -> {
             applyColors();
@@ -123,7 +129,6 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
     @Override
     public void updateScreen(String key) {
         super.updateScreen(key);
-        getDefaultColor();
         if (key == null) return;
 
         if (key.equals("primary_color")) {
@@ -146,7 +151,8 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
             }
             final String currentAccent = accent;
             mainThread.post(() -> {
-                if (request != generation.get() || !isAdded() || mPrimaryColor == null) return;
+                if (request != generation.get() || !isAdded() || getView() == null
+                        || mPrimaryColor == null) return;
                 if (TextUtils.isEmpty(currentAccent)) return;
                 try {
                     int value = Color.parseColor(currentAccent.startsWith("#")
@@ -161,10 +167,11 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
     }
 
     private void applyColors() {
-        if (mColorToApply == 0) return;
-
-        mLoadingDialog.show(getString(R.string.loading_dialog_wait));
+        if (mColorToApply == 0 || mLoadingDialog == null || !isAdded()) return;
+        if (!applyInProgress.compareAndSet(false, true)) return;
+        final int viewRequest = viewGeneration.get();
         final int selectedColor = mColorToApply;
+        mLoadingDialog.show(getString(R.string.loading_dialog_wait));
         COLOR_WORKER.execute(() -> {
             Throwable problem = null;
             try {
@@ -173,19 +180,20 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
             } catch (Throwable failure) {
                 Log.e("ColorsFragment", "Unable to apply colours", failure);
                 problem = failure;
+            } finally {
+                applyInProgress.set(false);
             }
             final Throwable outcome = problem;
             mainThread.post(() -> {
-                if (mLoadingDialog != null) mLoadingDialog.hide();
-                if (isAdded()) {
-                    Toast.makeText(requireContext(), outcome == null
-                            ? getString(R.string.toast_applied)
-                            : "Unable to apply colour: " + outcome.getMessage(),
-                            Toast.LENGTH_LONG).show();
-                }
+                if (viewRequest != viewGeneration.get() || !isAdded()
+                        || getView() == null || mLoadingDialog == null) return;
+                mLoadingDialog.hide();
+                Toast.makeText(requireContext(), outcome == null
+                        ? getString(R.string.toast_applied)
+                        : "Unable to apply colour: " + outcome.getMessage(),
+                        Toast.LENGTH_LONG).show();
             });
         });
-
     }
 
     private void generateColorFiles(String colorHex) {
@@ -213,7 +221,7 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
                 "<color name=\"NXcolorSingleFirstBarDisabledColor\">" + String.format("#%08X", (0xFFFFFFFF & barDisabledColor)) + "</color>\n" +
                 "</resources>";
 
-        writeToFile(content, "ux_custom_color.xml");
+        // Both colour variants are committed together after generation.
 
         int nightPressedColor = ColorUtils.adjustColorForPressed(baseColor, 0.7f);
         int nightLightNormalColor = ColorUtils.adjustAlpha(baseColor, 0.4f);
@@ -235,28 +243,14 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
                 "<color name=\"NXcolorSingleFirstBarDisabledColor\">" + String.format("#%08X", (0xFFFFFFFF & textHighLightColor)) + "</color>\n" +
                 "</resources>";
 
-        writeToFile(nightContent, "ux_custom_color_night.xml");
+        Map<String, String> files = new LinkedHashMap<>();
+        files.put("/data/oplus/uxres/uxcolor/ux_custom_color.xml", content);
+        files.put("/data/oplus/uxres/uxcolor/ux_custom_color_night.xml", nightContent);
+        it.dhd.oxygencustomizer.utils.ModuleUtil.writeRootTextFilesAtomically(files);
     }
 
     private static String shellQuote(String value) {
         return "'" + value.replace("'", "'\\''") + "'";
-    }
-
-    private void writeToFile(String content, String fileName) {
-        if (!"ux_custom_color.xml".equals(fileName)
-                && !"ux_custom_color_night.xml".equals(fileName)) {
-            throw new IllegalArgumentException("Invalid colour filename");
-        }
-        String destination = "/data/oplus/uxres/uxcolor/" + fileName;
-        String staging = destination + ".oc-write";
-        Shell.Result result = Shell.cmd("printf %s " + shellQuote(content)
-                + " > " + shellQuote(staging)
-                + " && mv -f -- " + shellQuote(staging) + " " + shellQuote(destination)).exec();
-        if (!result.isSuccess()) {
-            Shell.cmd("rm -f -- " + shellQuote(staging)).exec();
-            throw new IllegalStateException("Could not write " + fileName
-                    + ": " + result.getErr());
-        }
     }
 
     private void saveSecureSettings(int selectedColor) {
@@ -306,7 +300,9 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
     @Override
     public void onDestroyView() {
         generation.incrementAndGet();
+        viewGeneration.incrementAndGet();
         if (mLoadingDialog != null) mLoadingDialog.dismiss();
+        mLoadingDialog = null;
         super.onDestroyView();
     }
 
