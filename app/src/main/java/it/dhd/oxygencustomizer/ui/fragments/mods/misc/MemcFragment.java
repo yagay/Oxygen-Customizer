@@ -35,6 +35,7 @@ import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.ui.base.ControlledPreferenceFragmentCompat;
 import it.dhd.oxygencustomizer.ui.dialogs.LoadingDialog;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 import it.dhd.oxygencustomizer.utils.ModuleUtil;
 import it.dhd.oxygencustomizer.utils.ThemeUtils;
 import it.dhd.oxygencustomizer.xposed.hooks.framework.MemcEnhancer;
@@ -226,6 +227,7 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
                     Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
                     broadcast.putExtra("packageName", FRAMEWORK);
                     broadcast.putExtra("class", MemcEnhancer.class.getSimpleName());
+                    OCPreferences.addInternalBroadcastToken(broadcast);
                     requireContext().sendBroadcast(broadcast);
                 }
                 Toast.makeText(requireContext(), success ? R.string.toast_applied

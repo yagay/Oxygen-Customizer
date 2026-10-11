@@ -47,6 +47,7 @@ import it.dhd.oxygencustomizer.ui.adapters.PackageListAdapter;
 import it.dhd.oxygencustomizer.ui.dialogs.MemcDialog;
 import it.dhd.oxygencustomizer.ui.models.MemcAppModel;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.utils.OCPreferences;
 import it.dhd.oxygencustomizer.xposed.hooks.framework.MemcEnhancer;
 
 public class MemcApplicationsFragment extends Fragment {
@@ -198,6 +199,7 @@ public class MemcApplicationsFragment extends Fragment {
         broadcast.putExtra("packageName", FRAMEWORK);
         broadcast.putExtra("class", MemcEnhancer.class.getSimpleName());
 
+        OCPreferences.addInternalBroadcastToken(broadcast);
         if (getContext() != null)
             getContext().sendBroadcast(broadcast);
     }

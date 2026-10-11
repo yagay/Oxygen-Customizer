@@ -54,6 +54,15 @@ checks = [
         "filteredApps.get(position)",
         "if (matchesText)",
     ]),
+    (JAVA / "xposed/hooks/framework/MemcEnhancer.java", [
+        "XPrefs.isTrustedInternalBroadcast(intent)",
+        "columns.length != 2",
+        "values.length != 2",
+        "slash <= 0",
+    ]),
+    (JAVA / "ui/fragments/mods/misc/MemcFragment.java", [
+        "OCPreferences.addInternalBroadcastToken(broadcast)",
+    ]),
     (JAVA / "utils/PackageModeParser.java", [
         "public static Map<String, Integer> parse(Set<String> values, int maxMode)",
         "catch (NumberFormatException ignored)",

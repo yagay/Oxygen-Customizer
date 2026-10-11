@@ -25,6 +25,7 @@ import java.util.Set;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
 import it.dhd.oxygencustomizer.utils.Constants;
+import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
 
 public class MemcEnhancer extends XposedMods {
@@ -65,6 +66,7 @@ public class MemcEnhancer extends XposedMods {
     final BroadcastReceiver mSettingsBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!XPrefs.isTrustedInternalBroadcast(intent)) return;
             try {
                 String action = intent.getAction();
                 if (action == null) return;
@@ -97,21 +99,30 @@ public class MemcEnhancer extends XposedMods {
 
         Set<String> memcConfig = Xprefs.getStringSet("custom_memc_applications", new HashSet<>());
         for (String config : memcConfig) {
-            String pkg = config.split("\\|")[0];
-            String confs = config.split("\\|")[1];
-            String refreshRate = confs.split("\\$")[0];
-            String memcConf = confs.split("\\$")[1];
-            sConfigPackage.add(pkg);
-            sAppScreenRateMap.put(pkg, refreshRate);
-            sSdr2hdrCommandMap.put(pkg, memcConf);
+            if (config == null) continue;
+            String[] columns = config.split("\\|", 2);
+            if (columns.length != 2 || columns[0].isBlank()) continue;
+            String[] values = columns[1].split("\\$", 2);
+            if (values.length != 2 || values[0].isBlank() || values[1].isBlank()) continue;
+            try {
+                if (Integer.parseInt(values[0]) <= 0) continue;
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+            sConfigPackage.add(columns[0]);
+            sAppScreenRateMap.put(columns[0], values[0]);
+            sSdr2hdrCommandMap.put(columns[0], values[1]);
         }
 
         Set<String> memcActivityConfig = Xprefs.getStringSet("custom_memc_activities", new HashSet<>());
         for (String config : memcActivityConfig) {
-            String pkg = config.split("\\|")[0];
-            String confs = config.split("\\|")[1];
-            sConfigActivity.add(pkg.substring(pkg.indexOf("/") + 1));
-            sMemcCommandMap.put(pkg, confs);
+            if (config == null) continue;
+            String[] columns = config.split("\\|", 2);
+            if (columns.length != 2 || columns[1].isBlank()) continue;
+            int slash = columns[0].indexOf('/');
+            if (slash <= 0 || slash >= columns[0].length() - 1) continue;
+            sConfigActivity.add(columns[0].substring(slash + 1));
+            sMemcCommandMap.put(columns[0], columns[1]);
         }
 
         logLists();
