@@ -15,6 +15,8 @@ import android.util.Log;
 import com.topjohnwu.superuser.Shell;
 
 import java.io.IOException;
+
+import it.dhd.oxygencustomizer.utils.overlay.compiler.OverlayCompileCoordinator;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +36,8 @@ public class SettingsIconsCompiler {
     }};
 
     public static boolean buildOverlay(int iconSet, String resources, boolean force) throws IOException {
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
         mIconSet = iconSet;
         mForce = force;
 
@@ -91,6 +95,9 @@ public class SettingsIconsCompiler {
 
         postExecute(false);
         return false;
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
+        }
     }
 
     private static void preExecute() throws IOException {
