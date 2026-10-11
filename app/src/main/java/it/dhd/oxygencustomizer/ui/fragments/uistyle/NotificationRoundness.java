@@ -115,12 +115,14 @@ public class NotificationRoundness extends BaseFragment {
                 new Thread(() -> {
                     try {
                         hasErroredOut.set(RoundnessManager.buildOverlay(finalUiCornerRadius[0], true));
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         hasErroredOut.set(true);
-                        Log.e("NotificationRoundness", e.toString());
+                        Log.e("NotificationRoundness", "Failed to compile or install roundness overlay", e);
                     }
 
                     new Handler(Looper.getMainLooper()).post(() -> {
+                        loadingDialog.hide();
+                        if (!isAdded() || binding == null) return;
                         if (!hasErroredOut.get()) {
                             Prefs.putInt(NOTIFICATION_CORNER_RADIUS, finalUiCornerRadius[0]);
                         }

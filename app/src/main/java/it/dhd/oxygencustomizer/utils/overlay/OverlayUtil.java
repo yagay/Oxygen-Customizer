@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantLock;
 
 import it.dhd.oxygencustomizer.OxygenCustomizer;
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
@@ -41,6 +42,8 @@ public class OverlayUtil {
 
     // Keep writes ordered; never report the requested state as a successful operation
     // before Android's overlay manager confirms it.
+    public static final ReentrantLock OPERATION_LOCK = new ReentrantLock(true);
+
     private static final ExecutorService OVERLAY_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "OC-OverlayWorker");
         thread.setDaemon(true);
@@ -87,9 +90,26 @@ public class OverlayUtil {
         return enabledOverlays.contains(pkgName);
     }
 
+    /**
+     * Serialize related overlay changes as one transaction, so another click
+     * cannot interleave a disable and the matching enable operation.
+     */
+    public static void executeOverlayBatch(Runnable changes) {
+        OVERLAY_EXECUTOR.execute(() -> {
+            OPERATION_LOCK.lock();
+            try {
+                changes.run();
+            } catch (Throwable failure) {
+                Log.e("OverlayUtil", "Overlay batch failed", failure);
+            } finally {
+                OPERATION_LOCK.unlock();
+            }
+        });
+    }
+
     private static void requestOverlayState(String pkgName, boolean enabled, boolean exclusive) {
         if (!isSafeOverlayPackage(pkgName)) return;
-        OVERLAY_EXECUTOR.execute(() -> applyOverlayStateNow(pkgName, enabled, exclusive));
+        executeOverlayBatch(() -> applyOverlayStateNow(pkgName, enabled, exclusive));
     }
 
     /**
@@ -99,6 +119,8 @@ public class OverlayUtil {
      */
     public static boolean applyOverlayStateNow(String pkgName, boolean enabled, boolean exclusive) {
         if (!isSafeOverlayPackage(pkgName)) return false;
+        OPERATION_LOCK.lock();
+        try {
         String command = enabled
                 ? "cmd overlay " + (exclusive ? "enable-exclusive --user current --category " : "enable --user current ")
                     + pkgName + " && cmd overlay set-priority " + pkgName + " highest"
@@ -117,6 +139,9 @@ public class OverlayUtil {
             }
         }
         return result.isSuccess() && actualState != null && actualState == enabled;
+        } finally {
+            OPERATION_LOCK.unlock();
+        }
     }
 
     public static void enableOverlay(String pkgName) {

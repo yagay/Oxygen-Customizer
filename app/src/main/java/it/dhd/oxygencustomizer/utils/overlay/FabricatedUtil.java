@@ -1,6 +1,7 @@
 package it.dhd.oxygencustomizer.utils.overlay;
 
 import android.os.Build;
+import android.content.SharedPreferences;
 import android.util.Log;
 import android.util.TypedValue;
 
@@ -39,7 +40,14 @@ public class FabricatedUtil {
     public static void buildAndEnableOverlay(String target, String name, String type,
                                              String resourceName, String val) {
         List<String> commands = buildCommands(target, name, type, resourceName, val);
-        OVERLAY_WRITER.execute(() -> applyOverlay(target, name, type, resourceName, val, commands));
+        OVERLAY_WRITER.execute(() -> {
+            OverlayUtil.OPERATION_LOCK.lock();
+            try {
+                applyOverlay(target, name, type, resourceName, val, commands);
+            } finally {
+                OverlayUtil.OPERATION_LOCK.unlock();
+            }
+        });
     }
 
     public static void buildAndEnableOverlays(Object[]... args) {
@@ -60,9 +68,14 @@ public class FabricatedUtil {
             entries.add(entry);
         }
         OVERLAY_WRITER.execute(() -> {
-            for (int i = 0; i < entries.size(); i++) {
-                String[] value = entries.get(i);
-                applyOverlay(value[0], value[1], value[2], value[3], value[4], commands.get(i));
+            OverlayUtil.OPERATION_LOCK.lock();
+            try {
+                for (int i = 0; i < entries.size(); i++) {
+                    String[] value = entries.get(i);
+                    applyOverlay(value[0], value[1], value[2], value[3], value[4], commands.get(i));
+                }
+            } finally {
+                OverlayUtil.OPERATION_LOCK.unlock();
             }
         });
     }
@@ -80,19 +93,27 @@ public class FabricatedUtil {
                 Log.e("FabricatedUtil", "Enable failed: " + name + " " + enabled.getErr());
                 return;
             }
-            Prefs.putString("FOCMDtarget" + name, target);
-            Prefs.putString("FOCMDname" + name, name);
-            Prefs.putString("FOCMDtype" + name, type);
-            Prefs.putString("FOCMDresourceName" + name, resourceName);
-            Prefs.putString("FOCMDval" + name, val);
-            Prefs.putBoolean("fabricated" + name, true);
-            refreshPostExecScript();
+            Map<String, ?> previous = Prefs.prefs.getAll();
+            boolean stored = Prefs.prefs.edit()
+                    .putString("FOCMDtarget" + name, target)
+                    .putString("FOCMDname" + name, name)
+                    .putString("FOCMDtype" + name, type)
+                    .putString("FOCMDresourceName" + name, resourceName)
+                    .putString("FOCMDval" + name, val)
+                    .putBoolean("fabricated" + name, true)
+                    .commit();
+            if (!stored || !refreshPostExecScript()) {
+                restoreSavedConfiguration(name, previous);
+                refreshPostExecScript();
+                restorePreviouslyEnabledOverlay(name, previous);
+                Log.e("FabricatedUtil", "Reboot persistence failed; rolled back " + name);
+            }
         } catch (Throwable e) {
             Log.e("FabricatedUtil", "Fabricated overlay failed: " + name, e);
         }
     }
 
-    private static void refreshPostExecScript() {
+    private static boolean refreshPostExecScript() {
         StringBuilder script = new StringBuilder();
         for (Map.Entry<String, ?> entry : Prefs.prefs.getAll().entrySet()) {
             if (!entry.getKey().startsWith("fabricated") || !Boolean.TRUE.equals(entry.getValue())) {
@@ -117,6 +138,38 @@ public class FabricatedUtil {
                 + " && mv -f " + shellQuote(path + ".tmp") + " " + shellQuote(path)).exec();
         if (!written.isSuccess()) {
             Log.e("FabricatedUtil", "Unable to persist reboot overlay script: " + written.getErr());
+        }
+        return written.isSuccess();
+    }
+
+    private static void restoreSavedConfiguration(String name, Map<String, ?> before) {
+        SharedPreferences.Editor edit = Prefs.prefs.edit();
+        for (String prefix : new String[]{"fabricated", "FOCMDtarget", "FOCMDname", "FOCMDtype",
+                "FOCMDresourceName", "FOCMDval"}) {
+            String key = prefix + name;
+            Object value = before.get(key);
+            if (value instanceof Boolean) edit.putBoolean(key, (Boolean) value);
+            else if (value instanceof String) edit.putString(key, (String) value);
+            else edit.remove(key);
+        }
+        if (!edit.commit()) Log.e("FabricatedUtil", "Unable to roll back saved preferences: " + name);
+    }
+
+    private static void restorePreviouslyEnabledOverlay(String name, Map<String, ?> previous) {
+        try {
+            if (Boolean.TRUE.equals(previous.get("fabricated" + name))) {
+                List<String> commands = buildCommands(
+                        (String) previous.get("FOCMDtarget" + name),
+                        (String) previous.get("FOCMDname" + name),
+                        (String) previous.get("FOCMDtype" + name),
+                        (String) previous.get("FOCMDresourceName" + name),
+                        (String) previous.get("FOCMDval" + name));
+                Shell.cmd(commands.get(0), commands.get(1)).exec();
+            } else {
+                Shell.cmd("cmd overlay disable --user current com.android.shell:OxygenCustomizerComponent" + name).exec();
+            }
+        } catch (Throwable failure) {
+            Log.e("FabricatedUtil", "Unable to restore prior fabricated overlay: " + name, failure);
         }
     }
 
@@ -212,16 +265,28 @@ public class FabricatedUtil {
     public static void disableOverlay(String name) {
         if (name == null || !name.matches("[A-Za-z0-9._-]+")) return;
         OVERLAY_WRITER.execute(() -> {
-            Shell.Result result = Shell.cmd(
-                    "cmd overlay disable --user current com.android.shell:OxygenCustomizerComponent" + name).exec();
-            if (!result.isSuccess()) {
-                Log.e("FabricatedUtil", "Disable failed: " + name + " " + result.getErr());
-                return;
+            OverlayUtil.OPERATION_LOCK.lock();
+            try {
+                Map<String, ?> previous = Prefs.prefs.getAll();
+                Shell.Result result = Shell.cmd(
+                        "cmd overlay disable --user current com.android.shell:OxygenCustomizerComponent" + name).exec();
+                if (!result.isSuccess()) {
+                    Log.e("FabricatedUtil", "Disable failed: " + name + " " + result.getErr());
+                    return;
+                }
+                boolean stored = Prefs.prefs.edit()
+                        .putBoolean("fabricated" + name, false)
+                        .remove("FOCMDtarget" + name).remove("FOCMDname" + name)
+                        .remove("FOCMDtype" + name).remove("FOCMDresourceName" + name)
+                        .remove("FOCMDval" + name).commit();
+                if (!stored || !refreshPostExecScript()) {
+                    restoreSavedConfiguration(name, previous);
+                    refreshPostExecScript();
+                    restorePreviouslyEnabledOverlay(name, previous);
+                }
+            } finally {
+                OverlayUtil.OPERATION_LOCK.unlock();
             }
-            Prefs.putBoolean("fabricated" + name, false);
-            Prefs.clearPrefs("FOCMDtarget" + name, "FOCMDname" + name,
-                    "FOCMDtype" + name, "FOCMDresourceName" + name, "FOCMDval" + name);
-            refreshPostExecScript();
         });
     }
 

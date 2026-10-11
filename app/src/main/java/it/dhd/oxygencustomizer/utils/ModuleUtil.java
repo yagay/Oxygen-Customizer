@@ -34,31 +34,41 @@ import it.dhd.oxygencustomizer.utils.helper.BackupRestore;
 import it.dhd.oxygencustomizer.utils.helper.BinaryInstaller;
 import it.dhd.oxygencustomizer.utils.overlay.FabricatedUtil;
 import it.dhd.oxygencustomizer.utils.overlay.OverlayUtil;
+import it.dhd.oxygencustomizer.utils.overlay.compiler.OverlayCompileCoordinator;
 
 public class ModuleUtil {
 
     private static final String TAG = ModuleUtil.class.getSimpleName();
 
     public static void handleModule() {
-        if (moduleExists()) {
-            // Clean temporary directory
-            Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
-
-            // Backup necessary files
-            BackupRestore.backupFiles();
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
+            if (moduleExists()) {
+                Shell.Result clean = Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
+                if (!clean.isSuccess()) throw new IllegalStateException("Unable to clean module staging directory");
+                BackupRestore.backupFiles();
+            }
+            installModule();
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
         }
-        installModule();
     }
 
     public static void handleModuleUninstall() {
-        if (moduleExists()) {
-            // Clean temporary directory
-            Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
-
-            // Backup necessary files
-            OverlayUtil.disableOverlays(OverlayUtil.getEnabledOverlayList());
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
+            if (moduleExists()) {
+                for (String pkg : OverlayUtil.getEnabledOverlayList()) {
+                    if (!OverlayUtil.applyOverlayStateNow(pkg, false, false)) {
+                        throw new IllegalStateException("Unable to disable overlay before uninstall: " + pkg);
+                    }
+                }
+            }
+            Shell.Result deleted = Shell.cmd("rm -rf " + ModuleConstants.INSTALLED_MODULE_DIR).exec();
+            if (!deleted.isSuccess()) throw new IllegalStateException("Root module removal failed: " + deleted.getErr());
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
         }
-        Shell.cmd("rm -rf " + ModuleConstants.INSTALLED_MODULE_DIR).exec();
     }
 
 
@@ -142,7 +152,11 @@ public class ModuleUtil {
             }
         }
 
-        Shell.cmd("printf '" + post_exec + "' > " + ModuleConstants.TEMP_MODULE_DIR + "/post-exec.sh").exec();
+        Shell.Result script = Shell.cmd("printf %s " + shellQuote(post_exec.toString()) + " > "
+                + shellQuote(ModuleConstants.TEMP_MODULE_DIR + "/post-exec.sh")).exec();
+        if (!script.isSuccess()) {
+            throw new IllegalStateException("Cannot write fabricated overlay startup commands");
+        }
     }
 
     private static boolean shouldUseDefaultColors() {
@@ -176,7 +190,7 @@ public class ModuleUtil {
         if (RootUtil.isMagiskInstalled()) {
             result = Shell.cmd("magisk --install-module " + shellQuote(modulePath)).exec();
         } else if (RootUtil.isKSUInstalled()) {
-            result = Shell.cmd("/data/adb/ksud module install " + shellQuote(modulePath)).exec();
+            result = Shell.cmd(RootUtil.getKsuExecutable() + " module install " + shellQuote(modulePath)).exec();
         } else if (RootUtil.isApatchInstalled()) {
             result = Shell.cmd("apd module install " + shellQuote(modulePath)).exec();
         }

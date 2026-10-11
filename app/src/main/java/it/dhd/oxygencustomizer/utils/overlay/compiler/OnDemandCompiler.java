@@ -35,6 +35,9 @@ public class OnDemandCompiler {
 
     public static boolean buildOverlay(String overlay_name, int style, String targetPackage, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
+        String targetOverlay = "OxygenCustomizerComponent" + overlay_name + ".overlay";
+        boolean wasEnabled = force && OverlayUtil.isOverlayEnabled(targetOverlay);
+        boolean completed = false;
         try {
         mOverlayName = overlay_name;
         mPackage = targetPackage;
@@ -73,8 +76,12 @@ public class OnDemandCompiler {
         }
 
         postExecute(false);
+        completed = true;
         return false;
         } finally {
+            if (!completed && wasEnabled) {
+                OverlayUtil.applyOverlayStateNow(targetOverlay, true, false);
+            }
             OverlayCompileCoordinator.LOCK.unlock();
         }
     }
@@ -146,7 +153,10 @@ public class OnDemandCompiler {
         }
     }
 
-    private static void moveOverlaysToCache() {
-        Shell.cmd("mv -f \"" + ModuleConstants.DATA_DIR + "/CompileOnDemand/" + mPackage + "/" + mOverlayName + mStyle + "\" \"" + TEMP_CACHE_DIR + "/" + mPackage + "/" + mOverlayName + "\"").exec().isSuccess();
+    private static void moveOverlaysToCache() throws IOException {
+        OverlayCompileCoordinator.runChecked("mv -f \"" + ModuleConstants.DATA_DIR
+                    + "/CompileOnDemand/" + mPackage + "/" + mOverlayName + mStyle
+                    + "\" \"" + TEMP_CACHE_DIR + "/" + mPackage + "/" + mOverlayName + "\"",
+                    "Move overlay source");
     }
 }

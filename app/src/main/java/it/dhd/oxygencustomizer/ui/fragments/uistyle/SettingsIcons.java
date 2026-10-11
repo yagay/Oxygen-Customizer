@@ -194,72 +194,71 @@ public class SettingsIcons extends BaseFragment {
     private final ButtonsAdapter.OnButtonClick onButtonsClick = new ButtonsAdapter.OnButtonClick() {
         @Override
         public void onApplyClick() {
-            // Apply the changes
             if (!AppUtils.hasStoragePermission()) {
                 AppUtils.requestStoragePermission(requireContext());
-            } else {
-                // Show loading dialog
-                loadingDialog.show(OxygenCustomizer.getAppContext().getResources().getString(R.string.loading_dialog_wait));
-
-                new Thread(() -> {
-                    AtomicBoolean hasErroredOut = new AtomicBoolean(false);
-
-                    try {
-                        hasErroredOut.set(SettingsIconsResourceManager.buildOverlay(mIconPack, mBgColor, mBgShape, mSolidBg, mIconColor, true));
-                    } catch (IOException e) {
-                        hasErroredOut.set(true);
-                        Log.e("SettingsIcons", e.toString());
-                    }
-
-                    if (!hasErroredOut.get()) {
-                        Prefs.putInt(SELECTED_SETTINGS_ICONS_SET, mIconPack-1);
-                        iconsAdapter.notifyItemChanged(mIconPack-1);
+                return;
+            }
+            final int iconPack = mIconPack;
+            final int backgroundColor = mBgColor;
+            final int backgroundShape = mBgShape;
+            final boolean backgroundSolid = mSolidBg;
+            final int iconColor = mIconColor;
+            loadingDialog.show(getString(R.string.loading_dialog_wait));
+            new Thread(() -> {
+                boolean failure;
+                try {
+                    failure = SettingsIconsResourceManager.buildOverlay(iconPack,
+                            backgroundColor, backgroundShape, backgroundSolid, iconColor, true);
+                } catch (Exception error) {
+                    failure = true;
+                    Log.e("SettingsIcons", "Unable to apply icons", error);
+                }
+                final boolean failed = failure;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    loadingDialog.hide();
+                    if (!isAdded() || binding == null) return;
+                    if (!failed) {
+                        Prefs.putInt(SELECTED_SETTINGS_ICONS_SET, iconPack - 1);
+                        if (iconPack > 0 && iconPack <= settingsIcons.size()) {
+                            iconsAdapter.setSelectedPack(iconPack - 1);
+                        }
                         buttonsAdapter.setButtons(true, true);
                     }
-
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        if (!hasErroredOut.get()) {
-                            Toast.makeText(OxygenCustomizer.getAppContext(), OxygenCustomizer.getAppContext().getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(OxygenCustomizer.getAppContext(), OxygenCustomizer.getAppContext().getResources().getString(R.string.toast_error), Toast.LENGTH_SHORT).show();
-                        }
-                    }, 3000);
-                }).start();
-            }
+                    Toast.makeText(requireContext(), failed ? R.string.toast_error : R.string.toast_applied,
+                            Toast.LENGTH_SHORT).show();
+                });
+            }, "OC-ApplySettingsIcons").start();
         }
 
         @Override
         public void onDisableClick() {
-            // Disable the pack
-            loadingDialog.show(OxygenCustomizer.getAppContext().getResources().getString(R.string.loading_dialog_wait));
-
+            loadingDialog.show(getString(R.string.loading_dialog_wait));
             new Thread(() -> {
-                AtomicBoolean hasErroredOut = new AtomicBoolean(false);
-
-                disableOverlay("OxygenCustomizerComponentSIP1.overlay");
-                disableOverlay("OxygenCustomizerComponentSIP2.overlay");
-
-                if (!hasErroredOut.get()) {
-                    Prefs.putInt(SELECTED_SETTINGS_ICONS_SET, -1);
-                    iconsAdapter.setSelectedPack(-1);
-                    buttonsAdapter.setButtons(true, false);
-                    mIconPack = -1;
+                boolean disabled;
+                try {
+                    boolean first = OverlayUtil.applyOverlayStateNow(
+                            "OxygenCustomizerComponentSIP1.overlay", false, false);
+                    boolean second = OverlayUtil.applyOverlayStateNow(
+                            "OxygenCustomizerComponentSIP2.overlay", false, false);
+                    disabled = first && second;
+                } catch (Exception error) {
+                    Log.e("SettingsIcons", "Unable to disable icons", error);
+                    disabled = false;
                 }
-
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    // Hide loading dialog
+                final boolean success = disabled;
+                new Handler(Looper.getMainLooper()).post(() -> {
                     loadingDialog.hide();
-
-                    if (!hasErroredOut.get()) {
-                        Toast.makeText(OxygenCustomizer.getAppContext(), OxygenCustomizer.getAppContext().getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(OxygenCustomizer.getAppContext(), OxygenCustomizer.getAppContext().getResources().getString(R.string.toast_error), Toast.LENGTH_SHORT).show();
+                    if (!isAdded() || binding == null) return;
+                    if (success) {
+                        Prefs.putInt(SELECTED_SETTINGS_ICONS_SET, -1);
+                        iconsAdapter.setSelectedPack(-1);
+                        buttonsAdapter.setButtons(true, false);
+                        mIconPack = -1;
                     }
-                }, 1000);
-            }).start();
+                    Toast.makeText(requireContext(), success ? R.string.toast_applied : R.string.toast_error,
+                            Toast.LENGTH_SHORT).show();
+                });
+            }, "OC-DisableSettingsIcons").start();
         }
     };
 

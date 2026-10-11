@@ -38,6 +38,12 @@ public class SettingsIconsCompiler {
 
     public static boolean buildOverlay(int iconSet, String resources, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
+        String[] rollbackNames = {"OxygenCustomizerComponentSIP1.overlay", "OxygenCustomizerComponentSIP2.overlay"};
+        boolean[] rollbackEnabled = new boolean[rollbackNames.length];
+        if (force) {
+            for (int i = 0; i < rollbackNames.length; i++) rollbackEnabled[i] = OverlayUtil.isOverlayEnabled(rollbackNames[i]);
+        }
+        boolean completed = false;
         try {
         mIconSet = iconSet;
         mForce = force;
@@ -95,8 +101,10 @@ public class SettingsIconsCompiler {
         }
 
         postExecute(false);
+        completed = true;
         return false;
         } finally {
+            if (!completed && force) OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
             OverlayCompileCoordinator.LOCK.unlock();
         }
     }
@@ -134,11 +142,14 @@ public class SettingsIconsCompiler {
         }
     }
 
-    private static void moveOverlaysToCache() {
+    private static void moveOverlaysToCache() throws IOException {
         for (int i = 0; i < mPackages.size(); i++) {
-            Shell.cmd(
-                    "mv -f \"" + ModuleConstants.DATA_DIR + "/CompileOnDemand/" + mPackages.get(i) + "/" + "ICS" + mIconSet + "\" \"" + ModuleConstants.TEMP_CACHE_DIR + "/" + mPackages.get(i) + "/" + "SIP" + (i + 1) + "\""
-            ).exec();
+            OverlayCompileCoordinator.runChecked(
+                    "mv -f \"" + ModuleConstants.DATA_DIR + "/CompileOnDemand/" + mPackages.get(i)
+                            + "/ICS" + mIconSet + "\" \""
+                            + ModuleConstants.TEMP_CACHE_DIR + "/" + mPackages.get(i)
+                            + "/SIP" + (i + 1) + "\"",
+                    "Prepare settings icons source");
         }
     }
 
@@ -159,67 +170,54 @@ public class SettingsIconsCompiler {
         return !result.isSuccess();
     }
 
-    private static void postExecute(boolean hasErroredOut) {
-        // Move all generated overlays to module
+    private static void postExecute(boolean hasErroredOut) throws IOException {
         if (!hasErroredOut) {
             for (int i = 1; i <= mPackages.size(); i++) {
-                Shell.cmd(
-                        "cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk " + ModuleConstants.OVERLAY_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                ).exec();
-                setPermissions(644, ModuleConstants.OVERLAY_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk");
+                String name = "OxygenCustomizerComponentSIP" + i + ".apk";
+                String signed = ModuleConstants.SIGNED_DIR + "/" + name;
+                OverlayCompileCoordinator.runChecked("cp -f " + signed + " " + ModuleConstants.OVERLAY_DIR + "/" + name,
+                        "Save settings icon overlay");
+                OverlayCompileCoordinator.runChecked("chmod 644 " + ModuleConstants.OVERLAY_DIR + "/" + name,
+                        "Set settings icon permissions");
                 if (mForce) {
-                    // Move to files dir and install
-                    Shell.cmd(
-                            "cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                    ).exec();
-                    setPermissions(644, ModuleConstants.DATA_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk");
-                    Shell.cmd(
-                            "pm install -r " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                    ).exec();
-                    Shell.cmd(
-                            "rm -rf " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                    ).exec();
+                    String staging = ModuleConstants.DATA_DIR + "/" + name;
+                    OverlayCompileCoordinator.runChecked("cp -f " + signed + " " + staging, "Stage settings icons");
+                    try {
+                        OverlayCompileCoordinator.runChecked("pm install -r " + staging, "Install settings icons");
+                    } finally {
+                        Shell.cmd("rm -f " + staging).exec();
+                    }
                 }
             }
-
             if (mForce) {
-                // Move to system overlay dir
                 mountRW();
                 try {
                     for (int i = 1; i <= mPackages.size(); i++) {
-                        Shell.cmd(
-                                "cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                        ).exec();
-                        setPermissions(644, "/system/product/overlay/OxygenCustomizerComponentSIP" + i + ".apk");
+                        String name = "OxygenCustomizerComponentSIP" + i + ".apk";
+                        OverlayCompileCoordinator.runChecked("cp -f " + ModuleConstants.SIGNED_DIR + "/" + name + " "
+                                + ModuleConstants.SYSTEM_OVERLAY_DIR + "/" + name, "Install settings icons to system");
+                        OverlayCompileCoordinator.runChecked("chmod 644 " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/" + name,
+                                "Set system overlay permissions");
                     }
                 } finally {
                     mountRO();
                 }
-
-                // Enable the overlays
-                String[] overlayNames = new String[mPackages.size()];
-
                 for (int i = 1; i <= mPackages.size(); i++) {
-                    overlayNames[i - 1] = "OxygenCustomizerComponentSIP" + i + ".overlay";
-                }
-
-                for (String overlay : overlayNames) {
-                    if (!OverlayUtil.applyOverlayStateNow(overlay, true, false)) {
-                        Log.e(TAG, "Failed to enable compiled overlay " + overlay);
+                    String pkg = "OxygenCustomizerComponentSIP" + i + ".overlay";
+                    if (!OverlayUtil.applyOverlayStateNow(pkg, true, false)) {
+                        throw new IOException("Overlay manager rejected " + pkg);
                     }
                 }
             } else {
                 for (int i = 1; i <= mPackages.size(); i++) {
-                    Shell.cmd(
-                            "cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk " + ModuleConstants.BACKUP_DIR + "/OxygenCustomizerComponentSIP" + i + ".apk"
-                    ).exec();
+                    String name = "OxygenCustomizerComponentSIP" + i + ".apk";
+                    OverlayCompileCoordinator.runChecked("cp -f " + ModuleConstants.SIGNED_DIR + "/" + name + " "
+                            + ModuleConstants.BACKUP_DIR + "/" + name, "Backup settings icon overlay");
                 }
             }
         }
-
-        // Clean temp directory
-        //Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
-        //Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand").exec();
+        Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
+        Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/CompileOnDemand").exec();
     }
 
 }
