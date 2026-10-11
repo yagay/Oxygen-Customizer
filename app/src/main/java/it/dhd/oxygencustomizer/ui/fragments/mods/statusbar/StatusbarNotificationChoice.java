@@ -63,7 +63,11 @@ public class StatusbarNotificationChoice extends AppFragmentBase {
 
     @Override
     public OnShowSystemChange getShowSystemChange() {
-        return showSystem -> ((AppAdapter) binding.recyclerView.getAdapter()).showSystem(showSystem);
+        return showSystem -> {
+            if (binding != null && binding.recyclerView.getAdapter() instanceof AppAdapter adapter) {
+                adapter.showSystem(showSystem);
+            }
+        };
     }
 
     @Override
@@ -89,6 +93,7 @@ public class StatusbarNotificationChoice extends AppFragmentBase {
             binding.searchView.setEnabled(false);
             binding.progress.setVisibility(View.VISIBLE);
         }, appList -> {
+            if (!isAdded() || getView() == null || binding == null) return;
             binding.recyclerView.setLayoutManager(new LinearLayoutManager(getAppContext()));
             binding.recyclerView.setAdapter(new AppAdapter(appList,
                     this::onMenuChange));
@@ -127,7 +132,14 @@ public class StatusbarNotificationChoice extends AppFragmentBase {
     private void onMenuChange(AppModel model, CharSequence value) {
         Log.d("StatusbarNotificationChoice", "onMenuChange: " + model.toString() + " value: " + value.toString());
         mEnabledApps.remove(model.getPackageName());
-        mEnabledApps.put(model.getPackageName(), Integer.valueOf((String) value));
+        int mode;
+        try {
+            mode = Integer.parseInt(value.toString());
+        } catch (NumberFormatException | NullPointerException e) {
+            return;
+        }
+        if (mode < 0 || mode > 2) return;
+        mEnabledApps.put(model.getPackageName(), mode);
         savePrefs();
     }
 

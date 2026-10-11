@@ -66,6 +66,13 @@ checks = [
     (JAVA / "ui/base/AppFragmentBase.java", [
         "executor.shutdown();",
     ]),
+    (JAVA / "ui/adapters/AppAdapter.java", [
+        "private final OnSwitchChange switchChangeListener;",
+        "private final OnSliderChange sliderChangeListener;",
+        "private final OnMenuChange menuChangeListener;",
+        "filteredApps.get(position)",
+        "matchesText && (matchesSystem || app.isEnabled())",
+    ]),
     (JAVA / "ui/fragments/mods/statusbar/StatusbarNotificationChoice.java", [
         "PackageModeParser.parse(enabledApps, 2)",
     ]),

@@ -66,7 +66,11 @@ public class DarkMode extends AppFragmentBase {
 
     @Override
     public OnShowSystemChange getShowSystemChange() {
-        return showSystem -> ((AppAdapter) binding.recyclerView.getAdapter()).showSystem(showSystem);
+        return showSystem -> {
+            if (binding != null && binding.recyclerView.getAdapter() instanceof AppAdapter adapter) {
+                adapter.showSystem(showSystem);
+            }
+        };
     }
 
     @Override
@@ -94,6 +98,7 @@ public class DarkMode extends AppFragmentBase {
             binding.searchView.setEnabled(false);
             binding.progress.setVisibility(View.VISIBLE);
         }, appList -> {
+            if (!isAdded() || getView() == null || binding == null) return;
             binding.recyclerView.setLayoutManager(new LinearLayoutManager(getAppContext()));
             binding.recyclerView.setAdapter(new AppAdapter(appList,
                     this::onSwitchChange,

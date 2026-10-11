@@ -27,9 +27,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     private final List<AppModel> itemList;
     private final List<AppModel> filteredApps;
-    private static OnSwitchChange switchChangeListener;
-    private static OnSliderChange sliderChangeListener;
-    private static OnMenuChange menuChangeListener;
+    // Listeners belong to each adapter; static listeners cross-wire screens and leak fragments.
+    private final OnSwitchChange switchChangeListener;
+    private final OnSliderChange sliderChangeListener;
+    private final OnMenuChange menuChangeListener;
     private String filterText = "";
     private boolean showSystem = false;
     private boolean hasSlider = false;
@@ -102,7 +103,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
 
     @Override
     public void onBindViewHolder(@NonNull AppAdapter.ViewHolder holder, int position) {
-        AppModel model = filteredApps.get(holder.getBindingAdapterPosition());
+        AppModel model = filteredApps.get(position);
         boolean shouldDrawDivider = getItemCount() > 1 && position < getItemCount() - 1;
         holder.setDrawDivider(shouldDrawDivider);
 
@@ -215,7 +216,7 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.ViewHolder> {
             boolean matchesText = TextUtils.isEmpty(filterText) || app.getAppName().toLowerCase().contains(filterText.toLowerCase()) || app.getPackageName().toLowerCase().contains(filterText.toLowerCase());
             boolean matchesSystem = showSystem || !app.isSystemApp();
 
-            if ((matchesText && matchesSystem) || app.isEnabled()) {
+            if (matchesText && (matchesSystem || app.isEnabled())) {
                 filteredApps.add(app);
             }
         }
