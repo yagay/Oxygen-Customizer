@@ -39,15 +39,15 @@ public class ClockPreviewAdapter extends RecyclerView.Adapter<ClockPreviewAdapte
 
     private final Context context;
     private final ArrayList<ClockModel> itemList;
-    private static String prefSwitch;
+    private final String prefSwitch;
     private final String prefStyle;
-    private static Bitmap wallpaperBitmap;
+    private Bitmap wallpaperBitmap;
     private LinearLayoutManager linearLayoutManager;
 
     public ClockPreviewAdapter(Context context, ArrayList<ClockModel> itemList, String prefSwitch, String prefStyle) {
         this.context = context;
         this.itemList = itemList;
-        ClockPreviewAdapter.prefSwitch = prefSwitch;
+        this.prefSwitch = prefSwitch;
         this.prefStyle = prefStyle;
 
         new WallpaperLoaderTask(this).execute();
@@ -193,7 +193,7 @@ public class ClockPreviewAdapter extends RecyclerView.Adapter<ClockPreviewAdapte
 
         WallpaperLoaderTask(ClockPreviewAdapter adapter) {
             adapterRef = new WeakReference<>(adapter);
-            wallpaperBitmap = null;
+            adapter.wallpaperBitmap = null;
         }
 
         @Override
@@ -204,7 +204,7 @@ public class ClockPreviewAdapter extends RecyclerView.Adapter<ClockPreviewAdapte
             return WallpaperUtil.getCompressedWallpaper(
                     context,
                     80,
-                    Objects.equals(prefSwitch, LOCKSCREEN_CLOCK_SWITCH) ?
+                    Objects.equals(adapter.prefSwitch, LOCKSCREEN_CLOCK_SWITCH) ?
                             WallpaperManager.FLAG_LOCK :
                             WallpaperManager.FLAG_SYSTEM
             );
@@ -215,8 +215,8 @@ public class ClockPreviewAdapter extends RecyclerView.Adapter<ClockPreviewAdapte
         protected void onPostExecute(Bitmap bitmap) {
             super.onPostExecute(bitmap);
             ClockPreviewAdapter adapter = adapterRef.get();
-            if (adapter != null && bitmap != null && Objects.equals(prefSwitch, LOCKSCREEN_CLOCK_SWITCH)) {
-                wallpaperBitmap = bitmap;
+            if (adapter != null && bitmap != null && Objects.equals(adapter.prefSwitch, LOCKSCREEN_CLOCK_SWITCH)) {
+                adapter.wallpaperBitmap = bitmap;
                 adapter.notifyDataSetChanged();
             }
         }

@@ -5,6 +5,7 @@ import static android.content.Context.RECEIVER_EXPORTED;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.DownloadManager;
+import android.app.Activity;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -103,6 +104,7 @@ public class UpdateFragment extends BaseFragment {
     HashMap<String, Object> latestVersion = null;
     private String downloadedFilePath;
     private LoadingDialog mLoadingDialog;
+    private volatile int mUpdateRequestGeneration = 0;
 
     final BroadcastReceiver downloadCompletionReceiver = new BroadcastReceiver() {
 
@@ -206,13 +208,24 @@ public class UpdateFragment extends BaseFragment {
     }
 
     private void installNightly(String downloadPath) {
-        unzip(downloadPath, apkFile -> {
-            requireActivity().runOnUiThread(() -> mLoadingDialog.dismiss());
-            if (apkFile != null && !TextUtils.isEmpty(apkFile.getPath()))
-                installApk(apkFile.getPath());
-            else
-                Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
-        });
+        if (!isTrustedDownloadPath(downloadPath)) {
+            mLoadingDialog.dismiss();
+            Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        new Thread(() -> unzip(downloadPath, apkFile -> {
+            Activity activity = getActivity();
+            if (activity == null) return;
+            activity.runOnUiThread(() -> {
+                if (!isAdded()) return;
+                mLoadingDialog.dismiss();
+                if (apkFile != null && !TextUtils.isEmpty(apkFile.getPath())) {
+                    installApk(apkFile.getPath());
+                } else {
+                    Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }), "OC-NightlyUpdateExtractor").start();
     }
 
     private void installApk(String downloadPath) {
@@ -273,6 +286,10 @@ public class UpdateFragment extends BaseFragment {
 
     public void unzip(String fileName, UnZipCallback callback) {
         File outputApk = null;
+        if (fileName == null) {
+            callback.onFinished(null);
+            return;
+        }
         File fileToUnzip = new File(fileName);
         try (ZipFile unzipper = new ZipFile(fileToUnzip)) {
             ZipEntry apkEntry = null;
@@ -375,12 +392,15 @@ public class UpdateFragment extends BaseFragment {
             ((TextView) view.findViewById(R.id.latestVersionValueID)).setText(R.string.update_checking);
             binding.updateBtn.setEnabled(rebootPending);
 
+            final int requestGeneration = ++mUpdateRequestGeneration;
             checkUpdates(mCurrentFlavor, result -> {
-                if (result == null) return;
-                latestVersion = result;
+                if (result == null || requestGeneration != mUpdateRequestGeneration) return;
+                Activity currentActivity = getActivity();
+                if (currentActivity == null) return;
+                currentActivity.runOnUiThread(() -> {
+                        if (binding == null || requestGeneration != mUpdateRequestGeneration) return;
+                        latestVersion = result;
 
-                if (getActivity() != null) {
-                    requireActivity().runOnUiThread(() -> {
                         try {
                             InternalStyleSheet css = new Github();
                             css.addRule("body, kbd", "background-color: " + intToHex(ThemeUtils.getAttrColor(requireContext(), R.attr.preferenceBackgroundColor)));
@@ -401,10 +421,9 @@ public class UpdateFragment extends BaseFragment {
                         } catch (Throwable ignored) {
                         }
                     });
-                }
 
-                if (getActivity() != null) {
-                    requireActivity().runOnUiThread(() -> {
+                currentActivity.runOnUiThread(() -> {
+                        if (binding == null || requestGeneration != mUpdateRequestGeneration) return;
                         ((TextView) view.findViewById(R.id.latestVersionValueID)).setText(
                                 String.format("%s (%s)", result.get("version"),
                                         result.get("versionCode")));
@@ -465,7 +484,6 @@ public class UpdateFragment extends BaseFragment {
                         view.findViewById(R.id.updateBtn).setEnabled(enable);
                         ((Button) view.findViewById(R.id.updateBtn)).setText(BtnText);
                     });
-                }
             });
         };
 
@@ -587,6 +605,7 @@ public class UpdateFragment extends BaseFragment {
 
     @Override
     public void onDestroyView() {
+        ++mUpdateRequestGeneration;
         super.onDestroyView();
         binding = null;
     }

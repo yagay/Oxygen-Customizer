@@ -18,6 +18,7 @@ import android.content.ServiceConnection;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.SystemClock;
 
 import java.util.Arrays;
 import java.util.ArrayList;
@@ -52,6 +53,8 @@ public class XPLauncher implements ServiceConnection {
     public static final ConcurrentHashMap<String, String> modLoadStates = new ConcurrentHashMap<>();
     private static final int MAX_PENDING_PROXY_COMMANDS = 64;
     private static final int ROOT_CONNECT_RETRIES = 24;
+    private static final long ROOT_BIND_TIMEOUT_MS = 15_000;
+    private static volatile long lastRootBindAttempt = 0;
     private static final ExecutorService ROOT_COMMAND_EXECUTOR = Executors.newSingleThreadExecutor(task -> {
         Thread worker = new Thread(task, "OC-RootCommand-Worker");
         worker.setDaemon(true);
@@ -305,10 +308,21 @@ public class XPLauncher implements ServiceConnection {
     }
 
     private void connectRootService() {
-        if (mContext == null || rootProxyIPC != null
-                || !bindInProgress.compareAndSet(false, true)) {
-            return;
+        if (mContext == null || rootProxyIPC != null) return;
+        long now = SystemClock.elapsedRealtime();
+        if (bindInProgress.get()) {
+            if (now - lastRootBindAttempt < ROOT_BIND_TIMEOUT_MS) return;
+            // bindService can return true without ever delivering a connection.
+            // Release that binding before another attempt; otherwise all retries are no-ops.
+            log("[ Oxygen Customizer ] Root binding timed out; retrying");
+            try {
+                mContext.unbindService(instance);
+            } catch (Throwable ignored) {
+            }
+            bindInProgress.set(false);
         }
+        if (!bindInProgress.compareAndSet(false, true)) return;
+        lastRootBindAttempt = now;
 
         try {
             Intent intent = new Intent();
@@ -343,6 +357,26 @@ public class XPLauncher implements ServiceConnection {
     @Override
     public void onServiceDisconnected(ComponentName name) {
         rootProxyIPC = null;
+        bindInProgress.set(false);
+        forceConnectRootService();
+    }
+
+    @Override
+    public void onBindingDied(ComponentName name) {
+        releaseDeadRootBinding();
+    }
+
+    @Override
+    public void onNullBinding(ComponentName name) {
+        releaseDeadRootBinding();
+    }
+
+    private void releaseDeadRootBinding() {
+        rootProxyIPC = null;
+        try {
+            if (mContext != null) mContext.unbindService(this);
+        } catch (Throwable ignored) {
+        }
         bindInProgress.set(false);
         forceConnectRootService();
     }
