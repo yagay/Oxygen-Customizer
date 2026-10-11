@@ -62,13 +62,10 @@ public class PackageListAdapter extends BaseAdapter {
         @Override
         public void handleMessage(Message msg) {
             if (msg.arg1 != mLoadGeneration) return;
-            PackageItem item = (PackageItem) msg.obj;
-            int index = Collections.binarySearch(mInstalledPackages, item);
-            if (index < 0) {
-                mInstalledPackages.add(-index - 1, item);
-            } else {
-                mInstalledPackages.get(index).activityTitles.addAll(item.activityTitles);
-            }
+            @SuppressWarnings("unchecked")
+            List<PackageItem> result = (List<PackageItem>) msg.obj;
+            mInstalledPackages.clear();
+            mInstalledPackages.addAll(result);
             notifyDataSetChanged();
         }
     };
@@ -171,6 +168,7 @@ public class PackageListAdapter extends BaseAdapter {
         final Intent mainIntent = new Intent(Intent.ACTION_MAIN, null);
         mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
         List<ResolveInfo> installedAppsInfo = mPm.queryIntentActivities(mainIntent, 0);
+        List<PackageItem> result = new java.util.ArrayList<>();
 
         for (ResolveInfo info : installedAppsInfo) {
             ApplicationInfo appInfo = info.activityInfo.applicationInfo;
@@ -181,7 +179,9 @@ public class PackageListAdapter extends BaseAdapter {
             final PackageItem item = new PackageItem(appInfo.packageName,
                     appInfo.loadLabel(mPm), appInfo.loadIcon(mPm));
             item.activityTitles.add(info.loadLabel(mPm));
-            mHandler.obtainMessage(0, generation, 0, item).sendToTarget();
+            int index = Collections.binarySearch(result, item);
+            if (index < 0) result.add(-index - 1, item);
+            else result.get(index).activityTitles.addAll(item.activityTitles);
         }
 
         for (String packageName : PACKAGE_WHITELIST) {
@@ -192,11 +192,13 @@ public class PackageListAdapter extends BaseAdapter {
                 ApplicationInfo appInfo = mPm.getApplicationInfo(packageName, 0);
                 final PackageItem item = new PackageItem(appInfo.packageName,
                         appInfo.loadLabel(mPm), appInfo.loadIcon(mPm));
-                mHandler.obtainMessage(0, item).sendToTarget();
+                int index = Collections.binarySearch(result, item);
+                if (index < 0) result.add(-index - 1, item);
             } catch (PackageManager.NameNotFoundException ignored) {
                 // package not present, so nothing to add -> ignore it
             }
         }
+        mHandler.obtainMessage(0, generation, 0, result).sendToTarget();
     }
 
     public void setExcludedPackages(HashSet<String> packages) {

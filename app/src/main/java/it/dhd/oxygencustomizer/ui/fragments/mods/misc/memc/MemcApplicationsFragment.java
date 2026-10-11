@@ -92,18 +92,14 @@ public class MemcApplicationsFragment extends Fragment {
         Set<String> enabledApps = mPreferences.getStringSet("custom_memc_applications", new ArraySet<>());
         mEnabledApps = new ArrayMap<>();
         for (String item : enabledApps) {
-            if (item.contains("|")) {
-                List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                if (arr.size() < 2 || arr.get(1).isBlank()) {
-                    if (arr.size() < 2) arr.add("120$267-3-1");
-                    else arr.set(1, "120$267-3-1");
-                }
-                mEnabledApps.put(arr.get(0), arr.get(1));
-                mAlreadyAddedApps.add(arr.get(0));
-            } else {
-                mEnabledApps.put(item, "120$267-3-1");
-                mAlreadyAddedApps.add(item);
-            }
+            if (item == null || item.isBlank()) continue;
+            int separator = item.indexOf('|');
+            String key = (separator < 0 ? item : item.substring(0, separator)).trim();
+            if (key.isEmpty()) continue;
+            String config = separator < 0 ? "" : item.substring(separator + 1).trim();
+            if (config.isEmpty()) config = "120$267-3-1";
+            mEnabledApps.put(key, config);
+            mAlreadyAddedApps.add(key);
         }
 
         mPackageAdapter.setExcludedPackages(new HashSet<>(mAlreadyAddedApps));
@@ -129,7 +125,8 @@ public class MemcApplicationsFragment extends Fragment {
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    ((MemcAppAdapter) binding.recyclerView.getAdapter()).filter(s.toString());
+                    if (binding == null || !(binding.recyclerView.getAdapter() instanceof MemcAppAdapter adapter)) return;
+                    adapter.filter(s.toString());
                 }
 
                 @Override

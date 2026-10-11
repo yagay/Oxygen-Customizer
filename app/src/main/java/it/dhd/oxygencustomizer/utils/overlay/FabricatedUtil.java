@@ -294,21 +294,27 @@ public class FabricatedUtil {
         for (String name : names) disableOverlay(name);
     }
 
+    private static boolean queryFabricatedOverlayState(String name, boolean enabled) {
+        Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
+        if (!result.isSuccess()) {
+            Log.w("FabricatedUtil", "Unable to query fabricated overlay: " + result.getErr());
+            return false;
+        }
+        String expected = (enabled ? "[x] " : "[ ] ")
+                + "com.android.shell:OxygenCustomizerComponent" + name;
+        for (String line : result.getOut()) {
+            if (expected.equals(line.trim())) return true;
+        }
+        return false;
+    }
+
     public static boolean isOverlayEnabled(String name) {
         if (name == null || !name.matches("[A-Za-z0-9._-]+")) return false;
-        List<String> output = Shell.cmd(
-                "[[ $(cmd overlay list | grep -F '[x] com.android.shell:OxygenCustomizerComponent"
-                        + name + "') ]] && echo 1 || echo 0"
-        ).exec().getOut();
-        return !output.isEmpty() && "1".equals(output.get(0));
+        return queryFabricatedOverlayState(name, true);
     }
 
     public static boolean isOverlayDisabled(String name) {
         if (name == null || !name.matches("[A-Za-z0-9._-]+")) return false;
-        List<String> output = Shell.cmd(
-                "[[ $(cmd overlay list | grep -F '[ ] com.android.shell:OxygenCustomizerComponent"
-                        + name + "') ]] && echo 1 || echo 0"
-        ).exec().getOut();
-        return !output.isEmpty() && "1".equals(output.get(0));
+        return queryFabricatedOverlayState(name, false);
     }
 }

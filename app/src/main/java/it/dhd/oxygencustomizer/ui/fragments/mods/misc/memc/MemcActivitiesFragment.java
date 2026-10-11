@@ -94,16 +94,13 @@ public class MemcActivitiesFragment extends Fragment {
         Set<String> enabledApps = mPreferences.getStringSet("custom_memc_activities", new ArraySet<>());
         mEnabledApps = new ArrayMap<>();
         for (String item : enabledApps) {
-            if (item.contains("|")) {
-                List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
-                if (arr.size() < 2 || arr.get(1).isBlank()) {
-                    if (arr.size() < 2) arr.add("258-40-0-0");
-                    else arr.set(1, "258-40-0-0");
-                }
-                mEnabledApps.put(arr.get(0), arr.get(1));
-            } else {
-                mEnabledApps.put(item, "258-40-0-0");
-            }
+            if (item == null || item.isBlank()) continue;
+            int separator = item.indexOf('|');
+            String key = (separator < 0 ? item : item.substring(0, separator)).trim();
+            if (key.isEmpty()) continue;
+            String config = separator < 0 ? "" : item.substring(separator + 1).trim();
+            if (config.isEmpty()) config = "258-40-0-0";
+            mEnabledApps.put(key, config);
         }
 
         new LoadAppsTask(
@@ -128,7 +125,8 @@ public class MemcActivitiesFragment extends Fragment {
 
                 @Override
                 public void onTextChanged(CharSequence s, int start, int before, int count) {
-                    ((MemcAppAdapter) binding.recyclerView.getAdapter()).filter(s.toString());
+                    if (binding == null || !(binding.recyclerView.getAdapter() instanceof MemcAppAdapter adapter)) return;
+                    adapter.filter(s.toString());
                 }
 
                 @Override

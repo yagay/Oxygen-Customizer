@@ -26,7 +26,7 @@ import java.util.Set;
 
 import it.dhd.oxygencustomizer.R;
 
-public class ActivitiesListAdapter extends BaseAdapter implements Runnable {
+public class ActivitiesListAdapter extends BaseAdapter {
 
     private final Context mContext;
     private final PackageManager mPm;
@@ -34,15 +34,16 @@ public class ActivitiesListAdapter extends BaseAdapter implements Runnable {
     private final List<ActivityItem> mInstalledPackages = new LinkedList<>();
     private Set<String> mExcludedActivities = new HashSet<>();
     private String mPackageName;
+    private volatile int mLoadGeneration = 0;
 
     private final Handler mHandler = new Handler(Looper.getMainLooper()) {
         @Override
         public void handleMessage(Message msg) {
-            ActivityItem item = (ActivityItem) msg.obj;
-            int index = Collections.binarySearch(mInstalledPackages, item);
-            if (index < 0) {
-                mInstalledPackages.add(-index - 1, item);
-            }
+            if (msg.arg1 != mLoadGeneration) return;
+            @SuppressWarnings("unchecked")
+            List<ActivityItem> result = (List<ActivityItem>) msg.obj;
+            mInstalledPackages.clear();
+            mInstalledPackages.addAll(result);
             notifyDataSetChanged();
         }
     };
@@ -126,21 +127,30 @@ public class ActivitiesListAdapter extends BaseAdapter implements Runnable {
     }
 
     private void reloadList() {
+        int generation = ++mLoadGeneration;
+        mHandler.removeMessages(0);
         mInstalledPackages.clear();
-        new Thread(this).start();
+        notifyDataSetChanged();
+        String packageName = mPackageName;
+        Set<String> excluded = new HashSet<>(mExcludedActivities);
+        new Thread(() -> loadList(generation, packageName, excluded), "OC-ActivityList").start();
     }
 
-    @Override
-    public void run() {
-        if (TextUtils.isEmpty(mPackageName)) return;
+    private void loadList(int generation, String packageName, Set<String> excluded) {
+        List<ActivityItem> result = new java.util.ArrayList<>();
+        if (TextUtils.isEmpty(packageName)) {
+            mHandler.obtainMessage(0, generation, 0, result).sendToTarget();
+            return;
+        }
 
         try {
-            ApplicationInfo appInfo = mPm.getApplicationInfo(mPackageName, 0);
+            ApplicationInfo appInfo = mPm.getApplicationInfo(packageName, 0);
             Drawable appIcon = mPm.getApplicationIcon(appInfo);
-            PackageInfo info = mPm.getPackageInfo(mPackageName, PackageManager.GET_ACTIVITIES);
+            PackageInfo info = mPm.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES);
             ActivityInfo[] list = info.activities;
+            if (list == null) list = new ActivityInfo[0];
             for (ActivityInfo activityInfo : list) {
-                if (mExcludedActivities.contains(activityInfo.targetActivity)) {
+                if (excluded.contains(activityInfo.name) || excluded.contains(activityInfo.targetActivity)) {
                     continue;
                 }
                 String label = activityInfo.loadLabel(mPm).toString();
@@ -150,18 +160,17 @@ public class ActivitiesListAdapter extends BaseAdapter implements Runnable {
                 final ActivityItem item = new ActivityItem(activityInfo.name,
                         label,
                         appIcon);
-                mHandler.obtainMessage(0, item).sendToTarget();
+                int index = Collections.binarySearch(result, item);
+                if (index < 0) result.add(-index - 1, item);
             }
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e("ActivitiesListAdapter", "Package not found: " + mPackageName, e);
-            return;
+            Log.e("ActivitiesListAdapter", "Package not found: " + packageName, e);
         }
-
-
+        mHandler.obtainMessage(0, generation, 0, result).sendToTarget();
     }
 
     public void setExcludedActivities(HashSet<String> packages) {
-        mExcludedActivities = packages;
+        mExcludedActivities = new HashSet<>(packages);
         reloadList();
     }
 

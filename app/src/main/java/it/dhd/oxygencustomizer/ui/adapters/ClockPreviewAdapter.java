@@ -142,7 +142,7 @@ public class ClockPreviewAdapter extends RecyclerView.Adapter<ClockPreviewAdapte
                 viewStub.inflate();
             }
 
-            boolean isSelected = adapterPosition == getBindingAdapterPosition();
+            boolean isSelected = PreferenceHelper.instance.mPreferences.getInt(prefStyle, 0) == position;
             button.setEnabled(!isSelected);
             checkIcon.setVisibility(isSelected ? View.VISIBLE : View.GONE);
         }
@@ -198,8 +198,9 @@ public class ClockPreviewAdapter extends RecyclerView.Adapter<ClockPreviewAdapte
 
         @Override
         protected Bitmap doInBackground(Void... voids) {
-            Context context = adapterRef.get().context;
-            if (context == null) return null;
+            ClockPreviewAdapter adapter = adapterRef.get();
+            if (adapter == null || adapter.context == null) return null;
+            Context context = adapter.context;
             return WallpaperUtil.getCompressedWallpaper(
                     context,
                     80,
