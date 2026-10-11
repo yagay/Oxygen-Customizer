@@ -7,6 +7,7 @@ import static it.dhd.oxygencustomizer.utils.ModuleConstants.XPOSED_ONLY_MODE;
 
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -15,6 +16,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -37,6 +40,8 @@ import it.dhd.oxygencustomizer.utils.PrefManager;
 import it.dhd.oxygencustomizer.utils.UpdateScheduler;
 
 public class Settings extends ControlledPreferenceFragmentCompat {
+    private static final ExecutorService SETTINGS_IO = Executors.newSingleThreadExecutor(
+            task -> new Thread(task, "OC-SettingsBackup"));
 
     // Language Pref
     private ListPreference languagePref;
@@ -233,39 +238,40 @@ public class Settings extends ControlledPreferenceFragmentCompat {
         mImportExportLauncher.launch(fileIntent);
     }
 
-    ActivityResultLauncher<Intent> mImportExportLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == Activity.RESULT_OK) {
-                    Intent data = result.getData();
-                    if (data == null) return;
-
-                    SharedPreferences prefs = getDefaultSharedPreferences(requireContext().createDeviceProtectedStorageContext());
-
-                    Log.d("Settings", "importExportSettings: export? " + export + " " + data.getData());
-
-                    if (export) {
-                        try {
-                            if (PrefManager.exportPrefs(prefs, getContext().getContentResolver().openOutputStream(data.getData()))) {
-                                AppUtils.showToast(requireContext(), getString(R.string.export_success));
-                            } else {
-                                AppUtils.showToast(requireContext(), getString(R.string.export_failed));
-                            }
-
-                        } catch (Exception ignored) {
+    ActivityResultLauncher<Intent> mImportExportLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null
+                        || result.getData().getData() == null || !isAdded()) return;
+                final Uri document = result.getData().getData();
+                final boolean exporting = export;
+                final Context context = requireContext().getApplicationContext();
+                final SharedPreferences prefs = getDefaultSharedPreferences(
+                        context.createDeviceProtectedStorageContext());
+                SETTINGS_IO.execute(() -> {
+                    boolean success = false;
+                    try {
+                        if (exporting) {
+                            success = PrefManager.exportPrefs(prefs,
+                                    context.getContentResolver().openOutputStream(document));
+                        } else {
+                            success = PrefManager.importPath(prefs,
+                                    context.getContentResolver().openInputStream(document));
                         }
-                    } else {
-                        try {
-                            if (PrefManager.importPath(prefs, getContext().getContentResolver().openInputStream(data.getData()))) {
-                                AppUtils.showToast(requireContext(), getString(R.string.import_success));
-                                new Handler(Looper.getMainLooper()).postDelayed(() -> AppUtils.restartAllScope(new String[]{SYSTEM_UI}), 1000);
-                            } else {
-                                AppUtils.showToast(requireContext(), getString(R.string.import_failed));
-                            }
-                        } catch (Exception e) {
-                            Log.d("Settings", "importExportSettings: " + e.getMessage());
-                        }
+                    } catch (Exception failure) {
+                        Log.e("Settings", "Preference backup operation failed", failure);
                     }
-                }
+                    final boolean completed = success;
+                    new Handler(Looper.getMainLooper()).post(() -> {
+                        if (!isAdded() || getView() == null) return;
+                        AppUtils.showToast(requireContext(), getString(exporting
+                                ? (completed ? R.string.export_success : R.string.export_failed)
+                                : (completed ? R.string.import_success : R.string.import_failed)));
+                        if (!exporting && completed) {
+                            new Handler(Looper.getMainLooper()).postDelayed(
+                                    () -> AppUtils.restartAllScope(new String[]{SYSTEM_UI}), 1000);
+                        }
+                    });
+                });
             });
 
 }
