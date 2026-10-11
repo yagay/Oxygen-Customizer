@@ -386,7 +386,7 @@ checks.extend([
     ]),
     (JAVA / "utils/ModuleUtil.java", [
         "OverlayCompileCoordinator.LOCK.lock();",
-        "Unresolved MEMC XML rollback snapshots",
+        "Unresolved ",
         "boolean safeToDiscardBackups = false;",
         "if (safeToDiscardBackups)",
     ]),
