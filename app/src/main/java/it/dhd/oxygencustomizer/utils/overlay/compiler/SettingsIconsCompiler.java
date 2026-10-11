@@ -107,7 +107,12 @@ public class SettingsIconsCompiler {
             try {
                 if (!completed && force) OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
             } finally {
-                OverlayCompileCoordinator.LOCK.unlock();
+                try {
+                    OverlayCompileCoordinator.cleanupStaging(
+                            ModuleConstants.TEMP_DIR, ModuleConstants.DATA_DIR + "/CompileOnDemand");
+                } finally {
+                    OverlayCompileCoordinator.LOCK.unlock();
+                }
             }
         }
     }

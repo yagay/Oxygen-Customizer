@@ -81,11 +81,17 @@ public class OnDemandCompiler {
         return false;
         } finally {
             try {
-                if (!completed && wasEnabled) {
-                    OverlayUtil.applyOverlayStateNow(targetOverlay, true, false);
+                if (!completed && force) {
+                    OverlayCompileCoordinator.restorePrevious(
+                            new String[]{targetOverlay}, new boolean[]{wasEnabled});
                 }
             } finally {
-                OverlayCompileCoordinator.LOCK.unlock();
+                try {
+                    OverlayCompileCoordinator.cleanupStaging(
+                            TEMP_DIR, ModuleConstants.DATA_DIR + "/CompileOnDemand");
+                } finally {
+                    OverlayCompileCoordinator.LOCK.unlock();
+                }
             }
         }
     }

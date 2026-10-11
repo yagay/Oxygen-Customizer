@@ -87,7 +87,12 @@ public class RoundnessCompiler {
                     OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
                 }
             } finally {
-                OverlayCompileCoordinator.LOCK.unlock();
+                try {
+                    OverlayCompileCoordinator.cleanupStaging(
+                            ModuleConstants.TEMP_DIR, ModuleConstants.DATA_DIR + "/Overlays");
+                } finally {
+                    OverlayCompileCoordinator.LOCK.unlock();
+                }
             }
         }
     }

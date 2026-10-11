@@ -24,13 +24,37 @@ public final class OverlayCompileCoordinator {
     }
 
     public static void restorePrevious(String[] names, boolean[] enabled) {
+        if (names.length != enabled.length) {
+            throw new IllegalArgumentException("Overlay rollback state length mismatch");
+        }
         for (int i = 0; i < names.length; i++) {
-            if (enabled[i]) {
-                if (!it.dhd.oxygencustomizer.utils.overlay.OverlayUtil
-                        .applyOverlayStateNow(names[i], true, false)) {
-                    Log.e("OC-OverlayCompile", "Could not restore overlay " + names[i]);
-                }
+            boolean active = it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.isOverlayEnabled(names[i]);
+            if (active == enabled[i]) continue;
+            if (!it.dhd.oxygencustomizer.utils.overlay.OverlayUtil
+                    .applyOverlayStateNow(names[i], enabled[i], false)) {
+                Log.e("OC-OverlayCompile", "Could not restore overlay " + names[i]
+                        + " to enabled=" + enabled[i]);
             }
         }
+    }
+
+    /** Always clear shared compiler staging, even if extraction or signing throws. */
+    public static void cleanupStaging(String... paths) {
+        for (String path : paths) {
+            if (path == null || path.isBlank()) continue;
+            try {
+                Shell.Result removed = Shell.cmd("rm -rf -- " + shellQuote(path)).exec();
+                if (!removed.isSuccess()) {
+                    Log.w("OC-OverlayCompile", "Unable to clean staging: " + path
+                            + " " + removed.getErr());
+                }
+            } catch (Throwable failure) {
+                Log.e("OC-OverlayCompile", "Staging cleanup failed: " + path, failure);
+            }
+        }
+    }
+
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 }
