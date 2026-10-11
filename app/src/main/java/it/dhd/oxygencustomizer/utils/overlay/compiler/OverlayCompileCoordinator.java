@@ -17,6 +17,10 @@ public final class OverlayCompileCoordinator {
 
     private OverlayCompileCoordinator() {}
 
+    private static String failedMarker() {
+        return ModuleConstants.DATA_DIR + "/overlay-rollback/rollback-failed";
+    }
+
     public static void runChecked(String command, String operation) throws IOException {
         Shell.Result result = Shell.cmd(command).exec();
         if (!result.isSuccess()) {
@@ -44,6 +48,13 @@ public final class OverlayCompileCoordinator {
     public static void cleanupStaging(String... paths) {
         for (String path : paths) {
             if (path == null || path.isBlank()) continue;
+            // Failed rollback APKs are essential for manual recovery. Preserve
+            // them rather than destroying evidence and the only clean backups.
+            if (path.equals(ModuleConstants.DATA_DIR + "/overlay-rollback")
+                    && Shell.cmd("test -f " + shellQuote(failedMarker())).exec().isSuccess()) {
+                Log.e("OC-OverlayCompile", "Keeping failed rollback snapshots: " + path);
+                continue;
+            }
             try {
                 Shell.Result removed = Shell.cmd("rm -rf -- " + shellQuote(path)).exec();
                 if (!removed.isSuccess()) {
@@ -63,6 +74,9 @@ public final class OverlayCompileCoordinator {
      */
     public static FileSnapshot snapshotOverlayFiles(String... destinations) throws IOException {
         String directory = ModuleConstants.DATA_DIR + "/overlay-rollback";
+        if (Shell.cmd("test -f " + shellQuote(failedMarker())).exec().isSuccess()) {
+            throw new IOException("Previous overlay rollback is unresolved; preserve backups in " + directory);
+        }
         runChecked("rm -rf -- " + shellQuote(directory)
                 + " && mkdir -p -- " + shellQuote(directory), "Prepare overlay rollback");
         String[] copies = new String[destinations.length];
@@ -161,7 +175,7 @@ public final class OverlayCompileCoordinator {
                     + " " + shellQuote(path)).exec().isSuccess();
         }
 
-        private void restoreFile(int index) {
+        private boolean restoreFile(int index) {
             String command = existed[index]
                     ? "cp -p -- " + shellQuote(backups[index]) + " " + shellQuote(destinations[index])
                     : "rm -f -- " + shellQuote(destinations[index]);
@@ -170,14 +184,18 @@ public final class OverlayCompileCoordinator {
                 if (!result.isSuccess()) {
                     Log.e("OC-OverlayCompile", "Failed to restore " + destinations[index]
                             + ": " + result.getErr());
+                    return false;
                 }
+                return true;
             } catch (Throwable t) {
                 Log.e("OC-OverlayCompile", "Failed to restore " + destinations[index], t);
+                return false;
             }
         }
 
         /** Best-effort restore; never mask the original compilation exception. */
         public void restore() {
+            boolean rollbackFailed = false;
             boolean needSystem = false;
             boolean[] dirty = new boolean[destinations.length];
             for (int i = 0; i < destinations.length; i++) {
@@ -188,7 +206,7 @@ public final class OverlayCompileCoordinator {
             }
             for (int i = 0; i < destinations.length; i++) {
                 if (dirty[i] && !destinations[i].startsWith(ModuleConstants.SYSTEM_OVERLAY_DIR + "/")) {
-                    restoreFile(i);
+                    if (!restoreFile(i)) rollbackFailed = true;
                 }
             }
             if (needSystem) {
@@ -198,16 +216,18 @@ public final class OverlayCompileCoordinator {
                     mounted = true;
                     for (int i = 0; i < destinations.length; i++) {
                         if (dirty[i] && destinations[i].startsWith(ModuleConstants.SYSTEM_OVERLAY_DIR + "/")) {
-                            restoreFile(i);
+                            if (!restoreFile(i)) rollbackFailed = true;
                         }
                     }
                 } catch (Throwable failure) {
+                    rollbackFailed = true;
                     Log.e("OC-OverlayCompile", "Could not remount for overlay rollback", failure);
                 } finally {
                     if (mounted) {
                         try {
                             SystemUtil.mountRO();
                         } catch (Throwable failure) {
+                            rollbackFailed = true;
                             Log.e("OC-OverlayCompile", "Could not restore read-only mount", failure);
                         }
                     }
@@ -225,29 +245,50 @@ public final class OverlayCompileCoordinator {
                         String original = installedBackups[i] != null
                                 ? installedBackups[i] : (existed[i] ? backups[i] : null);
                         if (original == null) {
+                            rollbackFailed = true;
                             Log.e("OC-OverlayCompile", "Cannot restore installed overlay "
                                     + packageName + ": original APK is unavailable");
                             continue;
                         }
-                        Shell.Result restored = Shell.cmd("pm install -r "
+                        // Downgrading requires -d on Android when a newly
+                        // installed APK has a higher versionCode.
+                        Shell.Result restored = Shell.cmd("pm install -r -d "
                                 + shellQuote(original)).exec();
                         if (!restored.isSuccess()) {
+                            restored = Shell.cmd("pm install -r " + shellQuote(original)).exec();
+                        }
+                        if (!restored.isSuccess()) {
+                            rollbackFailed = true;
                             Log.e("OC-OverlayCompile", "Could not reinstall previous overlay "
                                     + packageName + ": " + restored.getErr());
                         }
                     } else {
                         Shell.Result query = Shell.cmd("pm path " + shellQuote(packageName)).exec();
-                        if (query.isSuccess() && !query.getOut().isEmpty()) {
+                        if (!query.isSuccess()) {
+                            rollbackFailed = true;
+                            Log.e("OC-OverlayCompile", "Cannot query rollback package " + packageName);
+                        } else if (!query.getOut().isEmpty()) {
                             Shell.Result removed = Shell.cmd("pm uninstall "
                                     + shellQuote(packageName)).exec();
-                            if (!removed.isSuccess()) Log.e("OC-OverlayCompile",
-                                    "Could not unregister newly installed overlay: "
-                                            + removed.getErr());
+                            if (!removed.isSuccess()) {
+                                rollbackFailed = true;
+                                Log.e("OC-OverlayCompile", "Could not unregister newly installed overlay: "
+                                        + removed.getErr());
+                            }
                         }
                     }
                 } catch (Throwable failure) {
+                    rollbackFailed = true;
                     Log.e("OC-OverlayCompile", "Installed overlay rollback failed: "
                             + packageName, failure);
+                }
+            }
+            if (rollbackFailed) {
+                // Do not discard the only snapshots when automatic recovery
+                // was rejected. Prevent the next compile overwriting them.
+                Shell.Result marked = Shell.cmd("touch -- " + shellQuote(failedMarker())).exec();
+                if (!marked.isSuccess()) {
+                    Log.e("OC-OverlayCompile", "Cannot retain rollback failure marker: " + marked.getErr());
                 }
             }
         }
