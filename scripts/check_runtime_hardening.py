@@ -42,13 +42,16 @@ checks = [
         "mLocationBrowseList.addAll(results)",
     ]),
     (JAVA / "ui/fragments/mods/misc/memc/MemcApplicationsFragment.java", [
-        "new java.util.HashMap<>(enabledApps)",
-        "executor.shutdown();",
+        "MemcListLoader.load(getViewLifecycleOwner()",
         "new HashSet<>(mAlreadyAddedApps)",
     ]),
     (JAVA / "ui/fragments/mods/misc/memc/MemcActivitiesFragment.java", [
-        "delimiter <= 0 || delimiter >= pkg.length() - 1",
-        "executor.shutdown();",
+        "MemcListLoader.load(getViewLifecycleOwner()",
+    ]),
+    (JAVA / "ui/base/MemcListLoader.java", [
+        "new HashMap<>(configured)",
+        "isCurrent(owner, request)",
+        "WORKERS.allowCoreThreadTimeOut(true);",
     ]),
     (JAVA / "ui/adapters/MemcAppAdapter.java", [
         "filteredApps.get(position)",
