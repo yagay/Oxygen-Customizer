@@ -278,7 +278,76 @@ public class ModuleUtil {
         return false;
     }
 
+    /**
+     * Root XML writers share the overlay/module lock and retain snapshots when rollback
+     * fails. Do not overwrite an unresolved recovery snapshot on a later attempt.
+     */
+    private static void withModuleXmlTransaction(String operation, Runnable change,
+                                                 String... paths) {
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
+            if (!moduleExists()) return;
+            String[] backups = new String[paths.length];
+            for (int i = 0; i < paths.length; i++) {
+                backups[i] = paths[i] + ".oc-txn";
+                if (!Shell.cmd("test ! -e " + shellQuote(backups[i])
+                        + " && test ! -L " + shellQuote(backups[i])).exec().isSuccess()) {
+                    throw new IllegalStateException("Unresolved " + operation
+                            + " XML rollback snapshot: " + backups[i]);
+                }
+            }
+            for (int i = 0; i < paths.length; i++) {
+                Shell.Result saved = Shell.cmd("cp -p -- " + shellQuote(paths[i])
+                        + " " + shellQuote(backups[i])).exec();
+                if (!saved.isSuccess()) {
+                    // Production files have not been changed yet.
+                    for (int j = 0; j <= i; j++) {
+                        Shell.cmd("rm -f -- " + shellQuote(backups[j])).exec();
+                    }
+                    throw new IllegalStateException("Unable to back up " + operation
+                            + " XML: " + saved.getErr());
+                }
+            }
+
+            boolean safeToDiscardBackups = false;
+            try {
+                change.run();
+                safeToDiscardBackups = true;
+            } catch (RuntimeException | Error failure) {
+                boolean recovered = true;
+                for (int i = 0; i < paths.length; i++) {
+                    Shell.Result restored = Shell.cmd("cp -p -- " + shellQuote(backups[i])
+                            + " " + shellQuote(paths[i])).exec();
+                    if (!restored.isSuccess()) {
+                        recovered = false;
+                        Log.e(TAG, operation + " XML rollback failed: " + restored.getErr());
+                    }
+                }
+                safeToDiscardBackups = recovered;
+                if (!recovered) Log.e(TAG, operation + " XML snapshots kept for recovery");
+                throw failure;
+            } finally {
+                if (safeToDiscardBackups) {
+                    for (String backup : backups) {
+                        Shell.Result removed = Shell.cmd("rm -f -- " + shellQuote(backup)).exec();
+                        if (!removed.isSuccess())
+                            Log.w(TAG, "Unable to clean XML backup: " + removed.getErr());
+                    }
+                }
+            }
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
+        }
+    }
+
     public static void enablePocketStudio(boolean enable) {
+        final String featurePath = ModuleConstants.MODULE_DIR
+                + "/my_product/etc/extension/com.oplus.oplus-feature.xml";
+        withModuleXmlTransaction("Pocket Studio",
+                () -> enablePocketStudioUnchecked(enable), featurePath);
+    }
+
+    private static void enablePocketStudioUnchecked(boolean enable) {
         if (!moduleExists()) return;
 
         List<String> fileRead = readXmlLines(ModuleConstants.MODULE_DIR + "/my_product/etc/extension/com.oplus.oplus-feature.xml");
