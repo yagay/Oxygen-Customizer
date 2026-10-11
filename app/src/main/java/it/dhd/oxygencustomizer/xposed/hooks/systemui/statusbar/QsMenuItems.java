@@ -136,10 +136,13 @@ public class QsMenuItems extends XposedMods {
                         arrayList.add(callMethod(builder, "build"));
                     }
 
+                    int itemLayoutId = mContext.getResources().getIdentifier(
+                            "oplus_more_menu_item_qs_cc_setting", "layout", SYSTEM_UI);
                     for (Object[] menuOption : mMenuOptions) {
-                        final ViewGroup v = (ViewGroup) LayoutInflater.from(mMenuContext).inflate(mContext.getResources().getIdentifier(
-                                "oplus_more_menu_item_qs_cc_setting", "layout", SYSTEM_UI), null);
-                        TextView textView = (TextView) v.getChildAt(0);
+                        if (itemLayoutId == 0) break;
+                        final ViewGroup v = (ViewGroup) LayoutInflater.from(mMenuContext)
+                                .inflate(itemLayoutId, null);
+                        if (!(v.getChildAt(0) instanceof TextView textView)) continue;
                         final ClickListener clickListener = new ClickListener();
                         v.setTag(menuOption[1]);
                         v.setOnClickListener(clickListener);
@@ -218,10 +221,13 @@ public class QsMenuItems extends XposedMods {
                         arrayList.add(callMethod(builder, "build"));
                     }
 
+                    int separateItemLayoutId = mContext.getResources().getIdentifier(
+                            "oplus_more_menu_item_qs_cc_setting", "layout", SYSTEM_UI);
                     for (Object[] menuOption : mSeparateMenuOptions) {
-                        final ViewGroup v = (ViewGroup) LayoutInflater.from(mSeparateMenuContext).inflate(mContext.getResources().getIdentifier(
-                                "oplus_more_menu_item_qs_cc_setting", "layout", SYSTEM_UI), null);
-                        TextView textView = (TextView) v.getChildAt(0);
+                        if (separateItemLayoutId == 0) break;
+                        final ViewGroup v = (ViewGroup) LayoutInflater.from(mSeparateMenuContext)
+                                .inflate(separateItemLayoutId, null);
+                        if (!(v.getChildAt(0) instanceof TextView textView)) continue;
                         final ClickListener clickListener = new ClickListener();
                         v.setOnClickListener(clickListener);
                         v.setTag(menuOption[1]);
