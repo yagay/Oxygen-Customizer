@@ -195,6 +195,8 @@ checks = [
         "unregisterReceiver(mFeatureReceiver)",
     ]),
     (JAVA / "utils/FileUtil.java", [
+        'target.toPath().startsWith(appFiles.toPath())',
+        'Shell.cmd("rm -rf -- " + shellQuote(target.getAbsolutePath()))',
         'File.createTempFile("oc-import-", suffix, getAppContext().getFilesDir())',
         '&& mv -f --',
         'shellQuote(source)',

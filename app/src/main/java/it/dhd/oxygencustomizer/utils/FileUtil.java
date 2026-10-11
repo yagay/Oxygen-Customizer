@@ -35,7 +35,22 @@ public class FileUtil {
     }
 
     public static void cleanDir(String dirName) {
-        Shell.cmd("rm -rf " + DATA_DIR + "/" + dirName).exec();
+        if (dirName == null || dirName.isBlank()) {
+            throw new IllegalArgumentException("Asset directory must not be empty");
+        }
+        try {
+            File appFiles = getAppContext().getFilesDir().getCanonicalFile();
+            File target = new File(appFiles, dirName).getCanonicalFile();
+            // Never delete the files root or a path outside the application's private directory.
+            if (target.equals(appFiles) || !target.toPath().startsWith(appFiles.toPath())) {
+                throw new IllegalArgumentException("Unsafe asset directory: " + dirName);
+            }
+            if (!Shell.cmd("rm -rf -- " + shellQuote(target.getAbsolutePath())).exec().isSuccess()) {
+                throw new IllegalStateException("Unable to clean asset directory: " + target);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to resolve asset directory", e);
+        }
     }
 
     private static void createDir(String dirName) {
