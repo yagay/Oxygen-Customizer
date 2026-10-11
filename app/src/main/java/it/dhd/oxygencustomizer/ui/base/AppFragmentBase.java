@@ -192,22 +192,40 @@ public abstract class AppFragmentBase extends BaseFragment {
         private Set<String> mEnabledSetApps;
         private final OnTaskCompleted taskCompletedListener;
         private LifecycleOwner mViewLifecycleOwner;
+        private LifecycleEventObserver lifecycleObserver;
+        private volatile boolean cancelled;
 
-        /** Suppress queued UI callbacks after the owning Fragment view is destroyed. */
+        /** Bind scanning to the actual Fragment view, not its retained Fragment instance. */
         public LoadAppsTask bindTo(LifecycleOwner owner) {
+            clearLifecycleObserver();
             mViewLifecycleOwner = owner;
-            owner.getLifecycle().addObserver((LifecycleEventObserver) (source, event) -> {
-                if (event == Lifecycle.Event.ON_DESTROY && runningTask != null) {
-                    runningTask.cancel(true);
+            cancelled = owner.getLifecycle().getCurrentState() == Lifecycle.State.DESTROYED;
+            lifecycleObserver = new LifecycleEventObserver() {
+                @Override
+                public void onStateChanged(@NonNull LifecycleOwner source, Lifecycle.Event event) {
+                    if (event == Lifecycle.Event.ON_DESTROY) {
+                        cancelled = true;
+                        Future<?> task = runningTask;
+                        if (task != null) task.cancel(true);
+                        clearLifecycleObserver();
+                    }
                 }
-            });
+            };
+            if (!cancelled) owner.getLifecycle().addObserver(lifecycleObserver);
             return this;
         }
 
+        private void clearLifecycleObserver() {
+            if (mViewLifecycleOwner != null && lifecycleObserver != null) {
+                mViewLifecycleOwner.getLifecycle().removeObserver(lifecycleObserver);
+                lifecycleObserver = null;
+            }
+        }
+
         private boolean isViewAlive() {
-            return mViewLifecycleOwner == null
+            return !cancelled && (mViewLifecycleOwner == null
                     || mViewLifecycleOwner.getLifecycle().getCurrentState()
-                            != Lifecycle.State.DESTROYED;
+                            != Lifecycle.State.DESTROYED);
         }
         private final OnPreTaskExecution preExecutionListener;
         private final boolean hasSlider;
@@ -318,16 +336,20 @@ public abstract class AppFragmentBase extends BaseFragment {
                 return appList;
             };
 
+            if (!isViewAlive()) return;
             runningTask = APP_SCAN_EXECUTOR.submit(() -> {
                 try {
+                    if (!isViewAlive()) return;
                     final List<AppModel> appList = callable.call();
                     handler.post(() -> {
                         if (taskCompletedListener != null && isViewAlive()) {
                             taskCompletedListener.onTaskCompleted(appList);
                         }
+                        clearLifecycleObserver();
                     });
                 } catch (Exception e) {
                     Log.e(this.getClass().getName(), "Executor error", e);
+                    handler.post(this::clearLifecycleObserver);
                 }
             });
             // A destroyed view cannot keep a scan queued.
