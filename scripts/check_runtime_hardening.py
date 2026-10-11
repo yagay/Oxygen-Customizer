@@ -478,7 +478,7 @@ checks.extend([
 checks.extend([
     (JAVA / "utils/PrefManager.java", [
         "return applyRestoredOverlays(overlaysToApply);",
-        "OverlayUtil.applyOverlayStateNow(entry.getKey(), entry.getValue())",
+        "OverlayUtil.applyOverlayStateNow(entry.getKey(), entry.getValue(), false)",
     ]),
     (JAVA / "ui/fragments/Settings.java", [
         "SETTINGS_IO.execute(() ->",
