@@ -30,13 +30,14 @@ import androidx.lifecycle.Lifecycle;
 import androidx.recyclerview.widget.OplusRecyclerView;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 import it.dhd.oxygencustomizer.R;
 import it.dhd.oxygencustomizer.databinding.FragmentAppListBinding;
@@ -204,7 +205,7 @@ public abstract class AppFragmentBase extends BaseFragment {
             this.hasMenu = true;
             this.entries = entries;
             this.entryValues = entryValues;
-            this.mEnabledApps = enabledApps;
+            this.mEnabledApps = new HashMap<>(enabledApps);
             this.preExecutionListener = preExecutionListener;
             this.taskCompletedListener = taskCompleted;
         }
@@ -217,7 +218,7 @@ public abstract class AppFragmentBase extends BaseFragment {
             this.mContext = context;
             this.hasSlider = hasSlider;
             this.hasMenu = false;
-            this.mEnabledApps = enabledApps;
+            this.mEnabledApps = new HashMap<>(enabledApps);
             this.preExecutionListener = preExecutionListener;
             this.taskCompletedListener = taskCompleted;
         }
@@ -230,7 +231,7 @@ public abstract class AppFragmentBase extends BaseFragment {
             this.mContext = context;
             this.hasSlider = hasSlider;
             this.hasMenu = false;
-            this.mEnabledSetApps = enabledApps;
+            this.mEnabledSetApps = new HashSet<>(enabledApps);
             this.preExecutionListener = preExecutionListener;
             this.taskCompletedListener = taskCompleted;
         }
@@ -284,11 +285,9 @@ public abstract class AppFragmentBase extends BaseFragment {
                 return appList;
             };
 
-            Future<List<AppModel>> future = executor.submit(callable);
-
             executor.execute(() -> {
                 try {
-                    final List<AppModel> appList = future.get();
+                    final List<AppModel> appList = callable.call();
                     handler.post(() -> {
                         if (taskCompletedListener != null) {
                             taskCompletedListener.onTaskCompleted(appList);

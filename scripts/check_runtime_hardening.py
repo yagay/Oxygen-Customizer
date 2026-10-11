@@ -220,6 +220,56 @@ checks = [
     ]),
 ]
 
+# Regression coverage for bugs found during the additional whole-project audit.
+checks.extend([
+    (JAVA / "ui/adapters/PackageListAdapter.java", [
+        "List<PackageItem> result = new java.util.ArrayList<>();",
+        "mHandler.obtainMessage(0, generation, 0, result).sendToTarget();",
+    ]),
+    (JAVA / "ui/adapters/ActivitiesListAdapter.java", [
+        "if (msg.arg1 != mLoadGeneration) return;",
+        "if (list == null) list = new ActivityInfo[0];",
+    ]),
+    (JAVA / "ui/adapters/ClockPreviewAdapter.java", [
+        "private final String prefSwitch;",
+        "private Bitmap wallpaperBitmap;",
+        "getInt(prefStyle, 0) == position",
+    ]),
+    (JAVA / "utils/overlay/FabricatedUtil.java", [
+        "if (expected.equals(line.trim())) return true;",
+        "queryFabricatedOverlayNames(Boolean enabled)",
+    ]),
+    (JAVA / "xposed/XPLauncher.java", [
+        "ROOT_BIND_TIMEOUT_MS",
+        "onBindingDied(ComponentName name)",
+        "onNullBinding(ComponentName name)",
+    ]),
+    (JAVA / "ui/fragments/UpdateFragment.java", [
+        "mUpdateRequestGeneration",
+        "OC-NightlyUpdateExtractor",
+    ]),
+    (JAVA / "utils/overlay/compiler/OverlayCompileCoordinator.java", [
+        "cleanupStaging(String... paths)",
+        "active == enabled[i]",
+    ]),
+    (JAVA / "ui/adapters/IconsAdapter.java", [
+        'OverlayUtil.applyOverlayStateNow(selectedPackage, true, false)',
+        'if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;',
+    ]),
+    (JAVA / "ui/adapters/ThemeAdapter.java", [
+        'OverlayUtil.applyOverlayStateNow(selectedPackage, true, false)',
+        'if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;',
+    ]),
+    (JAVA / "ui/adapters/NavbarAdapter.java", [
+        'OverlayUtil.applyOverlayStateNow(selectedPackage, true, false)',
+        'if (position == RecyclerView.NO_POSITION || position >= NAVBAR_KEY.size()) return;',
+    ]),
+    (JAVA / "ui/base/AppFragmentBase.java", [
+        "new HashMap<>(enabledApps)",
+        "new HashSet<>(enabledApps)",
+    ]),
+])
+
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")

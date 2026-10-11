@@ -19,16 +19,35 @@ import it.dhd.oxygencustomizer.utils.helper.TypedValueUtil;
 
 public class FabricatedUtil {
 
+    private static List<String> queryFabricatedOverlayNames(Boolean enabled) {
+        Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
+        List<String> names = new ArrayList<>();
+        if (!result.isSuccess()) {
+            Log.w("FabricatedUtil", "Unable to list fabricated overlays: " + result.getErr());
+            return names;
+        }
+        String prefix = "com.android.shell:OxygenCustomizerComponent";
+        for (String raw : result.getOut()) {
+            String line = raw.trim();
+            boolean isEnabled = line.startsWith("[x] ");
+            if (!isEnabled && !line.startsWith("[ ] ")) continue;
+            if (enabled != null && enabled != isEnabled) continue;
+            String overlay = line.substring(4);
+            if (overlay.startsWith(prefix)) names.add(overlay.substring(prefix.length()));
+        }
+        return names;
+    }
+
     public static List<String> getOverlayList() {
-        return Shell.cmd("cmd overlay list |  grep -E '....com.android.shell:OxygenCustomizerComponent' | sed -E 's/^....com.android.shell:OxygenCustomizerComponent//'").exec().getOut();
+        return queryFabricatedOverlayNames(null);
     }
 
     public static List<String> getEnabledOverlayList() {
-        return Shell.cmd("cmd overlay list |  grep -E '.x..com.android.shell:OxygenCustomizerComponent' | sed -E 's/^.x..com.android.shell:OxygenCustomizerComponent//'").exec().getOut();
+        return queryFabricatedOverlayNames(true);
     }
 
     public static List<String> getDisabledOverlayList() {
-        return Shell.cmd("cmd overlay list |  grep -E '. ..com.android.shell:OxygenCustomizerComponent' | sed -E 's/^. ..com.android.shell:OxygenCustomizerComponent//'").exec().getOut();
+        return queryFabricatedOverlayNames(false);
     }
 
     private static final ExecutorService OVERLAY_WRITER = Executors.newSingleThreadExecutor(r -> {

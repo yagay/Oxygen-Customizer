@@ -81,28 +81,44 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
         } else
             holder.desc.setVisibility(View.GONE);
 
-        if (itemList.get(position).getIcon1() != 0)
+        if (itemList.get(position).getIcon1() != 0) {
+            holder.icon1.setVisibility(View.VISIBLE);
             holder.icon1.setImageResource(itemList.get(position).getIcon1());
-        else if (itemList.get(position).getDrawableIcon1() != null)
+        }
+        else if (itemList.get(position).getDrawableIcon1() != null) {
+            holder.icon1.setVisibility(View.VISIBLE);
             holder.icon1.setImageDrawable(itemList.get(position).getDrawableIcon1());
+        }
         else
             holder.icon1.setVisibility(View.GONE);
-        if (itemList.get(position).getIcon2() != 0)
+        if (itemList.get(position).getIcon2() != 0) {
+            holder.icon2.setVisibility(View.VISIBLE);
             holder.icon2.setImageResource(itemList.get(position).getIcon2());
-        else if (itemList.get(position).getDrawableIcon2() != null)
+        }
+        else if (itemList.get(position).getDrawableIcon2() != null) {
+            holder.icon2.setVisibility(View.VISIBLE);
             holder.icon2.setImageDrawable(itemList.get(position).getDrawableIcon2());
+        }
         else
             holder.icon2.setVisibility(View.GONE);
-        if (itemList.get(position).getIcon3() != 0)
+        if (itemList.get(position).getIcon3() != 0) {
+            holder.icon3.setVisibility(View.VISIBLE);
             holder.icon3.setImageResource(itemList.get(position).getIcon3());
-        else if (itemList.get(position).getDrawableIcon3() != null)
+        }
+        else if (itemList.get(position).getDrawableIcon3() != null) {
+            holder.icon3.setVisibility(View.VISIBLE);
             holder.icon3.setImageDrawable(itemList.get(position).getDrawableIcon3());
+        }
         else
             holder.icon3.setVisibility(View.GONE);
-        if (itemList.get(position).getIcon4() != 0)
+        if (itemList.get(position).getIcon4() != 0) {
+            holder.icon4.setVisibility(View.VISIBLE);
             holder.icon4.setImageResource(itemList.get(position).getIcon4());
-        else if (itemList.get(position).getDrawableIcon4() != null)
+        }
+        else if (itemList.get(position).getDrawableIcon4() != null) {
+            holder.icon4.setVisibility(View.VISIBLE);
             holder.icon4.setImageDrawable(itemList.get(position).getDrawableIcon4());
+        }
         else
             holder.icon4.setVisibility(View.GONE);
 
