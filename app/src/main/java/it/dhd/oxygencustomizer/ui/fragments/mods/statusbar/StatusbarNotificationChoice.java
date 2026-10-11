@@ -125,7 +125,7 @@ public class StatusbarNotificationChoice extends AppFragmentBase {
                         "0",
                         "1",
                         "2"
-                }).execute();
+                }).bindTo(getViewLifecycleOwner()).execute();
 
     }
 

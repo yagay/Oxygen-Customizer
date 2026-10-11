@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat;
 import androidx.core.view.MenuHost;
 import androidx.core.view.MenuProvider;
 import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
 import androidx.recyclerview.widget.OplusRecyclerView;
 
 import java.util.ArrayList;
@@ -178,6 +179,19 @@ public abstract class AppFragmentBase extends BaseFragment {
         private Map<String, Integer> mEnabledApps;
         private Set<String> mEnabledSetApps;
         private final OnTaskCompleted taskCompletedListener;
+        private LifecycleOwner mViewLifecycleOwner;
+
+        /** Suppress queued UI callbacks after the owning Fragment view is destroyed. */
+        public LoadAppsTask bindTo(LifecycleOwner owner) {
+            mViewLifecycleOwner = owner;
+            return this;
+        }
+
+        private boolean isViewAlive() {
+            return mViewLifecycleOwner == null
+                    || mViewLifecycleOwner.getLifecycle().getCurrentState()
+                            .isAtLeast(Lifecycle.State.CREATED);
+        }
         private final OnPreTaskExecution preExecutionListener;
         private final boolean hasSlider;
         private final boolean hasMenu;
@@ -241,7 +255,9 @@ public abstract class AppFragmentBase extends BaseFragment {
             Handler handler = new Handler(Looper.getMainLooper());
 
             if (preExecutionListener != null) {
-                handler.post(preExecutionListener::onPreTaskExecution);
+                handler.post(() -> {
+                    if (isViewAlive()) preExecutionListener.onPreTaskExecution();
+                });
             }
 
             Callable<List<AppModel>> callable = () -> {
@@ -289,7 +305,7 @@ public abstract class AppFragmentBase extends BaseFragment {
                 try {
                     final List<AppModel> appList = callable.call();
                     handler.post(() -> {
-                        if (taskCompletedListener != null) {
+                        if (taskCompletedListener != null && isViewAlive()) {
                             taskCompletedListener.onTaskCompleted(appList);
                         }
                     });

@@ -96,7 +96,7 @@ public class FluidSettings extends AppFragmentBase {
                 @Override
                 public void afterTextChanged(Editable s) {}
             });
-        }).execute();
+        }).bindTo(getViewLifecycleOwner()).execute();
 
     }
 

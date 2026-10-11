@@ -119,7 +119,7 @@ public class DarkMode extends AppFragmentBase {
                 @Override
                 public void afterTextChanged(Editable s) {}
             });
-        }).execute();
+        }).bindTo(getViewLifecycleOwner()).execute();
 
     }
 
