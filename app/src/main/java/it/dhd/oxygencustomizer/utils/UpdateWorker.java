@@ -97,10 +97,13 @@ public class UpdateWorker extends ListenableWorker {
                 PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
         );
 
+        String fullText = mContext.getString(R.string.new_update_desc) + "\n" + version;
+
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(mContext, mContext.getString(R.string.notification_channel_update))
                 .setSmallIcon(R.drawable.ic_notification_foreground)
                 .setContentTitle(mContext.getString(R.string.new_update_title))
                 .setContentText(mContext.getString(R.string.new_update_desc))
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(fullText))
                 .setContentIntent(pendingIntent)
                 .setOnlyAlertOnce(true)
                 .setAutoCancel(true);
@@ -129,6 +132,8 @@ public class UpdateWorker extends ListenableWorker {
             boolean isNightly = versionName.contains("nightly");
             boolean isStable = !isBeta && !isNightly;
 
+            int versionType = (int) result.get("versionType");
+
             int currentNightly = isNightly ?
                     Integer.parseInt(versionName.substring(versionName.indexOf("#") + 1, versionName.lastIndexOf(")"))) :
                     -1;
@@ -136,12 +141,12 @@ public class UpdateWorker extends ListenableWorker {
             Integer latestVersionCode = (Integer) result.get("versionCode");
 
             if (latestVersionCode != null && latestVersionCode > currentVersionCode) {
-                showUpdateNotification();
+                showUpdateNotification(versionType == UpdateFragment.STABLE ? "Stable v" + result.get("version") : "beta-" + latestVersionCode);
             } else if (isNightly) {
-                if (result.get("versionType").equals(UpdateFragment.NIGHTLY)) {
+                if (versionType == UpdateFragment.NIGHTLY) {
                     int devBuild = (int) result.get("devBuild");
                     if (devBuild > currentNightly) {
-                        showUpdateNotification();
+                        showUpdateNotification("Nightly " + latestVersionCode + " #" + devBuild);
                     }
                 }
             }

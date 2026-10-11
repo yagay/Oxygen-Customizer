@@ -9,7 +9,25 @@ import static de.robv.android.xposed.XposedHelpers.findClass;
 import static de.robv.android.xposed.XposedHelpers.findMethodExact;
 import static de.robv.android.xposed.XposedHelpers.getIntField;
 import static de.robv.android.xposed.XposedHelpers.getObjectField;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_CAMERA_DOUBLE_PRESS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_CAMERA_DOUBLE_PRESS_SOFF;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_CAMERA_SINGLE_PRESS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_CAMERA_SINGLE_PRESS_SOFF;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_DOUBLE_PRESS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_DOUBLE_PRESS_SOFF;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_LONG_PRESS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_LONG_PRESS_SOFF;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_SINGLE_PRESS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_SINGLE_PRESS_SOFF;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_TIMEOUT;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_TRIPLE_PRESS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_PLUSKEY_TRIPLE_PRESS_SOFF;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_VOLUME_MUSIC;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_VOLUME_MUSIC_SON;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_VOLUME_TORCH;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_VOLUME_TORCH_PROXIMITY;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_VOLUME_TORCH_TIMEOUT;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Buttons.BUTTONS_VOLUME_TORCH_TIMEOUT_ENABLED;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.Lockscreen.DISABLE_POWER;
 import static it.dhd.oxygencustomizer.xposed.XPrefs.Xprefs;
 
@@ -45,6 +63,7 @@ import it.dhd.oxygencustomizer.xposed.utils.SystemUtils;
 public class Buttons extends XposedMods {
 
     private static boolean holdVolumeToSkip = false;
+    private static boolean holdVolumeToSkipScreenOn = false;
     private static boolean holdVolumeToTorch = false;
     private static boolean volumeToTorchHasTimeout = false;
     private static Object PWMExImpl = null;
@@ -63,9 +82,13 @@ public class Buttons extends XposedMods {
     private int volumeToTorchTimeout = 5000;
     private boolean settingsUpdated = false;
     private String actionValueSingle, actionValueDouble, actionValueTriple, actionValueLong, actionValueSingleScreenOff, actionValueDoubleScreenOff, actionValueTripleScreenOff, actionValueLongScreenOff = "none";
+    private String actionValueSingleCamera, actionValueDoubleCamera, actionValueSingleCameraScreenOff, actionValueDoubleCameraScreenOff = "none";
     private boolean singlePressEnabled, doublePressEnabled, triplePressEnabled, longPressEnabled, singlePressEnabledScreenOff, doublePressEnabledScreenOff, triplePressEnabledScreenOff, longPressEnabledScreenOff = false;
+    private boolean singlePressCameraEnabled, doublePressCameraEnabled, singlePressCameraScreenOffEnabled, doublePressCameraScreenOffEnabled = false;
     private final int KEYCODE_PLUSKEY_SHORT_PRESS = 781;
     private final int KEYCODE_PLUSKEY_LONG_PRESS = 782;
+    private final int KEYCODE_CAMERA_SINGLE = 767;
+    private final int KEYCODE_CAMERA_DOUBLE = 769;
     private int pressCount = 0;
     private long plusKeyTimeout = 250;
 
@@ -98,6 +121,14 @@ public class Buttons extends XposedMods {
         return SystemUtils.isScreenOff() ? longPressEnabledScreenOff : longPressEnabled;
     }
 
+    private boolean isAnyShortPressEnabledCamera() {
+        return SystemUtils.isScreenOff() ? singlePressCameraScreenOffEnabled : singlePressCameraEnabled;
+    }
+
+    private boolean isAnyDoublePressEnabledCamera() {
+        return SystemUtils.isScreenOff() ? doublePressCameraScreenOffEnabled : doublePressCameraEnabled;
+    }
+
     private final Runnable actionRunnable = () -> {
         int count = pressCount;
         log("PlusKey LOG: actionRunnable START. Current pressCount read as: " + count);
@@ -114,16 +145,19 @@ public class Buttons extends XposedMods {
         boolean screenOff = SystemUtils.isScreenOff();
 
         boolean shouldExecute = false;
-        if (count == 1 && screenOff ? singlePressEnabledScreenOff : singlePressEnabled) shouldExecute = true;
-        else if (count == 2 && screenOff ? doublePressEnabledScreenOff : doublePressEnabled) shouldExecute = true;
-        else if (count >= 3 && screenOff ? triplePressEnabledScreenOff : triplePressEnabled) shouldExecute = true;
+        if (count == 1 && screenOff ? singlePressEnabledScreenOff : singlePressEnabled)
+            shouldExecute = true;
+        else if (count == 2 && screenOff ? doublePressEnabledScreenOff : doublePressEnabled)
+            shouldExecute = true;
+        else if (count >= 3 && screenOff ? triplePressEnabledScreenOff : triplePressEnabled)
+            shouldExecute = true;
 
         log("PlusKey LOG: actionRunnable evaluation. count=" + count +
                 ", single=" + (screenOff ? singlePressEnabledScreenOff : singlePressEnabled) + ", double=" + (screenOff ? doublePressEnabledScreenOff : doublePressEnabled) +
                 ", triple=" + (screenOff ? triplePressEnabledScreenOff : triplePressEnabled) + " -> shouldExecute=" + shouldExecute);
 
         if (shouldExecute) {
-            executeAction(count);
+            executeAction(count, false);
         } else {
             XposedBridge.log("PlusKey LOG: actionRunnable. No enabled action matched count=" + count);
         }
@@ -163,14 +197,44 @@ public class Buttons extends XposedMods {
         }
     }
 
-    private void executeAction(int count) {
+    private void executeAction(int count, boolean isCamera) {
         try {
             boolean screenOff = SystemUtils.isScreenOff();
             String key = switch (count) {
-                case 0 -> (!screenOff || actionValueLongScreenOff.equals("none")) ? actionValueLong : actionValueLongScreenOff;
-                case 1 -> (!screenOff || actionValueSingleScreenOff.equals("none")) ? actionValueSingle : actionValueSingleScreenOff;
-                case 2 -> (!screenOff || actionValueDoubleScreenOff.equals("none")) ? actionValueDouble : actionValueDoubleScreenOff;
-                case 3 -> (!screenOff || actionValueTripleScreenOff.equals("none")) ? actionValueTriple : actionValueTripleScreenOff;
+                case 0 ->
+                        (!screenOff || actionValueLongScreenOff.equals("none")) ? actionValueLong : actionValueLongScreenOff;
+                case 1 -> {
+                    if (isCamera) {
+                        if (screenOff) {
+                            if (!singlePressCameraScreenOffEnabled) yield "none";
+                            yield actionValueSingleCameraScreenOff;
+                        } else {
+                            if (!singlePressCameraEnabled) yield "none";
+                            yield actionValueSingleCamera;
+                        }
+                    } else {
+                        yield (!screenOff || actionValueSingleScreenOff.equals("none"))
+                                ? actionValueSingle
+                                : actionValueSingleScreenOff;
+                    }
+                }
+                case 2 -> {
+                    if (isCamera) {
+                        if (screenOff) {
+                            if (!doublePressCameraScreenOffEnabled) yield "none";
+                            yield actionValueDoubleCameraScreenOff;
+                        } else {
+                            if (!doublePressCameraEnabled) yield "none";
+                            yield actionValueDoubleCamera;
+                        }
+                    } else {
+                        yield (!screenOff || actionValueDoubleScreenOff.equals("none"))
+                                ? actionValueDouble
+                                : actionValueDoubleScreenOff;
+                    }
+                }
+                case 3 ->
+                        (!screenOff || actionValueTripleScreenOff.equals("none")) ? actionValueTriple : actionValueTripleScreenOff;
 
                 default -> "";
             };
@@ -191,38 +255,50 @@ public class Buttons extends XposedMods {
         if (settingsUpdated) return;
 
         holdVolumeToSkip = Xprefs.getBoolean(BUTTONS_VOLUME_MUSIC, false);
+        holdVolumeToSkipScreenOn = Xprefs.getBoolean(BUTTONS_VOLUME_MUSIC_SON, false);
         disablePowerOnLockscreen = Xprefs.getBoolean(DISABLE_POWER, false);
-        holdVolumeToTorch = Xprefs.getBoolean("volbtn_torch", false);
-        volumeToTorchHasTimeout = Xprefs.getBoolean("volbtn_torch_enable_timeout", false);
-        volumeToTorchTimeout = Xprefs.getSliderInt("volbtn_torch_timeout", 5) * 1000;
-        volumeToTorchProximity = Xprefs.getBoolean("volbtn_torch_use_proximity", false);
+        holdVolumeToTorch = Xprefs.getBoolean(BUTTONS_VOLUME_TORCH, false);
+        volumeToTorchHasTimeout = Xprefs.getBoolean(BUTTONS_VOLUME_TORCH_TIMEOUT_ENABLED, false);
+        volumeToTorchTimeout = Xprefs.getSliderInt(BUTTONS_VOLUME_TORCH_TIMEOUT, 5) * 1000;
+        volumeToTorchProximity = Xprefs.getBoolean(BUTTONS_VOLUME_TORCH_PROXIMITY, false);
 
-        actionValueSingle = Xprefs.getString("plusKey_single_press_button_action_value", "none");
+        actionValueSingle = Xprefs.getString(BUTTONS_PLUSKEY_SINGLE_PRESS, "none");
         singlePressEnabled = !TextUtils.isEmpty(actionValueSingle) && !actionValueSingle.equals("none");
 
-        actionValueDouble = Xprefs.getString("plusKey_double_press_button_action_value", "none");
+        actionValueDouble = Xprefs.getString(BUTTONS_PLUSKEY_DOUBLE_PRESS, "none");
         doublePressEnabled = !TextUtils.isEmpty(actionValueDouble) && !actionValueDouble.equals("none");
 
-        actionValueTriple = Xprefs.getString("plusKey_triple_press_button_action_value", "none");
+        actionValueTriple = Xprefs.getString(BUTTONS_PLUSKEY_TRIPLE_PRESS, "none");
         triplePressEnabled = !TextUtils.isEmpty(actionValueTriple) && !actionValueTriple.equals("none");
 
-        actionValueLong = Xprefs.getString("plusKey_long_press_button_action_value", "none");
+        actionValueLong = Xprefs.getString(BUTTONS_PLUSKEY_LONG_PRESS, "none");
         longPressEnabled = !TextUtils.isEmpty(actionValueLong) && !actionValueLong.equals("none");
 
-        actionValueSingleScreenOff = Xprefs.getString("plusKey_single_press_button_action_value_screenoff", "none");
+        actionValueSingleScreenOff = Xprefs.getString(BUTTONS_PLUSKEY_SINGLE_PRESS_SOFF, "none");
         singlePressEnabledScreenOff = (!TextUtils.isEmpty(actionValueSingleScreenOff) && !actionValueSingleScreenOff.equals("none")) || singlePressEnabled;
 
-        actionValueDoubleScreenOff = Xprefs.getString("plusKey_double_press_button_action_value_screenoff", "none");
+        actionValueDoubleScreenOff = Xprefs.getString(BUTTONS_PLUSKEY_DOUBLE_PRESS_SOFF, "none");
         doublePressEnabledScreenOff = (!TextUtils.isEmpty(actionValueDoubleScreenOff) && !actionValueDoubleScreenOff.equals("none")) || doublePressEnabled;
 
-        actionValueTripleScreenOff = Xprefs.getString("plusKey_triple_press_button_action_value_screenoff", "none");
+        actionValueTripleScreenOff = Xprefs.getString(BUTTONS_PLUSKEY_TRIPLE_PRESS_SOFF, "none");
         triplePressEnabledScreenOff = (!TextUtils.isEmpty(actionValueTripleScreenOff) && !actionValueTripleScreenOff.equals("none")) || triplePressEnabled;
 
-        actionValueLongScreenOff = Xprefs.getString("plusKey_long_press_button_action_value_screenoff", "none");
+        actionValueLongScreenOff = Xprefs.getString(BUTTONS_PLUSKEY_LONG_PRESS_SOFF, "none");
         longPressEnabledScreenOff = (!TextUtils.isEmpty(actionValueLongScreenOff) && !actionValueLongScreenOff.equals("none")) || longPressEnabled;
 
+        plusKeyTimeout = Xprefs.getSliderInt(BUTTONS_PLUSKEY_TIMEOUT, 250);
 
-        plusKeyTimeout = Xprefs.getSliderInt("plusKey_press_button_action_timeout", 250);
+        actionValueSingleCamera = Xprefs.getString(BUTTONS_CAMERA_SINGLE_PRESS, "none");
+        singlePressCameraEnabled = !TextUtils.isEmpty(actionValueSingleCamera) && !actionValueSingleCamera.equals("none");
+
+        actionValueDoubleCamera = Xprefs.getString(BUTTONS_CAMERA_DOUBLE_PRESS, "none");
+        doublePressCameraEnabled = !TextUtils.isEmpty(actionValueDoubleCamera) && !actionValueDoubleCamera.equals("none");
+
+        actionValueSingleCameraScreenOff = Xprefs.getString(BUTTONS_CAMERA_SINGLE_PRESS_SOFF, "none");
+        singlePressCameraScreenOffEnabled = (!TextUtils.isEmpty(actionValueSingleCameraScreenOff) && !actionValueSingleCameraScreenOff.equals("none")) || singlePressCameraEnabled;
+
+        actionValueDoubleCameraScreenOff = Xprefs.getString(BUTTONS_CAMERA_DOUBLE_PRESS_SOFF, "none");
+        doublePressCameraScreenOffEnabled = (!TextUtils.isEmpty(actionValueDoubleCameraScreenOff) && !actionValueDoubleCameraScreenOff.equals("none")) || doublePressCameraEnabled;
 
         settingsUpdated = true;
     }
@@ -426,10 +502,44 @@ public class Buttons extends XposedMods {
                         } else if (keyCode == KEYCODE_PLUSKEY_LONG_PRESS) {
                             if (isLongPressEnabled()) {
                                 if (event.getAction() == KeyEvent.ACTION_DOWN) {
-                                    executeAction(0);
+                                    executeAction(0, false);
                                 }
                                 // Vibrate later
                                 // SystemUtils.vibrate(VibrationEffect.EFFECT_TICK, VibrationAttributes.USAGE_COMMUNICATION_REQUEST);
+                                param.setResult(0); // Consume the event
+                            }
+                        }
+                    } catch (Throwable t) {
+                        log(" ERROR IN PlusKey hook: " + t.getMessage());
+                    }
+                }
+            });
+
+            hookMethod(overrideInterceptKeyBeforeQueueing, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    if (!isAnyShortPressEnabledCamera() && !isAnyDoublePressEnabledCamera()) return;
+                    try {
+                        Object mBase = getObjectField(param.thisObject, "mBase");
+                        if (mHandler == null)
+                            mHandler = (Handler) getObjectField(mBase, "mHandler");
+                        KeyEvent event = (KeyEvent) param.args[0];
+                        int keyCode = event.getKeyCode();
+
+                        if (keyCode == KEYCODE_CAMERA_SINGLE) {
+                            if (isAnyShortPressEnabledCamera()) {
+                                if (event.getAction() == KeyEvent.ACTION_UP) {
+                                    executeAction(1, true);
+                                }
+                                param.setResult(0); // Consume the event
+
+                            }
+                        } else if (keyCode == KEYCODE_CAMERA_DOUBLE) {
+                            if (isAnyDoublePressEnabledCamera()) {
+                                if (event.getAction() == KeyEvent.ACTION_UP) {
+                                    executeAction(2, true);
+                                }
+                                // Vibrate later
                                 param.setResult(0); // Consume the event
                             }
                         }
@@ -496,11 +606,11 @@ public class Buttons extends XposedMods {
                         break;
                     case "torch":
                         boolean result = !SystemUtils.toggleFlash();
-                        tickles+= result ? 1 : 0;
+                        tickles += result ? 1 : 0;
                         SystemUtils.sendFlashIntent(result);
                         break;
                     case "ringer":
-                        tickles += 2-SystemUtils.toggleRingerMode();
+                        tickles += 2 - SystemUtils.toggleRingerMode();
                         break;
                     case "dnd":
                         tickles += SystemUtils.toggleDnd() ? 1 : 0;
@@ -547,6 +657,7 @@ public class Buttons extends XposedMods {
             XposedBridge.log("PlusKey ERROR executing " + actionValue + ": " + t.getMessage());
         }
     }
+
     private void vibrateTickles(int totalCount) {
         if (totalCount > 0) {
             playTickleSequence(1, totalCount);

@@ -29,6 +29,7 @@ import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.Settings;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -329,6 +330,10 @@ public class StatusbarMods extends XposedMods {
                 .after("onViewCreated")
                 .run(param -> mStatusBar = (ViewGroup) getObjectField(mCollapsedStatusBarFragment, "mStatusBar"));
 
+        ReflectedClass PhoneStatusBarViewClass = ReflectedClass.ofIfPossible("com.android.systemui.statusbar.phone.PhoneStatusBarView");
+        PhoneStatusBarViewClass
+                .afterConstruction()
+                .run(param -> mStatusBar = (ViewGroup) param.thisObject);
 
         ReflectedClass CentralSurfacesImpl = ReflectedClass.of("com.android.systemui.statusbar.phone.CentralSurfacesImpl");
 
@@ -519,7 +524,7 @@ public class StatusbarMods extends XposedMods {
     }
 
     private void showBatteryPage() {
-        callMethod(mActivityStarter, "postStartActivityDismissingKeyguard", new Intent(Intent.ACTION_POWER_USAGE_SUMMARY), 0);
+        callMethod(mActivityStarter, "postStartActivityDismissingKeyguard", new Intent(Build.VERSION.SDK_INT >= 37 ? Settings.ACTION_BATTERY_SAVER_SETTINGS : Intent.ACTION_POWER_USAGE_SUMMARY), 0);
     }
     //endregion
 
