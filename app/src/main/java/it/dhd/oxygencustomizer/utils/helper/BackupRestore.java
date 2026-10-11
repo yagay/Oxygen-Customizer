@@ -5,36 +5,50 @@ import com.topjohnwu.superuser.Shell;
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
 import it.dhd.oxygencustomizer.utils.RootUtil;
 
-public class BackupRestore {
+/** Checked, atomic file replacement for module backup and recovery. */
+public final class BackupRestore {
+    private static final String ROUNDNESS_APK = "OxygenCustomizerComponentCR1.apk";
+
+    private BackupRestore() {}
 
     public static void backupFiles() {
-        // Create backup directory
-        Shell.cmd("rm -rf " + ModuleConstants.BACKUP_DIR, "mkdir -p " + ModuleConstants.BACKUP_DIR).exec();
-        
-        backupFile(ModuleConstants.OVERLAY_DIR + "/OxygenCustomizerComponentCR1.apk");
+        checked("mkdir -p -- " + quote(ModuleConstants.BACKUP_DIR), "Prepare backup directory");
+        String source = ModuleConstants.OVERLAY_DIR + "/" + ROUNDNESS_APK;
+        if (RootUtil.fileExists(source)) {
+            replaceAtomically(source, ModuleConstants.BACKUP_DIR + "/" + ROUNDNESS_APK);
+        }
     }
 
     public static void restoreFiles() {
-        restoreFile("OxygenCustomizerComponentCR1.apk", ModuleConstants.TEMP_MODULE_OVERLAY_DIR);
-
-        // Remove backup directory
-        Shell.cmd("rm -rf " + ModuleConstants.BACKUP_DIR).exec();
+        String backup = ModuleConstants.BACKUP_DIR + "/" + ROUNDNESS_APK;
+        if (RootUtil.fileExists(backup)) {
+            replaceAtomically(backup, ModuleConstants.TEMP_MODULE_OVERLAY_DIR + "/" + ROUNDNESS_APK);
+        }
+        checked("rm -rf -- " + quote(ModuleConstants.BACKUP_DIR), "Clean restored backup");
     }
 
-    private static boolean backupExists(String fileName) {
-        return RootUtil.fileExists(ModuleConstants.BACKUP_DIR + "/" + fileName);
-    }
-
-    private static void backupFile(String source) {
-        if (RootUtil.fileExists(source))
-            Shell.cmd("cp -rf " + source + " " + ModuleConstants.BACKUP_DIR + "/").exec();
-    }
-
-    private static void restoreFile(String fileName, String dest) {
-        if (backupExists(fileName)) {
-            Shell.cmd("rm -rf " + dest + "/" + fileName).exec();
-            Shell.cmd("cp -rf " + ModuleConstants.BACKUP_DIR + "/" + fileName + " " + dest + "/").exec();
+    private static void replaceAtomically(String source, String destination) {
+        String pending = destination + ".pending";
+        String parent = destination.substring(0, destination.lastIndexOf('/'));
+        try {
+            checked("mkdir -p -- " + quote(parent)
+                    + " && cp -p -- " + quote(source) + " " + quote(pending)
+                    + " && mv -f -- " + quote(pending) + " " + quote(destination),
+                    "Replace backed up APK");
+        } catch (RuntimeException failure) {
+            Shell.cmd("rm -f -- " + quote(pending)).exec();
+            throw failure;
         }
     }
-    
+
+    private static void checked(String command, String operation) {
+        Shell.Result result = Shell.cmd(command).exec();
+        if (!result.isSuccess()) {
+            throw new IllegalStateException(operation + " failed: " + result.getErr());
+        }
+    }
+
+    private static String quote(String path) {
+        return "'" + path.replace("'", "'\\''") + "'";
+    }
 }
