@@ -302,6 +302,45 @@ checks.extend([
         "if (DWallpaperEnabled && (DWMode == 0 || DWMode == 2))",
     ]),
 ])
+# Additional end-to-end runtime guards on the newest audit branch.
+checks.extend([
+    (JAVA / "utils/helper/BackupRestore.java", [
+        "replaceAtomically(source",
+        "cp -p -- ",
+        "mv -f -- ",
+        "if (!result.isSuccess())",
+    ]),
+    (JAVA / "utils/overlay/OverlayUtil.java", [
+        'trimmed.equals("[x] " + exact)',
+        'getOverlayList().contains(pkgName)',
+    ]),
+    (JAVA / "utils/ModuleUtil.java", [
+        "previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayList())",
+        "Uninstall rollback could not enable",
+    ]),
+    (JAVA / "weather/WeatherWork.java", [
+        "LOCATION_TIMEOUT_MS",
+        "whenCompleteAsync((location, failure)",
+        "if (isStopped())",
+    ]),
+    (JAVA / "receivers/UpdateDownloadReceiver.java", [
+        "recoverPendingDownloads(Context context)",
+        "scheduleCheck(context, id)",
+        "hasMatchingAppSignature(Context context, File apk)",
+    ]),
+    (JAVA / "ui/fragments/UpdateFragment.java", [
+        ".hasMatchingAppSignature(requireContext(), new File(downloadPath))",
+    ]),
+    (JAVA / "utils/overlay/compiler/OverlayCompileCoordinator.java", [
+        "if (installed) {",
+        "installedBackups[i] != null",
+    ]),
+    (JAVA / "utils/extension/TaskExecutor.java", [
+        "mStatus = Status.FINISHED;",
+        "if (!mHandler.post(() -> {",
+    ]),
+])
+
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")

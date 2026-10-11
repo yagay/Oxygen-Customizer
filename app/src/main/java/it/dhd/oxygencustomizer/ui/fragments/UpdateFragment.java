@@ -173,6 +173,12 @@ public class UpdateFragment extends BaseFragment {
             Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
             return;
         }
+        if (!it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver
+                .hasMatchingAppSignature(requireContext(), new File(downloadPath))) {
+            Log.e("UpdateFragment", "Refusing an APK with a different application signing identity");
+            Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         Intent promptInstall = new Intent(Intent.ACTION_VIEW).setDataAndType(
                 FileProvider.getUriForFile(requireContext(), BuildConfig.APPLICATION_ID + ".fileprovider", new File(downloadPath)),
