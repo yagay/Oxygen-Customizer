@@ -305,36 +305,68 @@ public class ModuleUtil {
     }
 
     public static void enableMemcFeature(boolean enable) {
-        if (!moduleExists()) return;
-
-        String featurePath = ModuleConstants.MODULE_DIR
-                + "/my_product/etc/extension/com.oplus.oplus-feature.xml";
-        String displayPath = ModuleConstants.MODULE_DIR
-                + "/my_product/etc/permissions/oplus.product.display_features.xml";
-        String featureBackup = featurePath + ".oc-txn";
-        String displayBackup = displayPath + ".oc-txn";
-        Shell.Result backup = Shell.cmd(
-                "cp -f " + shellQuote(featurePath) + " " + shellQuote(featureBackup)
-                + " && cp -f " + shellQuote(displayPath) + " " + shellQuote(displayBackup)
-        ).exec();
-        if (!backup.isSuccess()) {
-            Shell.cmd("rm -f " + shellQuote(featureBackup) + " " + shellQuote(displayBackup)).exec();
-            throw new IllegalStateException("Unable to back up MEMC module XML: " + backup.getErr());
-        }
+        // Module creation, uninstall, and MEMC XML modification share these files.
+        OverlayCompileCoordinator.LOCK.lock();
         try {
-            enableMemcOplusFeature(enable);
-            enableMemcOplusDisplayFeature(enable);
-        } catch (RuntimeException failure) {
-            Shell.Result restore = Shell.cmd(
-                    "cp -f " + shellQuote(featureBackup) + " " + shellQuote(featurePath)
-                    + " && cp -f " + shellQuote(displayBackup) + " " + shellQuote(displayPath)
-            ).exec();
-            if (!restore.isSuccess()) {
-                Log.e(TAG, "Failed to roll back MEMC XML: " + restore.getErr());
+            if (!moduleExists()) return;
+
+            String featurePath = ModuleConstants.MODULE_DIR
+                    + "/my_product/etc/extension/com.oplus.oplus-feature.xml";
+            String displayPath = ModuleConstants.MODULE_DIR
+                    + "/my_product/etc/permissions/oplus.product.display_features.xml";
+            String featureBackup = featurePath + ".oc-txn";
+            String displayBackup = displayPath + ".oc-txn";
+
+            // Never overwrite a snapshot left behind by an earlier failed restore.
+            Shell.Result cleanStart = Shell.cmd(
+                    "test ! -e " + shellQuote(featureBackup)
+                    + " && test ! -e " + shellQuote(displayBackup)).exec();
+            if (!cleanStart.isSuccess()) {
+                throw new IllegalStateException("Unresolved MEMC XML rollback snapshots: "
+                        + featureBackup + " and " + displayBackup);
             }
-            throw failure;
+
+            Shell.Result backup = Shell.cmd(
+                    "cp -p -- " + shellQuote(featurePath) + " " + shellQuote(featureBackup)
+                    + " && cp -p -- " + shellQuote(displayPath) + " " + shellQuote(displayBackup)
+            ).exec();
+            if (!backup.isSuccess()) {
+                // No production XML has been modified yet.
+                Shell.cmd("rm -f -- " + shellQuote(featureBackup)
+                        + " " + shellQuote(displayBackup)).exec();
+                throw new IllegalStateException("Unable to back up MEMC module XML: "
+                        + backup.getErr());
+            }
+
+            boolean safeToDiscardBackups = false;
+            try {
+                enableMemcOplusFeature(enable);
+                enableMemcOplusDisplayFeature(enable);
+                safeToDiscardBackups = true;
+            } catch (RuntimeException failure) {
+                Shell.Result restore = Shell.cmd(
+                        "cp -p -- " + shellQuote(featureBackup) + " " + shellQuote(featurePath)
+                        + " && cp -p -- " + shellQuote(displayBackup) + " " + shellQuote(displayPath)
+                ).exec();
+                if (restore.isSuccess()) {
+                    safeToDiscardBackups = true;
+                } else {
+                    Log.e(TAG, "MEMC XML rollback failed; keeping both snapshots at "
+                            + featureBackup + " and " + displayBackup + ": " + restore.getErr());
+                }
+                throw failure;
+            } finally {
+                if (safeToDiscardBackups) {
+                    Shell.Result removed = Shell.cmd("rm -f -- " + shellQuote(featureBackup)
+                            + " " + shellQuote(displayBackup)).exec();
+                    if (!removed.isSuccess()) {
+                        Log.w(TAG, "Unable to clean MEMC transaction snapshots: "
+                                + removed.getErr());
+                    }
+                }
+            }
         } finally {
-            Shell.cmd("rm -f " + shellQuote(featureBackup) + " " + shellQuote(displayBackup)).exec();
+            OverlayCompileCoordinator.LOCK.unlock();
         }
     }
 
