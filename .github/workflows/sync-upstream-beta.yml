@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Merge upstream beta, preserve fork changes on conflicts
+      - name: Merge upstream beta, preserving local conflicts and CI
         shell: bash
         run: |
           set -euo pipefail
@@ -25,12 +25,17 @@ jobs:
           git remote add upstream https://github.com/DHD2280/Oxygen-Customizer.git
           git fetch --no-tags upstream beta
           echo "Upstream commit: $(git rev-parse upstream/beta)"
-          git merge --no-ff --no-edit -X ours upstream/beta -m "Merge DHD2280/Oxygen-Customizer beta (2026-10-11)"
-          git merge-base --is-ancestor upstream/beta HEAD
+          if git merge-base --is-ancestor upstream/beta HEAD; then
+            echo "Upstream beta is already merged"
+            exit 0
+          fi
+          git merge --no-ff --no-commit -X ours upstream/beta
+          # GITHUB_TOKEN cannot update workflow files; keep the fork's CI unchanged.
+          git restore --source=HEAD --staged --worktree -- .github/workflows
           if [ -n "$(git ls-files --unmerged)" ]; then
             echo "Unresolved conflicts remain" >&2
             exit 1
           fi
-          git rm .github/workflows/sync-upstream-beta.yml
-          git commit -m "chore: remove one-time upstream sync workflow"
+          git commit -m "Merge DHD2280/Oxygen-Customizer beta (2026-10-11), preserve fork CI"
+          git merge-base --is-ancestor upstream/beta HEAD
           git push origin HEAD:sync/upstream-beta-20261011
