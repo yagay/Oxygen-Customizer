@@ -111,6 +111,8 @@ public final class MemcListLoader {
     private static boolean isCurrent(LifecycleOwner owner, long request) {
         Long latest = ACTIVE.get(owner);
         return latest != null && latest == request
-                && owner.getLifecycle().getCurrentState().isAtLeast(Lifecycle.State.CREATED);
+                // onViewCreated can run before the view lifecycle reaches CREATED.
+                // INITIALIZED is alive; only DESTROYED invalidates its callbacks.
+                && owner.getLifecycle().getCurrentState() != Lifecycle.State.DESTROYED;
     }
 }
