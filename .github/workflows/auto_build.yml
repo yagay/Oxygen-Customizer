@@ -41,6 +41,9 @@ jobs:
       - name: Check upstream integration invariants
         run: python3 scripts/check_upstream_merge.py
 
+      - name: Check runtime hardening invariants
+        run: python3 scripts/check_runtime_hardening.py
+
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
