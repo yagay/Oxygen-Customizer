@@ -96,7 +96,7 @@ public class LockscreenWeather extends XposedMods {
         mWeatherCustomMargins = Xprefs.getBoolean(LOCKSCREEN_WEATHER_CUSTOM_MARGINS, false);
         mWeatherLeftMargin = Xprefs.getSliderInt(LOCKSCREEN_WEATHER_CUSTOM_MARGIN_LEFT, 0);
         mWeatherTopMargin = Xprefs.getSliderInt(LOCKSCREEN_WEATHER_CUSTOM_MARGIN_TOP, 0);
-        mWeatherBackground = Integer.parseInt(Xprefs.getString(LOCKSCREEN_WEATHER_BACKGROUND, "0"));
+        mWeatherBackground = Xprefs.getIntFromString(LOCKSCREEN_WEATHER_BACKGROUND, "0");
         mWeatherCustomFont = Xprefs.getBoolean(LOCKSCREEN_WEATHER_CUSTOM_FONT_SWITCH, false);
 
         for (String LCWeatherPref : LOCKSCREEN_WEATHER_PREFS) {
