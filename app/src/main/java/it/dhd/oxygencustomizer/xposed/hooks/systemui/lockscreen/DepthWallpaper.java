@@ -87,7 +87,8 @@ public class DepthWallpaper extends XposedMods {
     final BroadcastReceiver mReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent != null && intent.getAction() != null) {
+            if (it.dhd.oxygencustomizer.xposed.XPrefs.isTrustedInternalBroadcast(intent)
+                    && intent.getAction() != null) {
                 switch (intent.getAction()) {
                     case ACTION_DEPTH_BACKGROUND_CHANGED -> setDepthBackground();
                     case ACTION_DEPTH_SUBJECT_CHANGED -> {
@@ -719,6 +720,7 @@ public class DepthWallpaper extends XposedMods {
         Intent intent = new Intent(ACTIONS_AOD_INVALIDATE_DEPTH);
         intent.setPackage(mContext.getPackageName());
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
+        it.dhd.oxygencustomizer.xposed.XPrefs.addInternalBroadcastToken(intent);
         mContext.sendBroadcast(intent);
     }
 
