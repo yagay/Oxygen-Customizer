@@ -55,6 +55,7 @@ public class AodDepthSubject extends XposedMods {
     private final BroadcastReceiver mInvalidateCacheReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            if (!it.dhd.oxygencustomizer.xposed.XPrefs.isTrustedInternalBroadcast(intent)) return;
             mSubjectCacheValid = false;
             loadDepth();
         }
