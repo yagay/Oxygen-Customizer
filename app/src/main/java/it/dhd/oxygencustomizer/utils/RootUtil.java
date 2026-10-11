@@ -42,13 +42,23 @@ public class RootUtil {
     }
 
     public static void setPermissions(final int permission, final String filename) {
-        if (!isValidPermission(permission) || filename == null) return;
-        Shell.cmd("chmod " + permission + " -- " + shellQuote(filename)).exec();
+        setPermissionsChecked(permission, filename, false);
     }
 
     public static void setPermissionsRecursively(final int permission, final String foldername) {
-        if (!isValidPermission(permission) || foldername == null) return;
-        Shell.cmd("chmod -R " + permission + " -- " + shellQuote(foldername)).exec();
+        setPermissionsChecked(permission, foldername, true);
+    }
+
+    private static void setPermissionsChecked(int permission, String path, boolean recursive) {
+        if (!isValidPermission(permission) || path == null || path.isBlank()) {
+            throw new IllegalArgumentException("Invalid chmod permission or path");
+        }
+        Shell.Result result = Shell.cmd("chmod " + (recursive ? "-R " : "")
+                + permission + " -- " + shellQuote(path)).exec();
+        if (!result.isSuccess()) {
+            throw new IllegalStateException("Unable to set permissions on " + path + ": "
+                    + result.getErr());
+        }
     }
 
     public static boolean fileExists(String dir) {

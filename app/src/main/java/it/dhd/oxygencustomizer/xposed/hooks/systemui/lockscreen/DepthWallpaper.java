@@ -129,7 +129,13 @@ public class DepthWallpaper extends XposedMods {
     public void updatePrefs(String... Key) {
         DWallpaperEnabled = Xprefs.getBoolean(DEPTH_WALLPAPER_ENABLED, false);
         DWOpacity = Xprefs.getSliderInt(DEPTH_WALLPAPER_OPACITY, 192);
-        DWMode = Integer.parseInt(Xprefs.getString(DEPTH_WALLPAPER_MODE, "0"));
+        try {
+            DWMode = Integer.parseInt(Xprefs.getString(DEPTH_WALLPAPER_MODE, "0"));
+        } catch (NumberFormatException invalidPreference) {
+            log("DepthWallpaper: invalid mode, using default: " + invalidPreference);
+            DWMode = 0;
+        }
+        if (DWMode < 0 || DWMode > 2) DWMode = 0;
 
         if (Key.length > 0) {
             if (Key[0].equals(DEPTH_WALLPAPER_ENABLED)) {
@@ -186,7 +192,7 @@ public class DepthWallpaper extends XposedMods {
                         scrimName = (String) getObjectField(param.thisObject, "name");
                     }
 
-                    if (mLayersCreated && DWallpaperEnabled) {
+                    if (mLayersCreated && DWallpaperEnabled && scrimName != null) {
                         if (scrimName.toLowerCase().contains("notification")) {
                             log("ScrimViewExImp Notification Scrim Alpha: " + param.args[0]);
                             float notificationAlpha = (float) param.args[0];
@@ -528,7 +534,10 @@ public class DepthWallpaper extends XposedMods {
     }
 
     private void setDepthWallpaper() {
-        String state = getObjectField(getScrimController(), "mState").toString();
+        if (!mLayersCreated || mScrimController == null || mLockScreenSubject == null) return;
+        Object stateValue = getObjectField(getScrimController(), "mState");
+        if (stateValue == null) return;
+        String state = stateValue.toString();
         XposedBridge.log("DepthWallpaper - setDepthWallpaper: " + state);
         boolean canShow = true;
         if (showAlbumArt && !canShowArt) {

@@ -392,6 +392,10 @@ public class XPLauncher implements ServiceConnection {
                 command.run(proxy);
             } catch (RemoteException failure) {
                 log("[ Oxygen Customizer ] Root IPC failed: " + failure);
+                // Do not blindly replay root operations: some may have executed
+                // before the binder died, so duplicate execution is unsafe.
+                rootProxyIPC = null;
+                if (instance != null) instance.forceConnectRootService();
             } catch (Throwable failure) {
                 log("[ Oxygen Customizer ] Root IPC callback failed: " + failure);
             }

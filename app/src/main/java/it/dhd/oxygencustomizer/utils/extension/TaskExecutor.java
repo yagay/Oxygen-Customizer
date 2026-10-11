@@ -2,92 +2,107 @@ package it.dhd.oxygencustomizer.utils.extension;
 
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+/** One-shot task with main-thread callbacks and deterministic worker cleanup. */
 public abstract class TaskExecutor<Params, Progress, Result> {
-
-    private final Handler mHandler;
-    private final Executor mExecutor;
-    private final AtomicBoolean mCancelled;
-    private final CountDownLatch preExecuteLatch;
-    private volatile Status mStatus;
-
-    public TaskExecutor() {
-        mExecutor = Executors.newSingleThreadExecutor();
-        mHandler = new Handler(Looper.getMainLooper());
-        mStatus = Status.PENDING;
-        mCancelled = new AtomicBoolean(false);
-        preExecuteLatch = new CountDownLatch(1);
-    }
+    private static final String TAG = "OC-TaskExecutor";
+    private final Handler mHandler = new Handler(Looper.getMainLooper());
+    private final ExecutorService mExecutor = Executors.newSingleThreadExecutor();
+    private final AtomicBoolean mCancelled = new AtomicBoolean(false);
+    private final AtomicBoolean mCancellationDelivered = new AtomicBoolean(false);
+    private final CountDownLatch preExecuteLatch = new CountDownLatch(1);
+    private volatile Future<?> mTask;
+    private volatile Status mStatus = Status.PENDING;
 
     public final Status getStatus() {
         return mStatus;
     }
 
     @SafeVarargs
-    public final void execute(final Params... params) {
+    public final synchronized void execute(final Params... params) {
         if (mStatus != Status.PENDING) {
-            switch (mStatus) {
-                case RUNNING:
-                    throw new IllegalStateException("Cannot execute task: the task is already running.");
-                case FINISHED:
-                    throw new IllegalStateException("Cannot execute task: the task has already been executed (a task can be executed only once)");
-            }
+            throw new IllegalStateException("A task may only execute once: " + mStatus);
         }
-
-        mExecutor.execute(() -> {
-            mStatus = Status.RUNNING;
-
+        mStatus = Status.RUNNING;
+        if (mCancelled.get()) {
+            finishCancelled();
+            mExecutor.shutdown();
+            return;
+        }
+        mTask = mExecutor.submit(() -> {
             try {
-                mHandler.post(() -> {
-                    if (!isCancelled()) {
-                        onPreExecute();
+                AtomicReference<Throwable> preError = new AtomicReference<>();
+                if (!mHandler.post(() -> {
+                    try {
+                        if (!isCancelled()) onPreExecute();
+                    } catch (Throwable failure) {
+                        preError.set(failure);
+                    } finally {
+                        preExecuteLatch.countDown();
                     }
+                })) {
                     preExecuteLatch.countDown();
-                });
-
+                    mCancelled.set(true);
+                }
                 preExecuteLatch.await();
-
+                if (preError.get() != null) throw new IllegalStateException("onPreExecute failed", preError.get());
                 if (!isCancelled()) {
-                    final Result result = runInBackground(params);
-
-                    mHandler.post(() -> {
-                        if (!isCancelled()) {
-                            onPostExecute(result);
-                        }
-                    });
+                    final Result result = doInBackground(params);
+                    if (!isCancelled()) {
+                        mHandler.post(() -> {
+                            if (!isCancelled()) {
+                                try {
+                                    onPostExecute(result);
+                                } catch (Throwable failure) {
+                                    Log.e(TAG, "onPostExecute failed", failure);
+                                }
+                            } else {
+                                deliverCancellation();
+                            }
+                        });
+                    }
                 }
-            } catch (Throwable throwable) {
+            } catch (InterruptedException interruption) {
+                Thread.currentThread().interrupt();
                 mCancelled.set(true);
-
-                try {
-                    throw throwable;
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
+            } catch (Throwable failure) {
+                Log.e(TAG, "Task failed", failure);
+                mCancelled.set(true);
             } finally {
-                if (isCancelled()) {
-                    onCancelled();
-                }
-
                 mStatus = Status.FINISHED;
+                if (isCancelled()) deliverCancellation();
+                mExecutor.shutdown();
+            }
+        });
+        // A one-shot executor must never retain a live idle thread.
+        mExecutor.shutdown();
+    }
+
+    private void finishCancelled() {
+        mStatus = Status.FINISHED;
+        deliverCancellation();
+    }
+
+    private void deliverCancellation() {
+        if (!mCancellationDelivered.compareAndSet(false, true)) return;
+        mHandler.post(() -> {
+            try {
+                onCancelled();
+            } catch (Throwable failure) {
+                Log.e(TAG, "onCancelled failed", failure);
             }
         });
     }
 
     protected abstract void onPreExecute();
-
-    @SafeVarargs
-    private final Result runInBackground(Params... params) {
-        if (!isCancelled()) {
-            return doInBackground(params);
-        }
-        return null;
-    }
 
     @SuppressWarnings({"unchecked", "unsafe"})
     protected abstract Result doInBackground(Params... params);
@@ -95,7 +110,9 @@ public abstract class TaskExecutor<Params, Progress, Result> {
     @SafeVarargs
     protected final void publishProgress(Progress... values) {
         if (!isCancelled()) {
-            mHandler.post(() -> onProgressUpdate(values));
+            mHandler.post(() -> {
+                if (!isCancelled()) onProgressUpdate(values);
+            });
         }
     }
 
@@ -113,15 +130,20 @@ public abstract class TaskExecutor<Params, Progress, Result> {
     }
 
     public final void cancel(boolean mayInterruptIfRunning) {
+        if (mStatus == Status.FINISHED) return;
         mCancelled.set(true);
-        if (mayInterruptIfRunning) {
-            mHandler.removeCallbacksAndMessages(null);
+        // The UI callback may have been removed/skipped: unblock await unconditionally.
+        preExecuteLatch.countDown();
+        if (mayInterruptIfRunning && mTask != null) mTask.cancel(true);
+        if (mStatus == Status.PENDING || (mTask != null && mTask.isCancelled())) {
+            finishCancelled();
+            mExecutor.shutdownNow();
         }
     }
 
     public enum Status {
         PENDING,
         RUNNING,
-        FINISHED,
+        FINISHED
     }
 }
