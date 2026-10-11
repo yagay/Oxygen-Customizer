@@ -81,14 +81,14 @@ public class ModuleUtil {
         ).exec();
 
         Shell.cmd(
-                "printf 'MODDIR=${0%%/*}\n\nmount --bind $MODDIR/my_product/etc/extension/com.oplus.oplus-feature.xml /my_product/etc/extension/com.oplus.oplus-feature.xml\nmount --bind $MODDIR/my_product/etc/permissions/oplus.product.display_features.xml /my_product/etc/permissions/oplus.product.display_features.xml' > " + ModuleConstants.TEMP_MODULE_DIR + "/post-fs-data.sh"
+                "printf 'MODDIR=${0%/*}\n\nmount --bind $MODDIR/my_product/etc/extension/com.oplus.oplus-feature.xml /my_product/etc/extension/com.oplus.oplus-feature.xml\nmount --bind $MODDIR/my_product/etc/permissions/oplus.product.display_features.xml /my_product/etc/permissions/oplus.product.display_features.xml' > " + ModuleConstants.TEMP_MODULE_DIR + "/post-fs-data.sh"
         ).exec();
 
         Log.d(TAG, "skipped installation: " + skippedInstallation);
         if (!skippedInstallation) {
-            Shell.cmd("printf 'MODDIR=${0%%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\nuntil [ -d /storage/emulated/0/Android ]; do\n  sleep 1\ndone\nsleep 3\n\n" + "sleep 6\n\ntheme=$(cmd overlay list | grep \".x..OxygenCustomizerComponentTH\")\nnum=$(echo $theme | cut -d \"H\" -f 2 | cut -d \".\" -f 1)\nif [ \"${#num}\" -gt 0 ]\nthen\n cmd overlay enable OxygenCustomizerComponentTH$num.overlay\n cmd overlay set-priority OxygenCustomizerComponentTH$num.overlay highest\nfi\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec();
+            Shell.cmd("printf 'MODDIR=${0%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\nuntil [ -d /storage/emulated/0/Android ]; do\n  sleep 1\ndone\nsleep 3\n\n" + "sleep 6\n\ntheme=$(cmd overlay list | grep \".x..OxygenCustomizerComponentTH\")\nnum=$(echo $theme | cut -d \"H\" -f 2 | cut -d \".\" -f 1)\nif [ \"${#num}\" -gt 0 ]\nthen\n cmd overlay enable OxygenCustomizerComponentTH$num.overlay\n cmd overlay set-priority OxygenCustomizerComponentTH$num.overlay highest\nfi\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec();
         } else {
-            Shell.cmd("printf 'MODDIR=${0%%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec();
+            Shell.cmd("printf 'MODDIR=${0%/*}\n\nwhile [ \"$(getprop sys.boot_completed | tr -d \"\\r\")\" != \"1\" ]\ndo\n sleep 1\ndone\nsleep 5\n\nsh $MODDIR/post-exec.sh\n\n' > " + ModuleConstants.TEMP_MODULE_DIR + "/service.sh").exec();
         }
         Shell.cmd("touch " + ModuleConstants.TEMP_MODULE_DIR + "/system.prop").exec();
         Shell.cmd("touch " + ModuleConstants.TEMP_MODULE_DIR + "/auto_mount").exec();
