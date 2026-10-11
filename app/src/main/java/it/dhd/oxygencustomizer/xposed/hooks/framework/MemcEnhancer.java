@@ -44,6 +44,32 @@ public class MemcEnhancer extends XposedMods {
     private static final HashMap<String, String> sSdr2hdrCommandMap = new HashMap<>();
     private static final HashMap<String, String> sMemcCommandMap = new HashMap<>();
     private static final HashMap<String, String> sAppScreenRateMap = new HashMap<>();
+    /** Snapshot retained by Hooks so preference refresh never mutates a live result. */
+    private static final class ConfigSnapshot {
+        final boolean force;
+        final boolean custom;
+        final ArrayList<String> packages;
+        final ArrayList<String> activities;
+        final HashMap<String, String> sdr2hdr;
+        final HashMap<String, String> memc;
+        final HashMap<String, String> rates;
+
+        ConfigSnapshot(boolean force, boolean custom, ArrayList<String> packages,
+                       ArrayList<String> activities, HashMap<String, String> sdr2hdr,
+                       HashMap<String, String> memc, HashMap<String, String> rates) {
+            this.force = force;
+            this.custom = custom;
+            this.packages = new ArrayList<>(packages);
+            this.activities = new ArrayList<>(activities);
+            this.sdr2hdr = new HashMap<>(sdr2hdr);
+            this.memc = new HashMap<>(memc);
+            this.rates = new HashMap<>(rates);
+        }
+    }
+
+    private volatile ConfigSnapshot configSnapshot = new ConfigSnapshot(
+            false, false, new ArrayList<>(), new ArrayList<>(),
+            new HashMap<>(), new HashMap<>(), new HashMap<>());
     private boolean mBroadcastRegistered = false;
     private boolean mSettingsBroadcastRegistered = false;
     private boolean settingsUpdated = false;
@@ -127,6 +153,9 @@ public class MemcEnhancer extends XposedMods {
 
         logLists();
 
+        configSnapshot = new ConfigSnapshot(
+                enableMemcFeature, useCustomMemcConfig, sConfigPackage, sConfigActivity,
+                sSdr2hdrCommandMap, sMemcCommandMap, sAppScreenRateMap);
         settingsUpdated = true;
     }
 
