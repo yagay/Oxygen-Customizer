@@ -9,6 +9,10 @@ import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_CUS
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_QUICK_TILES;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_ROWS;
 import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_TILES_PREFS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_NEW_GRID_ENABLED;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_NEW_GRID_ROWS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_NEW_GRID_COLUMNS;
+import static it.dhd.oxygencustomizer.utils.Constants.Preferences.QsTiles.QS_NEW_GRID_LANDSCAPE_COLUMNS;
 import static it.dhd.oxygencustomizer.xposed.XPrefs.Xprefs;
 
 import android.content.Context;
@@ -40,6 +44,10 @@ public class QSTiles extends XposedMods {
     private static int QSColQtyL = QS_COL_NOT_SET;
 
     private boolean mCustomizeQSTiles = false;
+    private boolean mCustomizeNewGrid = false;
+    private int newGridRows = 3;
+    private int newGridColumns = 4;
+    private int newGridLandscapeColumns = 5;
     private final AtomicBoolean aospGridSeen = new AtomicBoolean(false);
     private final AtomicBoolean oplusGridSeen = new AtomicBoolean(false);
     private final AtomicBoolean calculatorSeen = new AtomicBoolean(false);
@@ -53,6 +61,10 @@ public class QSTiles extends XposedMods {
         if (Xprefs == null) return;
 
         mCustomizeQSTiles = Xprefs.getBoolean(QS_CUSTOMIZE_TILES, false);
+        mCustomizeNewGrid = Xprefs.getBoolean(QS_NEW_GRID_ENABLED, false);
+        newGridRows = Xprefs.getInt(QS_NEW_GRID_ROWS, 3);
+        newGridColumns = Xprefs.getInt(QS_NEW_GRID_COLUMNS, 4);
+        newGridLandscapeColumns = Xprefs.getInt(QS_NEW_GRID_LANDSCAPE_COLUMNS, 5);
         QQSTileQty = Xprefs.getInt(QS_QUICK_TILES, QQS_NOT_SET);
         QSRowQty = Xprefs.getInt(QS_ROWS, QS_ROW_NOT_SET);
         QSColQty = Xprefs.getInt(QS_COLUMNS, QS_COL_NOT_SET);
@@ -112,6 +124,26 @@ public class QSTiles extends XposedMods {
                 });
 
         if (Build.VERSION.SDK_INT >= 35) {
+            // New separated QS grid has its own preferences, independent of the legacy grid.
+            // These methods are present in the supplied OOS16 SystemUI APK. They may be
+            // loaded by a plugin ClassLoader; the compatibility diagnostic reports misses.
+            ReflectedClass gridInfo = ReflectedClass.ofIfPossible(
+                    "com.oplus.systemui.plugins.qs.customize.data.model.GridInfoEntity");
+            gridInfo.before("getGridCol").run(param -> {
+                if (!mCustomizeNewGrid) return;
+                int columns = mContext.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_LANDSCAPE
+                        ? newGridLandscapeColumns : newGridColumns;
+                param.setResult(Math.max(1, columns));
+            });
+            gridInfo.before("getGridRow").run(param -> {
+                if (!mCustomizeNewGrid) return;
+                if (mContext.getResources().getConfiguration().orientation
+                        == Configuration.ORIENTATION_PORTRAIT) {
+                    param.setResult(Math.max(1, newGridRows));
+                }
+            });
+
             // OPlus uses its own container when Quick Settings is separated from notifications.
             // The AOSP TileLayout hooks above do not affect this layout.
             ReflectedClass oplusContainer = ReflectedClass.ofIfPossible(
