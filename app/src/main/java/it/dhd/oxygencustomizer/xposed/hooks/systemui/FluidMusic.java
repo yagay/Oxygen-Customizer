@@ -22,7 +22,7 @@ public class FluidMusic extends XposedMods {
     private static final String listenPackage = SYSTEM_UI;
 
     private boolean mFluidCustomEnabled = false;
-    private List<String> mFluidAppsList = new ArrayList<>();
+    private volatile List<String> mFluidAppsList = new ArrayList<>();
 
     public FluidMusic(Context context) {
         super(context);
@@ -32,7 +32,6 @@ public class FluidMusic extends XposedMods {
     public void updatePrefs(String... Key) {
         mFluidCustomEnabled = Xprefs.getBoolean("fluid_music_custom_switch", false);
         Set<String> mFluidApps = Xprefs.getStringSet("fluid_music_apps", new HashSet<>());
-        mFluidAppsList.clear();
         mFluidAppsList = new ArrayList<>(mFluidApps);
     }
 
@@ -46,10 +45,13 @@ public class FluidMusic extends XposedMods {
                 protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                     if (!mFluidCustomEnabled) return;
 
+                    List<String> snapshot = new ArrayList<>(mFluidAppsList);
                     List<String> whiteList = (List<String>) getObjectField(param.thisObject, "whiteList");
-                    whiteList.clear();
-                    whiteList.addAll(mFluidAppsList);
-                    param.setResult(mFluidAppsList);
+                    if (whiteList != null) {
+                        whiteList.clear();
+                        whiteList.addAll(snapshot);
+                    }
+                    param.setResult(snapshot);
                 }
             });
         }
