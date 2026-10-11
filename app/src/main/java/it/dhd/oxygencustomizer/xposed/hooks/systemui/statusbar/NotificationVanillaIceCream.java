@@ -111,11 +111,11 @@ public class NotificationVanillaIceCream extends XposedMods {
                 .run(param -> {
                     if (Build.VERSION.SDK_INT != 36) return;
                     if (!hasOverlays) return;
-                    Drawable colorDrawable = new ColorDrawable(mContext.getColor(mContext.getResources().getIdentifier(
-                            "notification_material_background_color_compass",
-                            "color",
-                            mContext.getPackageName()
-                    )));
+                    int colorId = mContext.getResources().getIdentifier(
+                            "notification_material_background_color_compass", "color",
+                            mContext.getPackageName());
+                    if (colorId == 0) return;
+                    Drawable colorDrawable = new ColorDrawable(mContext.getColor(colorId));
                     Drawable header = new HeaderDrawable(
                             colorDrawable,
                             (int) callMethod(param.thisObject, "getStackedNotificationMaskColor")
