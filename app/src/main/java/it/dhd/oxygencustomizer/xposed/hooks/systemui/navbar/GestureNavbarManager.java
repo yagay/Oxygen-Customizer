@@ -146,9 +146,9 @@ public class GestureNavbarManager extends XposedMods {
         backGestureHeightFractionRight = Xprefs.getSliderValues("gesture_right_height_double", 100f);
         onRotationToo = Xprefs.getBoolean("gesture_on_rotate", true);
         overrideBack = Xprefs.getBoolean("gesture_override_holdback", false);
-        overrideMode = Integer.parseInt(Xprefs.getString("gesture_override_holdback_mode", "0"));
-        overrideLeft = Integer.parseInt(Xprefs.getString("gesture_override_holdback_left", "0"));
-        overrideRight = Integer.parseInt(Xprefs.getString("gesture_override_holdback_right", "0"));
+        overrideMode = Xprefs.getIntFromString("gesture_override_holdback_mode", "0");
+        overrideLeft = Xprefs.getIntFromString("gesture_override_holdback_left", "0");
+        overrideRight = Xprefs.getIntFromString("gesture_override_holdback_right", "0");
         leftCustomApp = Xprefs.getString(GESTURE_HOLD_BACK_LEFT_APP, "");
         rightCustomApp = Xprefs.getString(GESTURE_HOLD_BACK_RIGHT_APP, "");
         //endregion
