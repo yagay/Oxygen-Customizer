@@ -1,0 +1,36 @@
+name: One-time upstream beta merge
+on:
+  push:
+    branches:
+      - sync/upstream-beta-20261011
+
+permissions:
+  contents: write
+
+jobs:
+  merge-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge upstream beta, preserve fork changes on conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/DHD2280/Oxygen-Customizer.git
+          git fetch --no-tags upstream beta
+          echo "Upstream commit: $(git rev-parse upstream/beta)"
+          git merge --no-ff --no-edit -X ours upstream/beta -m "Merge DHD2280/Oxygen-Customizer beta (2026-10-11)"
+          git merge-base --is-ancestor upstream/beta HEAD
+          if [ -n "$(git ls-files --unmerged)" ]; then
+            echo "Unresolved conflicts remain" >&2
+            exit 1
+          fi
+          git rm .github/workflows/sync-upstream-beta.yml
+          git commit -m "chore: remove one-time upstream sync workflow"
+          git push origin HEAD:sync/upstream-beta-20261011
