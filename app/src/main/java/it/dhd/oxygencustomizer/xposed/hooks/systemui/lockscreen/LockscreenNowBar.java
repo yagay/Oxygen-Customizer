@@ -147,10 +147,10 @@ public class LockscreenNowBar extends XposedMods {
 
         // Music
         mShowExtendedPlayer = Xprefs.getBoolean(NOW_BAR_MUSIC_EXTENDED_PLAYER, true);
-        mBackgroundMode = Integer.parseInt(Xprefs.getString(NOW_BAR_MUSIC_EXTENDED_BACKGROUND, "0"));
-        mExtendedPlayerMode = Integer.parseInt(Xprefs.getString(NOW_BAR_MUSIC_EXDENDED_MODE, "0"));
+        mBackgroundMode = Xprefs.getIntFromString(NOW_BAR_MUSIC_EXTENDED_BACKGROUND, "0");
+        mExtendedPlayerMode = Xprefs.getIntFromString(NOW_BAR_MUSIC_EXDENDED_MODE, "0");
         mExtendedPlayerShowClock = Xprefs.getBoolean(NOW_BAR_MUSIC_EXTENDED_CLOCK, false);
-        mExtendedPlayerClockPosition = Integer.parseInt(Xprefs.getString(NOW_BAR_MUSIC_CLOCK_POSITION, "1"));
+        mExtendedPlayerClockPosition = Xprefs.getIntFromString(NOW_BAR_MUSIC_CLOCK_POSITION, "1");
         mExtendedPlayerClockTextScaling = Xprefs.getSliderFloat(NOW_BAR_MUSIC_CLOCK_TEXT_SCALING, 1.0f);
         mExtendedPlayerClockCustomFont = Xprefs.getBoolean(NOW_BAR_CLOCK_CUSTOM_FONT, false);
         mExtendedPlayerClockDateFormat = Xprefs.getString(NOW_BAR_MUSIC_CLOCK_FORMAT, "");
@@ -163,7 +163,7 @@ public class LockscreenNowBar extends XposedMods {
         mNowBarBatteryColor3 = Xprefs.getInt(NOW_BAR_BATTERY_COLOR_3, Color.parseColor("#FF48D5C4"));
         mNowBarBatteryColor4 = Xprefs.getInt(NOW_BAR_BATTERY_COLOR_4, Color.parseColor("#FF4CAF50"));
         mNowBarCustomChargingIcon = Xprefs.getBoolean(NOW_BAR_BATTERY_CHARGING_ICON_SWITCH, false);
-        mNowBarBatteryChargingIconStyle = Integer.parseInt(Xprefs.getString(NOW_BAR_BATTERY_CHARGING_ICON_STYLE, "-1"));
+        mNowBarBatteryChargingIconStyle = Xprefs.getIntFromString(NOW_BAR_BATTERY_CHARGING_ICON_STYLE, "-1");
         mNowBarBatteryIndicateFastCharging = Xprefs.getBoolean(NOW_BAR_BATTERY_INDICATE_FAST, false);
         mNowBarBatteryIndicatePowerSave = Xprefs.getBoolean(NOW_BAR_BATTERY_INDICATE_POWERSAVE, false);
         mNowBarBatteryFastChargingColor = Xprefs.getInt(NOW_BAR_BATTERY_FAST_COLOR, Color.parseColor("#FF247CFF"));
