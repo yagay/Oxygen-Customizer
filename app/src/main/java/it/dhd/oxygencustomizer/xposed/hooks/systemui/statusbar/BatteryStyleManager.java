@@ -231,8 +231,20 @@ public class BatteryStyleManager extends XposedMods {
     public BatteryStyleManager(Context context) {
         super(context);
 
-        mBatteryStockMarginLeft = mContext.getResources().getDimensionPixelSize(mContext.getResources().getIdentifier("op_status_bar_battery_icon_margin_left", "dimen", mContext.getPackageName()));
-        mBatteryStockMarginRight = mContext.getResources().getDimensionPixelSize(mContext.getResources().getIdentifier("op_status_bar_battery_icon_margin_right", "dimen", mContext.getPackageName()));
+        mBatteryStockMarginLeft = getDimensionPixelSizeOrZero("op_status_bar_battery_icon_margin_left");
+        mBatteryStockMarginRight = getDimensionPixelSizeOrZero("op_status_bar_battery_icon_margin_right");
+    }
+
+    /** Missing vendor resources must not crash the SystemUI Hook. */
+    @SuppressWarnings("DiscouragedApi")
+    private int getDimensionPixelSizeOrZero(String name) {
+        try {
+            int id = mContext.getResources().getIdentifier(
+                    name, "dimen", mContext.getPackageName());
+            return id == 0 ? 0 : mContext.getResources().getDimensionPixelSize(id);
+        } catch (android.content.res.Resources.NotFoundException missing) {
+            return 0;
+        }
     }
 
     @SuppressWarnings("DiscouragedApi")
@@ -874,7 +886,7 @@ public class BatteryStyleManager extends XposedMods {
                             int size = dp2px(mContext, mChargingIconWH);
 
                             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(size, size);
-                            lp.setMargins(left, 0, right, mContext.getResources().getDimensionPixelSize(mContext.getResources().getIdentifier("battery_margin_bottom", "dimen", mContext.getPackageName())));
+                            lp.setMargins(left, 0, right, getDimensionPixelSizeOrZero("battery_margin_bottom"));
                             batteryCharge.setLayoutParams(lp);
                         } else {
                             batteryCharge.setVisibility(View.GONE);
@@ -1017,8 +1029,9 @@ public class BatteryStyleManager extends XposedMods {
 
             TypedValue typedValue = new TypedValue();
 
-            res.getValue(res.getIdentifier("status_bar_icon_scale_factor", "dimen", context.getPackageName()), typedValue, true);
-            float iconScaleFactor = typedValue.getFloat();
+            int scaleId = res.getIdentifier("status_bar_icon_scale_factor", "dimen", context.getPackageName());
+            if (scaleId != 0) res.getValue(scaleId, typedValue, true);
+            float iconScaleFactor = scaleId == 0 ? 1f : typedValue.getFloat();
 
             int batteryWidth = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, mBatteryScaleWidth, mBatteryIconView.getContext().getResources().getDisplayMetrics());
             int batteryHeight = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, mBatteryScaleHeight, mBatteryIconView.getContext().getResources().getDisplayMetrics());
