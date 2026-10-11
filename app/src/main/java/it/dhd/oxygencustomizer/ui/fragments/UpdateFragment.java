@@ -173,7 +173,7 @@ public class UpdateFragment extends BaseFragment {
             Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
             return;
         }
-        if (!it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver
+        if (!it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver.FinishWorker
                 .hasMatchingAppSignature(requireContext(), new File(downloadPath))) {
             Log.e("UpdateFragment", "Refusing an APK with a different application signing identity");
             Toast.makeText(requireContext(), R.string.installation_failed, Toast.LENGTH_SHORT).show();
