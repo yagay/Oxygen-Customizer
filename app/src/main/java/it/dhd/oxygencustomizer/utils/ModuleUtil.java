@@ -169,11 +169,11 @@ public class ModuleUtil {
         Shell.Result result = null;
 
         if (RootUtil.isMagiskInstalled()) {
-            result = Shell.cmd("magisk --install-module " + modulePath).exec();
+            result = Shell.cmd("magisk --install-module " + shellQuote(modulePath)).exec();
         } else if (RootUtil.isKSUInstalled()) {
-            result = Shell.cmd("/data/adb/ksud module install " + modulePath).exec();
+            result = Shell.cmd("/data/adb/ksud module install " + shellQuote(modulePath)).exec();
         } else if (RootUtil.isApatchInstalled()) {
-            result = Shell.cmd("apd module install " + modulePath).exec();
+            result = Shell.cmd("apd module install " + shellQuote(modulePath)).exec();
         }
 
         if (result == null) {
@@ -185,7 +185,7 @@ public class ModuleUtil {
             throw new Exception(String.join("\n", result.getOut()));
         }
 
-        return !result.isSuccess();
+        return result.isSuccess();
     }
 
     public static boolean checkModuleVersion(Context context) {

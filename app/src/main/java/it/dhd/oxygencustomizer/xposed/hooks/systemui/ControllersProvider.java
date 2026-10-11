@@ -46,6 +46,7 @@ public class ControllersProvider extends XposedMods {
     private final CopyOnWriteArrayList<OnKeyguardShowing> mKeyguardShowingListeners = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<OnStatusBarStateChanged> mStatusBarStateListeners = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<ExpandedQsFractionChangeListener> mExpandedQsFractionChangeListeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<UiStateChangedListener> mUiStateChangedListeners = new CopyOnWriteArrayList<>();
 
 
     private Object mBluetoothController = null;

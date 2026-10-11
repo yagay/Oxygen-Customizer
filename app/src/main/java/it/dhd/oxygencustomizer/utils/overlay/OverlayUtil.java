@@ -13,6 +13,8 @@ import com.topjohnwu.superuser.Shell;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import it.dhd.oxygencustomizer.OxygenCustomizer;
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
@@ -37,12 +39,25 @@ public class OverlayUtil {
         return Shell.cmd("cmd overlay list | grep -F 'OxygenCustomizerComponent" + componentName + "'").exec().getOut();
     }
 
+    // Keep writes ordered; never report the requested state as a successful operation
+    // before Android's overlay manager confirms it.
+    private static final ExecutorService OVERLAY_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "OC-OverlayWorker");
+        thread.setDaemon(true);
+        return thread;
+    });
+
     public static boolean isOverlayEnabled(String pkgName) {
         if (!isSafeOverlayPackage(pkgName)) return false;
-        List<String> output = Shell.cmd(
-                "[[ $(cmd overlay list | grep -F '[x] " + pkgName + "') ]] && echo 1 || echo 0"
-        ).exec().getOut();
-        return !output.isEmpty() && "1".equals(output.get(0));
+        Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
+        if (!result.isSuccess()) {
+            Log.e("OverlayUtil", "Unable to query overlay manager: " + result.getErr());
+            return false;
+        }
+        for (String line : result.getOut()) {
+            if (line.trim().equals("[x] " + pkgName)) return true;
+        }
+        return false;
     }
 
     public static boolean isOverlayDisabled(String pkgName) {
@@ -57,85 +72,57 @@ public class OverlayUtil {
         if (!component.isEmpty()) {
             String num = component.get(0).split("OxygenCustomizerComponent" + componentName)[1].split("\\.overlay")[0];
             enableOverlay("OxygenCustomizerComponent" + componentName + num + ".overlay");
-            Log.d("OverlayUtil", "checkOverlayEnabledAndEnable: Enabled " + componentName + num);
         }
     }
 
     static boolean isOverlayInstalled(List<String> enabledOverlays, String pkgName) {
-        for (String line : enabledOverlays) {
-            if (line.equals(pkgName)) return true;
-        }
-        return false;
+        return enabledOverlays.contains(pkgName);
+    }
+
+    private static void requestOverlayState(String pkgName, boolean enabled, boolean exclusive) {
+        if (!isSafeOverlayPackage(pkgName)) return;
+        OVERLAY_EXECUTOR.execute(() -> {
+            String command = enabled
+                    ? "cmd overlay " + (exclusive ? "enable-exclusive --user current --category " : "enable --user current ")
+                        + pkgName + " && cmd overlay set-priority " + pkgName + " highest"
+                    : "cmd overlay disable --user current " + pkgName;
+            Shell.Result result = Shell.cmd(command).exec();
+            boolean actualState = isOverlayEnabled(pkgName);
+            if (!result.isSuccess() || actualState != enabled) {
+                Log.e("OverlayUtil", "Overlay operation failed: " + pkgName
+                        + ", requested=" + enabled + ", actual=" + actualState
+                        + ", stderr=" + result.getErr());
+            }
+            // The persisted value must mirror the real system state, not the click.
+            Prefs.putBoolean(pkgName, actualState);
+            if (getModulePrefs() != null) {
+                getModulePrefs().edit().putBoolean(pkgName, actualState).apply();
+            }
+        });
     }
 
     public static void enableOverlay(String pkgName) {
-        if (!isSafeOverlayPackage(pkgName)) return;
-        Prefs.putBoolean(pkgName, true);
-        if (getModulePrefs() != null) {
-            getModulePrefs().edit().putBoolean(pkgName, true).apply();
-        }
-        Shell.cmd("cmd overlay enable --user current " + pkgName, "cmd overlay set-priority " + pkgName + " highest").submit();
+        requestOverlayState(pkgName, true, false);
     }
 
     public static void enableOverlays(String... pkgNames) {
-        StringBuilder command = new StringBuilder();
-
-        for (String pkgName : pkgNames) {
-            if (!isSafeOverlayPackage(pkgName)) continue;
-            Prefs.putBoolean(pkgName, true);
-            command.append("cmd overlay enable --user current ").append(pkgName).append("; cmd overlay set-priority ").append(pkgName).append(" highest; ");
-        }
-
-        if (!command.isEmpty()) {
-            Shell.cmd(command.toString().trim()).submit();
-        }
+        for (String pkgName : pkgNames) enableOverlay(pkgName);
     }
 
     public static void enableOverlayExclusiveInCategory(String pkgName) {
-        if (!isSafeOverlayPackage(pkgName)) return;
-        Prefs.putBoolean(pkgName, true);
-        Shell.cmd("cmd overlay enable-exclusive --user current --category " + pkgName, "cmd overlay set-priority " + pkgName + " highest").submit();
+        requestOverlayState(pkgName, true, true);
     }
 
     public static void enableOverlaysExclusiveInCategory(String... pkgNames) {
-        StringBuilder command = new StringBuilder();
-
-        for (String pkgName : pkgNames) {
-            if (!isSafeOverlayPackage(pkgName)) continue;
-            Prefs.putBoolean(pkgName, true);
-            command.append("cmd overlay enable-exclusive --user current --category ")
-                    .append(pkgName)
-                    .append("; cmd overlay set-priority ")
-                    .append(pkgName)
-                    .append(" highest; ");
-        }
-
-        if (!command.isEmpty()) {
-            Shell.cmd(command.toString().trim()).submit();
-        }
+        for (String pkgName : pkgNames) enableOverlayExclusiveInCategory(pkgName);
     }
 
     public static void disableOverlay(String pkgName) {
-        if (!isSafeOverlayPackage(pkgName)) return;
-        Prefs.putBoolean(pkgName, false);
-        if (getModulePrefs() != null) {
-            getModulePrefs().edit().putBoolean(pkgName, false).apply();
-        }
-        Shell.cmd("cmd overlay disable --user current " + pkgName).submit();
+        requestOverlayState(pkgName, false, false);
     }
 
     public static void disableOverlays(String... pkgNames) {
-        StringBuilder command = new StringBuilder();
-
-        for (String pkgName : pkgNames) {
-            if (!isSafeOverlayPackage(pkgName)) continue;
-            Prefs.putBoolean(pkgName, false);
-            command.append("cmd overlay disable --user current ").append(pkgName).append("; ");
-        }
-
-        if (!command.isEmpty()) {
-            Shell.cmd(command.toString().trim()).submit();
-        }
+        for (String pkgName : pkgNames) disableOverlay(pkgName);
     }
 
     public static void disableOverlays(List<String> overlays) {
@@ -146,25 +133,8 @@ public class OverlayUtil {
         if (args.length % 2 != 0) {
             throw new IllegalArgumentException("Number of arguments must be even.");
         }
-
-        StringBuilder command = new StringBuilder();
-
         for (int i = 0; i < args.length; i += 2) {
-            String pkgName = (String) args[i];
-            boolean state = (boolean) args[i + 1];
-            if (!isSafeOverlayPackage(pkgName)) continue;
-
-            Prefs.putBoolean(pkgName, state);
-
-            if (state) {
-                command.append("cmd overlay enable --user current ").append(pkgName).append("; cmd overlay set-priority ").append(pkgName).append(" highest; ");
-            } else {
-                command.append("cmd overlay disable --user current ").append(pkgName).append("; ");
-            }
-        }
-
-        if (!command.isEmpty()) {
-            Shell.cmd(command.toString().trim()).submit();
+            requestOverlayState((String) args[i], (boolean) args[i + 1], false);
         }
     }
 

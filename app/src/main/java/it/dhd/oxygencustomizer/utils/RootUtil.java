@@ -17,7 +17,8 @@ public class RootUtil {
     }
 
     public static boolean isKSUInstalled() {
-        return Shell.cmd("/data/adb/ksud -h").exec().isSuccess();
+        // A help command is allowed to exit non-zero even when KernelSU is installed.
+        return Shell.cmd("test -x /data/adb/ksud || command -v ksud >/dev/null 2>&1").exec().isSuccess();
     }
 
     public static boolean isApatchInstalled() {
