@@ -12,7 +12,8 @@ MODDIR="${0%/*}"
   count=0
   until [ "$(getprop sys.boot_completed)" = "1" ] && [ -d /storage/emulated/0/Android ]; do
     count=$((count + 1))
-    [ "$count" -ge 120 ] && exit 0
+    # Restore the original APK even if the boot-complete signal is delayed.
+    [ "$count" -ge 120 ] && break
     sleep 1
   done
   sleep 3
