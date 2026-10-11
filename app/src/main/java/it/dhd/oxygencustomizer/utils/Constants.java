@@ -209,12 +209,21 @@ public final class Constants {
             public static final String QS_COLUMNS = "quick_settings_tiles_horizontal_columns_seek";
             public static final String QS_COLUMNS_LANDSCAPE = "quick_settings_tiles_vertical_columns_seek";
 
+            public static final String QS_NEW_GRID_ENABLED = "quick_settings_new_grid_enabled";
+            public static final String QS_NEW_GRID_ROWS = "quick_settings_new_grid_rows";
+            public static final String QS_NEW_GRID_COLUMNS = "quick_settings_new_grid_columns";
+            public static final String QS_NEW_GRID_LANDSCAPE_COLUMNS = "quick_settings_new_grid_landscape_columns";
+
             public static final String[] QS_TILES_PREFS = {
                     QS_CUSTOMIZE_TILES,
                     QS_QUICK_TILES,
                     QS_ROWS,
                     QS_COLUMNS,
-                    QS_COLUMNS_LANDSCAPE
+                    QS_COLUMNS_LANDSCAPE,
+                    QS_NEW_GRID_ENABLED,
+                    QS_NEW_GRID_ROWS,
+                    QS_NEW_GRID_COLUMNS,
+                    QS_NEW_GRID_LANDSCAPE_COLUMNS
             };
         }
 
