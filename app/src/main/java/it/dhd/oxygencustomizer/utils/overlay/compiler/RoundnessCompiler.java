@@ -28,6 +28,14 @@ public class RoundnessCompiler {
 
     public static boolean buildOverlay(String[] resources, boolean force) throws IOException {
         OverlayCompileCoordinator.LOCK.lock();
+        String[] rollbackNames = {"OxygenCustomizerComponentCRN1.overlay", "OxygenCustomizerComponentCR1.overlay"};
+        boolean[] rollbackEnabled = new boolean[rollbackNames.length];
+        if (force) {
+            for (int i = 0; i < rollbackNames.length; i++) {
+                rollbackEnabled[i] = OverlayUtil.isOverlayEnabled(rollbackNames[i]);
+            }
+        }
+        boolean completed = false;
         try {
         mForce = force;
 
@@ -71,8 +79,12 @@ public class RoundnessCompiler {
         }
 
         postExecute(false);
+        completed = true;
         return false;
         } finally {
+            if (!completed && force) {
+                OverlayCompileCoordinator.restorePrevious(rollbackNames, rollbackEnabled);
+            }
             OverlayCompileCoordinator.LOCK.unlock();
         }
     }
@@ -111,52 +123,49 @@ public class RoundnessCompiler {
         }
     }
 
-    private static void postExecute(boolean hasErroredOut) {
-        // Move all generated overlays to module
+    private static void postExecute(boolean hasErroredOut) throws IOException {
         if (!hasErroredOut) {
             for (String overlayName : mOverlayName) {
-                Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.OVERLAY_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
-                RootUtil.setPermissions(644, ModuleConstants.OVERLAY_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk");
-
+                String file = "OxygenCustomizerComponent" + overlayName + ".apk";
+                String signed = ModuleConstants.SIGNED_DIR + "/" + file;
+                OverlayCompileCoordinator.runChecked("cp -f " + signed + " " + ModuleConstants.OVERLAY_DIR + "/" + file, "Copy compiled roundness overlay");
+                OverlayCompileCoordinator.runChecked("chmod 644 " + ModuleConstants.OVERLAY_DIR + "/" + file, "Fix roundness overlay permissions");
                 if (mForce) {
-                    // Move to files dir and install
-                    Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
-                    RootUtil.setPermissions(644, ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk");
-                    Shell.cmd("pm install -r " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
-                    Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
+                    String staging = ModuleConstants.DATA_DIR + "/" + file;
+                    OverlayCompileCoordinator.runChecked("cp -f " + signed + " " + staging, "Stage roundness APK");
+                    try {
+                        OverlayCompileCoordinator.runChecked("pm install -r " + staging, "Install roundness APK");
+                    } finally {
+                        Shell.cmd("rm -f " + staging).exec();
+                    }
                 }
             }
-
             if (mForce) {
-                // Move to system overlay dir
                 SystemUtil.mountRW();
                 try {
                     for (String overlayName : mOverlayName) {
-                        Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
-                        RootUtil.setPermissions(644, "/system/product/overlay/OxygenCustomizerComponent" + overlayName + ".apk");
+                        String file = "OxygenCustomizerComponent" + overlayName + ".apk";
+                        OverlayCompileCoordinator.runChecked("cp -f " + ModuleConstants.SIGNED_DIR + "/" + file + " "
+                                + ModuleConstants.SYSTEM_OVERLAY_DIR + "/" + file, "Install system roundness overlay");
+                        OverlayCompileCoordinator.runChecked("chmod 644 " + ModuleConstants.SYSTEM_OVERLAY_DIR + "/" + file, "Fix system overlay mode");
                     }
                 } finally {
                     SystemUtil.mountRO();
                 }
-
-                // Enable the overlays
-                String[] overlayNames = new String[mOverlayName.length];
-                for (int i = 0; i < mOverlayName.length; i++) {
-                    overlayNames[i] = "OxygenCustomizerComponent" + mOverlayName[i] + ".overlay";
-                }
-                for (String overlay : overlayNames) {
-                    if (!OverlayUtil.applyOverlayStateNow(overlay, true, false)) {
-                        Log.e(TAG, "Failed to enable compiled overlay " + overlay);
+                for (String overlayName : mOverlayName) {
+                    String pkg = "OxygenCustomizerComponent" + overlayName + ".overlay";
+                    if (!OverlayUtil.applyOverlayStateNow(pkg, true, false)) {
+                        throw new IOException("Overlay manager rejected " + pkg);
                     }
                 }
             } else {
                 for (String overlayName : mOverlayName) {
-                    Shell.cmd("cp -rf " + ModuleConstants.SIGNED_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk " + ModuleConstants.BACKUP_DIR + "/OxygenCustomizerComponent" + overlayName + ".apk").exec();
+                    String file = "OxygenCustomizerComponent" + overlayName + ".apk";
+                    OverlayCompileCoordinator.runChecked("cp -f " + ModuleConstants.SIGNED_DIR + "/" + file + " "
+                            + ModuleConstants.BACKUP_DIR + "/" + file, "Backup roundness overlay");
                 }
             }
         }
-
-        // Clean temp directory
         Shell.cmd("rm -rf " + ModuleConstants.TEMP_DIR).exec();
         Shell.cmd("rm -rf " + ModuleConstants.DATA_DIR + "/Overlays").exec();
     }
