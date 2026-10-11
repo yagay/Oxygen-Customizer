@@ -43,8 +43,8 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
     private boolean needSystemUIRestart = false;
 
     public interface OnButtonClick{
-        void onEnableClick(int position, IconModel item);
-        void onDisableClick(int position, IconModel item);
+        boolean onEnableClick(int position, IconModel item);
+        boolean onDisableClick(int position, IconModel item);
     }
 
     public IconsAdapter(Context context, ArrayList<IconModel> itemList, LoadingDialog loadingDialog, String compName, boolean needSysUiRestart) {
@@ -179,8 +179,9 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
             OverlayUtil.OPERATION_LOCK.lock();
             try {
                 if (mOnButtonClick != null) {
-                    if (enable) mOnButtonClick.onEnableClick(position, selectedModel);
-                    else mOnButtonClick.onDisableClick(position, selectedModel);
+                    success = enable
+                            ? mOnButtonClick.onEnableClick(position, selectedModel)
+                            : mOnButtonClick.onDisableClick(position, selectedModel);
                 } else {
                     ArrayList<String> previouslyEnabled = new ArrayList<>();
                     for (String pkg : packages) {

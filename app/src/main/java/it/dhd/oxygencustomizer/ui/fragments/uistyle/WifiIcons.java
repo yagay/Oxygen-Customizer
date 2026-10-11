@@ -69,33 +69,59 @@ public class WifiIcons extends BaseFragment {
     }
 
     private final IconsAdapter.OnButtonClick onButtonClick = new IconsAdapter.OnButtonClick() {
+        private final String commonPackage = "OxygenCustomizerComponentCOMMONWIFI.overlay";
+
         @Override
-        public void onEnableClick(int position, IconModel item) {
-            final String selected = item.getPackageName();
-            OverlayUtil.executeOverlayBatch(() -> {
-                boolean success = true;
-                for (IconModel choice : wifiIcons) {
-                    success &= OverlayUtil.applyOverlayStateNow(choice.getPackageName(), false, false);
+        public boolean onEnableClick(int position, IconModel item) {
+            String selected = item.getPackageName();
+            java.util.ArrayList<String> previouslyEnabled = new java.util.ArrayList<>();
+            for (IconModel choice : wifiIcons) {
+                if (OverlayUtil.isOverlayEnabled(choice.getPackageName())) {
+                    previouslyEnabled.add(choice.getPackageName());
                 }
-                success &= OverlayUtil.applyOverlayStateNow(
-                        "OxygenCustomizerComponentCOMMONWIFI.overlay", true, false);
-                success &= OverlayUtil.applyOverlayStateNow(selected, true, false);
-                refreshVisibleIcons(success);
-            });
+            }
+            boolean commonEnabled = OverlayUtil.isOverlayEnabled(commonPackage);
+            boolean success = OverlayUtil.applyOverlayStateNow(commonPackage, true, false);
+            if (success) success = OverlayUtil.applyOverlayStateNow(selected, true, false);
+            for (IconModel choice : wifiIcons) {
+                if (!success) break;
+                String pkg = choice.getPackageName();
+                if (!pkg.equals(selected) && OverlayUtil.isOverlayEnabled(pkg)) {
+                    success = OverlayUtil.applyOverlayStateNow(pkg, false, false);
+                }
+            }
+            if (!success) {
+                for (IconModel choice : wifiIcons) {
+                    String pkg = choice.getPackageName();
+                    boolean expected = previouslyEnabled.contains(pkg);
+                    if (OverlayUtil.isOverlayEnabled(pkg) != expected) {
+                        OverlayUtil.applyOverlayStateNow(pkg, expected, false);
+                    }
+                }
+                if (OverlayUtil.isOverlayEnabled(commonPackage) != commonEnabled) {
+                    OverlayUtil.applyOverlayStateNow(commonPackage, commonEnabled, false);
+                }
+            }
+            return success;
         }
 
         @Override
-        public void onDisableClick(int position, IconModel item) {
-            OverlayUtil.executeOverlayBatch(() -> {
-                boolean success = OverlayUtil.applyOverlayStateNow(item.getPackageName(), false, false);
-                boolean anyEnabled = false;
-                for (IconModel choice : wifiIcons) {
-                    anyEnabled |= OverlayUtil.isOverlayEnabled(choice.getPackageName());
+        public boolean onDisableClick(int position, IconModel item) {
+            String selected = item.getPackageName();
+            boolean success = OverlayUtil.applyOverlayStateNow(selected, false, false);
+            if (!success) return false;
+            boolean anyEnabled = false;
+            for (IconModel choice : wifiIcons) {
+                if (OverlayUtil.isOverlayEnabled(choice.getPackageName())) {
+                    anyEnabled = true;
+                    break;
                 }
-                if (!anyEnabled) success &= OverlayUtil.applyOverlayStateNow(
-                        "OxygenCustomizerComponentCOMMONWIFI.overlay", false, false);
-                refreshVisibleIcons(success);
-            });
+            }
+            if (!anyEnabled && OverlayUtil.isOverlayEnabled(commonPackage)) {
+                success = OverlayUtil.applyOverlayStateNow(commonPackage, false, false);
+                if (!success) OverlayUtil.applyOverlayStateNow(selected, true, false);
+            }
+            return success;
         }
     };
 

@@ -87,31 +87,39 @@ public class IconPacks extends BaseFragment {
 
     private final IconsAdapter.OnButtonClick onButtonClick = new IconsAdapter.OnButtonClick() {
         @Override
-        public void onEnableClick(int position, IconModel item) {
-            final String selected = item.getPackageName();
-            OverlayUtil.executeOverlayBatch(() -> {
-                // Exclusive enablement can disable previously active signal/WiFi
-                // icon packages; preserve and restore their real prior state.
-                List<String> previouslyEnabled = OverlayUtil.getEnabledOverlayList();
-                boolean success = OverlayUtil.applyOverlayStateNow(selected, true, true);
-                if (success) {
-                    for (String pkg : previouslyEnabled) {
-                        if (pkg.startsWith("OxygenCustomizerComponentSGIC")
-                                || pkg.startsWith("OxygenCustomizerComponentWIFI")) {
-                            success &= OverlayUtil.applyOverlayStateNow(pkg, true, false);
+        public boolean onEnableClick(int position, IconModel item) {
+            String selected = item.getPackageName();
+            // Exclusive activation can disable other overlays sharing the category.
+            // Snapshot the actual enabled set before requesting an exclusive switch.
+            List<String> previouslyEnabled = OverlayUtil.getEnabledOverlayList();
+            boolean success = OverlayUtil.applyOverlayStateNow(selected, true, true);
+            if (success) {
+                for (String pkg : previouslyEnabled) {
+                    if (pkg.startsWith("OxygenCustomizerComponentSGIC")
+                            || pkg.startsWith("OxygenCustomizerComponentWIFI")) {
+                        if (!OverlayUtil.isOverlayEnabled(pkg)) {
+                            success = OverlayUtil.applyOverlayStateNow(pkg, true, false);
+                            if (!success) break;
                         }
                     }
                 }
-                refreshVisibleIcons(success);
-            });
+            }
+            if (!success) {
+                if (!previouslyEnabled.contains(selected) && OverlayUtil.isOverlayEnabled(selected)) {
+                    OverlayUtil.applyOverlayStateNow(selected, false, false);
+                }
+                for (String pkg : previouslyEnabled) {
+                    if (!OverlayUtil.isOverlayEnabled(pkg)) {
+                        OverlayUtil.applyOverlayStateNow(pkg, true, false);
+                    }
+                }
+            }
+            return success;
         }
 
         @Override
-        public void onDisableClick(int position, IconModel item) {
-            OverlayUtil.executeOverlayBatch(() -> {
-                boolean success = OverlayUtil.applyOverlayStateNow(item.getPackageName(), false, false);
-                refreshVisibleIcons(success);
-            });
+        public boolean onDisableClick(int position, IconModel item) {
+            return OverlayUtil.applyOverlayStateNow(item.getPackageName(), false, false);
         }
     };
 
