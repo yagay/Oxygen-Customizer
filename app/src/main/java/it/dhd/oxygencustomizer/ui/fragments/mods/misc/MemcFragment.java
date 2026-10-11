@@ -27,7 +27,10 @@ import androidx.core.content.ContextCompat;
 import com.topjohnwu.superuser.Shell;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import it.dhd.oneplusui.preference.OplusPreference;
 import it.dhd.oxygencustomizer.OxygenCustomizer;
@@ -42,6 +45,13 @@ import it.dhd.oxygencustomizer.xposed.hooks.framework.MemcEnhancer;
 
 public class MemcFragment extends ControlledPreferenceFragmentCompat {
 
+    private static final ExecutorService SETTINGS_WORKER =
+            Executors.newSingleThreadExecutor(r -> new Thread(r, "OC-MemcSettings"));
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final AtomicInteger settingsGeneration = new AtomicInteger();
+    private boolean cachedMemcEnabled;
+    private boolean cachedSdr2hdrEnabled;
+    private String cachedMemcMode = "";
     private LoadingDialog mLoadingDialog;
 
     private boolean mIsFeatureOn = false;
