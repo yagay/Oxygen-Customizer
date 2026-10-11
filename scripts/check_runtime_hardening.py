@@ -129,6 +129,12 @@ checks = [
         'if (mAiStatus == null || getContext() == null) return;',
         'if (isAdded() && mAiStatus != null)',
     ]),
+    (JAVA / "ui/fragments/uistyle/NotificationRoundness.java", [
+        'OverlayUtil.applyOverlayStateNow(pkg, false, false)',
+        'final boolean disabled = success;',
+        'requestedRadius',
+        'void onDestroyView()',
+    ]),
 ]
 
 failures = []

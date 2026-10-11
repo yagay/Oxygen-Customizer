@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - beta
+      - fix/beta-deep-audit-20261011
   pull_request:
     branches:
       - beta

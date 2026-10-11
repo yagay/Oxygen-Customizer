@@ -19,7 +19,6 @@ import androidx.core.content.ContextCompat;
 import com.google.android.material.slider.Slider;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import it.dhd.oxygencustomizer.OxygenCustomizer;
 import it.dhd.oxygencustomizer.R;
@@ -63,15 +62,27 @@ public class NotificationRoundness extends BaseFragment {
         binding.notifRoundPreview.notifDesc.setText(getString(R.string.notif_roundness_preview_desc));
         binding.disableRadius.setVisibility(OverlayUtil.isOverlayEnabled("OxygenCustomizerComponentCRN1.overlay") || OverlayUtil.isOverlayEnabled("OxygenCustomizerComponentCR1.overlay") ? View.VISIBLE : View.GONE);
         binding.disableRadius.setOnClickListener(v -> {
-            loadingDialog.show(getResources().getString(R.string.loading_dialog_wait));
-
+            loadingDialog.show(getString(R.string.loading_dialog_wait));
             new Thread(() -> {
-                OverlayUtil.disableOverlays("OxygenCustomizerComponentCRN1.overlay", "OxygenCustomizerComponentCR1.overlay");
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    // Hide loading dialog
-                    loadingDialog.hide();
-                }, 1500);
-            }).start();
+                boolean success = true;
+                for (String pkg : new String[]{
+                        "OxygenCustomizerComponentCRN1.overlay",
+                        "OxygenCustomizerComponentCR1.overlay"}) {
+                    if (OverlayUtil.isOverlayEnabled(pkg)
+                            && !OverlayUtil.applyOverlayStateNow(pkg, false, false)) {
+                        success = false;
+                    }
+                }
+                final boolean disabled = success;
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    if (loadingDialog != null) loadingDialog.hide();
+                    if (!isAdded() || binding == null) return;
+                    if (disabled) binding.disableRadius.setVisibility(View.GONE);
+                    Toast.makeText(requireContext(),
+                            disabled ? R.string.toast_disabled : R.string.toast_error,
+                            Toast.LENGTH_SHORT).show();
+                });
+            }, "OC-DisableNotificationRadius").start();
         });
 
         final int[] finalUiCornerRadius = {Prefs.getInt(NOTIFICATION_CORNER_RADIUS, 28)};
@@ -110,40 +121,39 @@ public class NotificationRoundness extends BaseFragment {
             } else {
                 // Show loading dialog
                 loadingDialog.show(getResources().getString(R.string.loading_dialog_wait));
-                AtomicBoolean hasErroredOut = new AtomicBoolean(false);
-
+                final int requestedRadius = finalUiCornerRadius[0];
                 new Thread(() -> {
+                    boolean failed;
                     try {
-                        hasErroredOut.set(RoundnessManager.buildOverlay(finalUiCornerRadius[0], true));
-                    } catch (Exception e) {
-                        hasErroredOut.set(true);
-                        Log.e("NotificationRoundness", "Failed to compile or install roundness overlay", e);
+                        failed = RoundnessManager.buildOverlay(requestedRadius, true);
+                    } catch (Exception error) {
+                        failed = true;
+                        Log.e("NotificationRoundness",
+                                "Failed to compile or install roundness overlay", error);
                     }
-
+                    final boolean success = !failed;
                     new Handler(Looper.getMainLooper()).post(() -> {
-                        loadingDialog.hide();
+                        if (loadingDialog != null) loadingDialog.hide();
                         if (!isAdded() || binding == null) return;
-                        if (!hasErroredOut.get()) {
-                            Prefs.putInt(NOTIFICATION_CORNER_RADIUS, finalUiCornerRadius[0]);
+                        if (success) {
+                            Prefs.putInt(NOTIFICATION_CORNER_RADIUS, requestedRadius);
+                            binding.disableRadius.setVisibility(View.VISIBLE);
                         }
-
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            // Hide loading dialog
-                            loadingDialog.hide();
-
-                            if (hasErroredOut.get())
-                                Toast.makeText(OxygenCustomizer.getAppContext(), OxygenCustomizer.getAppContext().getResources().getString(R.string.toast_error), Toast.LENGTH_SHORT).show();
-                            else {
-                                Toast.makeText(OxygenCustomizer.getAppContext(), OxygenCustomizer.getAppContext().getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                                binding.disableRadius.setVisibility(View.VISIBLE);
-                            }
-                        }, 2000);
+                        Toast.makeText(requireContext(),
+                                success ? R.string.toast_applied : R.string.toast_error,
+                                Toast.LENGTH_SHORT).show();
                     });
-                }).start();
+                }, "OC-ApplyNotificationRadius").start();
             }
         });
 
         return view;
+    }
+
+    @Override
+    public void onDestroyView() {
+        binding = null;
+        super.onDestroyView();
     }
 
     @Override

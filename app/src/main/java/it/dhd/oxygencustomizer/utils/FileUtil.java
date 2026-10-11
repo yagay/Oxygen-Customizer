@@ -89,9 +89,9 @@ public class FileUtil {
     }
 
     public static void copyAndClose(InputStream input, OutputStream output) throws IOException {
-        copy(input, output);
-        closeQuietly(input);
-        closeQuietly(output);
+        try (InputStream source = input; OutputStream target = output) {
+            copy(source, target);
+        }
     }
 
     public static void copy(InputStream input, OutputStream output) throws IOException {
