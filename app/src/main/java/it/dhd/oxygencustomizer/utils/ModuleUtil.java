@@ -66,8 +66,34 @@ public class ModuleUtil {
                     }
                 }
             }
-            Shell.Result deleted = Shell.cmd("rm -rf " + ModuleConstants.INSTALLED_MODULE_DIR).exec();
-            if (!deleted.isSuccess()) throw new IllegalStateException("Root module removal failed: " + deleted.getErr());
+            String modulePath = ModuleConstants.INSTALLED_MODULE_DIR;
+            String safetyCopy = ModuleConstants.DATA_DIR + "/oc-uninstall-safety-copy";
+            if (RootUtil.folderExists(modulePath)) {
+                // Keep a complete root-owned snapshot until deletion succeeds.
+                Shell.Result saved = Shell.cmd("rm -rf -- " + shellQuote(safetyCopy)
+                        + " && cp -a -- " + shellQuote(modulePath)
+                        + " " + shellQuote(safetyCopy)).exec();
+                if (!saved.isSuccess()) {
+                    throw new IllegalStateException("Unable to back up module before uninstall: "
+                            + saved.getErr());
+                }
+            }
+            Shell.Result deleted = Shell.cmd("rm -rf -- " + shellQuote(modulePath)).exec();
+            if (!deleted.isSuccess()) {
+                if (RootUtil.folderExists(safetyCopy)) {
+                    Shell.Result restored = Shell.cmd(
+                            "mkdir -p -- " + shellQuote(modulePath)
+                            + " && cp -a -- " + shellQuote(safetyCopy + "/.")
+                            + " " + shellQuote(modulePath + "/")).exec();
+                    if (!restored.isSuccess()) {
+                        Log.e(TAG, "Module uninstall rollback failed: " + restored.getErr()
+                                + "; safety copy kept at " + safetyCopy);
+                    }
+                }
+                throw new IllegalStateException("Root module removal failed: " + deleted.getErr());
+            }
+            Shell.Result clean = Shell.cmd("rm -rf -- " + shellQuote(safetyCopy)).exec();
+            if (!clean.isSuccess()) Log.w(TAG, "Could not clean uninstall safety copy: " + clean.getErr());
         } catch (RuntimeException failure) {
             // A failed disable or file operation must not leave an accidental
             // mixture of selected overlays. Restore those that still exist.
