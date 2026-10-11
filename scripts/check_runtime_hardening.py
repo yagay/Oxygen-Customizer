@@ -369,6 +369,40 @@ checks.extend([
         "if (mReadyToInstall != null)",
     ]),
 ])
+# Verify Lag Fix stays free of high-frequency Root shell logging and
+# MEMC rollback snapshots remain available if recovery fails.
+checks.extend([
+    (JAVA / "ui/fragments/mods/misc/LagFixAppChooser.java", [
+        "new HashSet<>(mPreferences.getStringSet",
+        "new HashSet<>(mEnabledApps)",
+        "OCPreferences.addInternalBroadcastToken(broadcast)",
+        "binding.recyclerView.getAdapter() instanceof AppAdapter adapter",
+    ]),
+    (JAVA / "xposed/hooks/framework/OplusStartingWindowManager.java", [
+        "XPrefs.isTrustedInternalBroadcast(intent)",
+        "OplusStartingWindowManager.class.getSimpleName()",
+        "Collections.unmodifiableSet(safe)",
+        "if (!mEnableLagFix) return;",
+    ]),
+    (JAVA / "utils/ModuleUtil.java", [
+        "OverlayCompileCoordinator.LOCK.lock();",
+        "Unresolved MEMC XML rollback snapshots",
+        "boolean safeToDiscardBackups = false;",
+        "if (safeToDiscardBackups)",
+    ]),
+    (JAVA / "ui/activity/LocationBrowseActivity.java", [
+        "mCityExt +",
+        "mCountryId +",
+        "mLat +",
+        "mLon;",
+    ]),
+])
+lag_fix_hook = (BASE / JAVA / "xposed/hooks/framework/OplusStartingWindowManager.java").read_text(
+    encoding="utf-8"
+)
+if "XPLauncher.enqueueProxyCommand" in lag_fix_hook or "proxy.runCommand" in lag_fix_hook:
+    raise SystemExit("Lag Fix Hook must not execute Root shell commands for window events")
+
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")
