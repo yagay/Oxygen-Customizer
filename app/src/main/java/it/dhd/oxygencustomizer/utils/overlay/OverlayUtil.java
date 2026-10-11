@@ -47,21 +47,29 @@ public class OverlayUtil {
         return thread;
     });
 
-    public static boolean isOverlayEnabled(String pkgName) {
-        if (!isSafeOverlayPackage(pkgName)) return false;
+    /** Null means the system overlay manager could not be queried. */
+    private static Boolean queryOverlayState(String pkgName) {
+        if (!isSafeOverlayPackage(pkgName)) return null;
         Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
         if (!result.isSuccess()) {
-            Log.e("OverlayUtil", "Unable to query overlay manager: " + result.getErr());
-            return false;
+            Log.e("OverlayUtil", "Overlay query failed: " + result.getErr());
+            return null;
         }
         for (String line : result.getOut()) {
-            if (line.trim().equals("[x] " + pkgName)) return true;
+            String item = line.trim();
+            if (item.equals("[x] " + pkgName)) return true;
+            if (item.equals("[ ] " + pkgName)) return false;
         }
+        // The package was not listed: absent is not an enabled overlay.
         return false;
     }
 
+    public static boolean isOverlayEnabled(String pkgName) {
+        return Boolean.TRUE.equals(queryOverlayState(pkgName));
+    }
+
     public static boolean isOverlayDisabled(String pkgName) {
-        return !isOverlayEnabled(pkgName);
+        return Boolean.FALSE.equals(queryOverlayState(pkgName));
     }
 
     public static void checkOverlayEnabledAndEnable(String componentName) {
@@ -87,16 +95,19 @@ public class OverlayUtil {
                         + pkgName + " && cmd overlay set-priority " + pkgName + " highest"
                     : "cmd overlay disable --user current " + pkgName;
             Shell.Result result = Shell.cmd(command).exec();
-            boolean actualState = isOverlayEnabled(pkgName);
-            if (!result.isSuccess() || actualState != enabled) {
+            Boolean actualState = queryOverlayState(pkgName);
+            if (!result.isSuccess() || actualState == null || actualState != enabled) {
                 Log.e("OverlayUtil", "Overlay operation failed: " + pkgName
                         + ", requested=" + enabled + ", actual=" + actualState
                         + ", stderr=" + result.getErr());
             }
-            // The persisted value must mirror the real system state, not the click.
-            Prefs.putBoolean(pkgName, actualState);
-            if (getModulePrefs() != null) {
-                getModulePrefs().edit().putBoolean(pkgName, actualState).apply();
+            // Never overwrite the last known setting with a fabricated "false"
+            // merely because querying the overlay manager failed.
+            if (actualState != null) {
+                Prefs.putBoolean(pkgName, actualState);
+                if (getModulePrefs() != null) {
+                    getModulePrefs().edit().putBoolean(pkgName, actualState).apply();
+                }
             }
         });
     }
