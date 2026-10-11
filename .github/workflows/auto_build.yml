@@ -1,4 +1,4 @@
-name: Auto Build
+name: Auto Build (arm64 Debug)
 
 on:
   push:
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   debug:
-    name: Compile Debug
+    name: Compile arm64 Debug
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -38,90 +38,33 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
+      - name: Check upstream integration invariants
+        run: python3 scripts/check_upstream_merge.py
+
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
-      - name: Compile Debug APK
-        run: ./gradlew --no-daemon --stacktrace assembleDebug
+      - name: Compile arm64 Debug APK
+        run: ./gradlew --no-daemon --stacktrace -PciArm64Only=true assembleDebug
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v6
-        with:
-          name: OxygenCustomizer-debug-${{ github.run_number }}
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 14
-
-  release:
-    name: Compile Signed Release
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: debug
-    if: github.event_name != 'pull_request'
-    env:
-      KEYSTORE_B64: ${{ secrets.KEYSTORE }}
-      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-
-    steps:
-      - name: Check release signing configuration
-        id: signing
+      - name: Verify and prepare arm64 APK
         shell: bash
         run: |
-          if [[ -n "$KEYSTORE_B64" && -n "$KEYSTORE_PASSWORD" && -n "$KEY_ALIAS" && -n "$KEY_PASSWORD" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -type f | head -n 1)"
+          test -n "$APK"
+          ABIS="$(unzip -Z1 "$APK" | sed -n 's#^lib/\([^/]*\)/.*#\1#p' | sort -u)"
+          if [ -n "$ABIS" ] && [ "$ABIS" != "arm64-v8a" ]; then
+            echo "::error::Unexpected ABI(s): $ABIS"
+            exit 1
           fi
+          mkdir -p artifacts
+          cp "$APK" artifacts/OxygenCustomizer-debug-arm64-v8a.apk
 
-      - name: Checkout
-        if: steps.signing.outputs.enabled == 'true'
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          submodules: recursive
-
-      - name: Set up JDK 21
-        if: steps.signing.outputs.enabled == 'true'
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Set up Gradle
-        if: steps.signing.outputs.enabled == 'true'
-        uses: gradle/actions/setup-gradle@v6
-
-      - name: Prepare release keystore
-        if: steps.signing.outputs.enabled == 'true'
-        shell: bash
-        run: |
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$GITHUB_WORKSPACE/key.jks"
-          cat > keystore.properties <<EOF
-          storePassword=$KEYSTORE_PASSWORD
-          keyAlias=$KEY_ALIAS
-          keyPassword=$KEY_PASSWORD
-          storeFile=$GITHUB_WORKSPACE/key.jks
-          EOF
-
-      - name: Make Gradle wrapper executable
-        if: steps.signing.outputs.enabled == 'true'
-        run: chmod +x gradlew
-
-      - name: Compile Release APK
-        if: steps.signing.outputs.enabled == 'true'
-        run: ./gradlew --no-daemon --stacktrace assembleRelease
-
-      - name: Upload Release APK
-        if: steps.signing.outputs.enabled == 'true'
+      - name: Upload arm64 Debug APK
         uses: actions/upload-artifact@v6
         with:
-          name: OxygenCustomizer-release-${{ github.run_number }}
-          path: app/build/outputs/apk/release/*.apk
+          name: OxygenCustomizer-debug-arm64-v8a
+          path: artifacts/OxygenCustomizer-debug-arm64-v8a.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: Release signing not configured
-        if: steps.signing.outputs.enabled != 'true'
-        run: echo "Release build skipped because signing secrets are not configured."
