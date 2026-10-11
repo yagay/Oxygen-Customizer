@@ -24,6 +24,7 @@ import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
+import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.utils.Constants;
 import it.dhd.oxygencustomizer.xposed.XPrefs;
 import it.dhd.oxygencustomizer.xposed.XposedMods;
@@ -55,10 +56,9 @@ public class MemcEnhancer extends XposedMods {
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, android.content.Intent intent) {
-            if (intent.getAction() == null) return;
-            if (intent.getAction().equals(ACTIONS_MEMC_FEATURE_GET)) {
-                getAndSendBroadcast();
-            }
+            if (intent == null || !ACTIONS_MEMC_FEATURE_GET.equals(intent.getAction())
+                    || !XPrefs.isTrustedInternalBroadcast(intent)) return;
+            getAndSendBroadcast();
         }
     };
     private boolean enableMemcFeature = false;
@@ -174,12 +174,14 @@ public class MemcEnhancer extends XposedMods {
             mSdr2hdrEnable = getBooleanField(mOplusFeatureMEMC, "mSdr2hdrEnable");
             mVideoOsieSupport = getBooleanField(mOplusFeatureMEMC, "mVideoOsieSupport");
         }
-        Intent intent = new Intent(ACTIONS_MEMC_FEATURE_RECEIVED);
+        Intent intent = new Intent(ACTIONS_MEMC_FEATURE_RECEIVED)
+                .setPackage(BuildConfig.APPLICATION_ID);
         intent.putExtra("feature_on", mIsFeatureOn);
         intent.putExtra("pw_x7_enable", mIsPwX7Enable);
         intent.putExtra("memc_enable", mMemcEnable);
         intent.putExtra("sdr2hdr_enable", mSdr2hdrEnable);
         intent.putExtra("video_osie_support", mVideoOsieSupport);
+        XPrefs.addInternalBroadcastToken(intent);
         mContext.sendBroadcast(intent);
     }
 
@@ -210,8 +212,12 @@ public class MemcEnhancer extends XposedMods {
             }
         };
 
-        hookAllMethods(OplusFeatureConfigManager, "hasFeature", featureHooker);
-        hookAllMethods(OplusFeatureConfigManagerService, "hasFeature", featureHooker);
+        if (OplusFeatureConfigManager != null) {
+            hookAllMethods(OplusFeatureConfigManager, "hasFeature", featureHooker);
+        }
+        if (OplusFeatureConfigManagerService != null) {
+            hookAllMethods(OplusFeatureConfigManagerService, "hasFeature", featureHooker);
+        }
     }
 
     private void hookSystemProperties(XC_LoadPackage.LoadPackageParam lpparam) {
@@ -264,6 +270,10 @@ public class MemcEnhancer extends XposedMods {
         Class<?> OplusMemcHelper = findClassInArray(lpparam,
                 "com.android.server.display.feature.vrr.memc.OplusMemcHelper", // OOS16
                 "com.android.server.display.memc.OplusMemcHelper");
+        if (OplusMemcHelper == null) {
+            log("OplusMemcHelper not found on this firmware");
+            return;
+        }
 
         hookAllMethods(OplusMemcHelper, "getConfigAppList", new XC_MethodHook() {
             @Override
