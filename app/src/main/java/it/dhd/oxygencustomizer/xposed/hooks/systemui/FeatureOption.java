@@ -23,7 +23,7 @@ public class FeatureOption extends XposedMods {
 
     @Override
     public void updatePrefs(String... Key) {
-        volumePanelPosition = Integer.parseInt(Xprefs.getString("volume_panel_position", "0"));
+        volumePanelPosition = Xprefs.getIntFromString("volume_panel_position", "0");
         showMyDevice = Xprefs.getBoolean("qs_show_my_device", false);
         allowAodMusic = Xprefs.getBoolean("allow_aod_music", false);
     }
