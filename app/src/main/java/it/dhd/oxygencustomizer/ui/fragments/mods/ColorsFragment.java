@@ -3,12 +3,15 @@ package it.dhd.oxygencustomizer.ui.fragments.mods;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
@@ -22,6 +25,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import it.dhd.oneplusui.preference.OplusPreference;
 import it.dhd.oxygencustomizer.R;
@@ -37,6 +43,10 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
     private String mSystemPalette, mAccentColor;
     private int mColorToApply = 0;
     private LoadingDialog mLoadingDialog;
+    private static final ExecutorService COLOR_WORKER = Executors.newSingleThreadExecutor(
+            work -> new Thread(work, "OC-ColorWorker"));
+    private final Handler mainThread = new Handler(Looper.getMainLooper());
+    private final AtomicInteger generation = new AtomicInteger();
 
     @Override
     public String getTitle() {
@@ -122,58 +132,59 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
     }
 
     private void getDefaultColor() {
-        List<String> output = Shell.cmd(
-                "settings get secure theme_customization_overlay_packages"
-        ).exec().getOut();
-        if (output.isEmpty()) {
-            Log.w("ColorsFragment", "Theme customization setting is unavailable");
-            return;
-        }
-
-        mSystemPalette = null;
-        mAccentColor = null;
-        try {
-            JSONObject jsonObject = new JSONObject(output.get(0));
-            mSystemPalette = jsonObject.optString(
-                    "android.theme.customization.system_palette",
-                    null
-            );
-            mAccentColor = jsonObject.optString(
-                    "android.theme.customization.accent_color",
-                    null
-            );
-        } catch (JSONException e) {
-            Log.e("ColorsFragment", "Error parsing JSON", e);
-        }
-        if (TextUtils.isEmpty(mAccentColor)) {
-            Log.e("ColorsFragment", "Accent color is empty");
-            return;
-        }
-        if (!mAccentColor.contains("#")) {
-            mAccentColor = "#" + mAccentColor;
-        }
-        try {
-            int accentColor = Color.parseColor(mAccentColor);
-            if (mPreferences.getInt("primary_color", 0) == 0) {
-                mPrimaryColor.setPreviewColor(accentColor, true);
-            } else {
-                int color = mPreferences.getInt("primary_color", 0);
-                if (color != accentColor) {
-                    mPrimaryColor.setPreviewColor(color, true);
+        int request = generation.incrementAndGet();
+        COLOR_WORKER.execute(() -> {
+            String accent = null;
+            try {
+                Shell.Result result = Shell.cmd("settings get secure theme_customization_overlay_packages").exec();
+                if (result.isSuccess() && !result.getOut().isEmpty()) {
+                    JSONObject settings = new JSONObject(result.getOut().get(0));
+                    accent = settings.optString("android.theme.customization.accent_color", null);
                 }
+            } catch (Throwable failure) {
+                Log.e("ColorsFragment", "Could not load current accent colour", failure);
             }
-        } catch (IllegalArgumentException e) {
-            Log.e("ColorsFragment", "Invalid accent color: " + mAccentColor, e);
-        }
+            final String currentAccent = accent;
+            mainThread.post(() -> {
+                if (request != generation.get() || !isAdded() || mPrimaryColor == null) return;
+                if (TextUtils.isEmpty(currentAccent)) return;
+                try {
+                    int value = Color.parseColor(currentAccent.startsWith("#")
+                            ? currentAccent : "#" + currentAccent);
+                    int chosen = mPreferences.getInt("primary_color", 0);
+                    mPrimaryColor.setPreviewColor(chosen == 0 ? value : chosen, true);
+                } catch (IllegalArgumentException failure) {
+                    Log.w("ColorsFragment", "Invalid accent colour", failure);
+                }
+            });
+        });
     }
 
     private void applyColors() {
         if (mColorToApply == 0) return;
 
         mLoadingDialog.show(getString(R.string.loading_dialog_wait));
-        Log.d("ColorsFragment", "Applying color: " + String.format("#%08X", (0xFFFFFFFF & mColorToApply)));
-        generateColorFiles(String.format("#%08X", (0xFFFFFFFF & mColorToApply)));
-        saveSecureSettings();
+        final int selectedColor = mColorToApply;
+        COLOR_WORKER.execute(() -> {
+            Throwable problem = null;
+            try {
+                generateColorFiles(String.format("#%08X", selectedColor));
+                saveSecureSettings(selectedColor);
+            } catch (Throwable failure) {
+                Log.e("ColorsFragment", "Unable to apply colours", failure);
+                problem = failure;
+            }
+            final Throwable outcome = problem;
+            mainThread.post(() -> {
+                if (mLoadingDialog != null) mLoadingDialog.hide();
+                if (isAdded()) {
+                    Toast.makeText(requireContext(), outcome == null
+                            ? getString(R.string.toast_applied)
+                            : "Unable to apply colour: " + outcome.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                }
+            });
+        });
 
     }
 
@@ -227,16 +238,28 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
         writeToFile(nightContent, "ux_custom_color_night.xml");
     }
 
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
+    }
+
     private void writeToFile(String content, String fileName) {
-        Log.d("ColorsFragment", "Writing\n" + content + "\nto file: " + fileName);
-        try {
-            Shell.cmd("printf '" + content + "' > /data/oplus/uxres/uxcolor/" + fileName).exec();
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (!"ux_custom_color.xml".equals(fileName)
+                && !"ux_custom_color_night.xml".equals(fileName)) {
+            throw new IllegalArgumentException("Invalid colour filename");
+        }
+        String destination = "/data/oplus/uxres/uxcolor/" + fileName;
+        String staging = destination + ".oc-write";
+        Shell.Result result = Shell.cmd("printf %s " + shellQuote(content)
+                + " > " + shellQuote(staging)
+                + " && mv -f -- " + shellQuote(staging) + " " + shellQuote(destination)).exec();
+        if (!result.isSuccess()) {
+            Shell.cmd("rm -f -- " + shellQuote(staging)).exec();
+            throw new IllegalStateException("Could not write " + fileName
+                    + ": " + result.getErr());
         }
     }
 
-    private void saveSecureSettings() {
+    private void saveSecureSettings(int selectedColor) {
         long timestamp = System.currentTimeMillis();
 
         JSONObject jsonObject = new JSONObject();
@@ -246,8 +269,8 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
             jsonObject.put("android.theme.customization.color_source", "home_wallpaper");
             jsonObject.put("material_you_overlay_enable", 1);
             jsonObject.put("android.theme.customization.color_index", 0);
-            jsonObject.put("android.theme.customization.system_palette", String.format("%08X", (0xFFFFFFFF & mColorToApply)));
-            jsonObject.put("android.theme.customization.accent_color", String.format("%08X", (0xFFFFFFFF & mColorToApply)));
+            jsonObject.put("android.theme.customization.system_palette", String.format("%08X", (0xFFFFFFFF & selectedColor)));
+            jsonObject.put("android.theme.customization.accent_color", String.format("%08X", (0xFFFFFFFF & selectedColor)));
 
             /*
             {
@@ -264,19 +287,27 @@ public class ColorsFragment extends ControlledPreferenceFragmentCompat {
 
             String secureString = jsonObject.toString();
             Log.d("ColorsFragment", "Applying secure settings: " + secureString);
-            Shell.cmd(
-                    "settings put secure theme_customization_overlay_packages '" + secureString + "'"
-            ).exec();
-
-        } catch (Exception e) {
-            e.printStackTrace();
+            Shell.Result result = Shell.cmd("settings put secure theme_customization_overlay_packages "
+                    + shellQuote(secureString)).exec();
+            if (!result.isSuccess()) {
+                throw new IllegalStateException("Unable to save theme settings: " + result.getErr());
+            }
+        } catch (JSONException failure) {
+            throw new IllegalStateException("Unable to serialize theme settings", failure);
         }
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mLoadingDialog.hide();
+        getDefaultColor();
+    }
+
+    @Override
+    public void onDestroyView() {
+        generation.incrementAndGet();
+        if (mLoadingDialog != null) mLoadingDialog.dismiss();
+        super.onDestroyView();
     }
 
 }
