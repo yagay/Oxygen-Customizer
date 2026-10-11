@@ -19,6 +19,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import it.dhd.oxygencustomizer.OxygenCustomizer;
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
+import it.dhd.oxygencustomizer.utils.Dynamic;
 import it.dhd.oxygencustomizer.utils.Prefs;
 
 public class OverlayUtil {
@@ -136,6 +137,10 @@ public class OverlayUtil {
             Prefs.putBoolean(pkgName, actualState);
             if (getModulePrefs() != null) {
                 getModulePrefs().edit().putBoolean(pkgName, actualState).apply();
+            }
+            if (result.isSuccess() && actualState == enabled) {
+                // Refresh legacy counters after an observed, successful change.
+                Dynamic.refreshOverlayInventory();
             }
         }
         return result.isSuccess() && actualState != null && actualState == enabled;

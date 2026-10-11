@@ -48,6 +48,11 @@ def check() -> None:
     assert_contains(overlays, "return Boolean.FALSE.equals(queryOverlayState(pkgName));")
     assert_contains(overlays, "Prefs.putBoolean(pkgName, actualState);")
     assert_contains(overlays, "executeOverlayBatch(Runnable changes)")
+    assert_contains(
+        "app/src/main/java/it/dhd/oxygencustomizer/utils/Dynamic.java",
+        "refreshOverlayInventory()"
+    )
+    assert_contains(overlays, "Dynamic.refreshOverlayInventory()")
 
     module_constants = "app/src/main/java/it/dhd/oxygencustomizer/utils/ModuleConstants.java"
     module_util = "app/src/main/java/it/dhd/oxygencustomizer/utils/ModuleUtil.java"
