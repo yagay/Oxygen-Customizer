@@ -315,7 +315,7 @@ checks.extend([
         'suffix.matches("[0-9]+")',
     ]),
     (JAVA / "utils/ModuleUtil.java", [
-        "previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayList())",
+        "previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayListChecked())",
         "Uninstall rollback could not enable",
     ]),
     (JAVA / "weather/WeatherWork.java", [
