@@ -123,6 +123,8 @@ checks = [
         '&& mv -f --',
         'shellQuote(source)',
         'shellQuote(destination)',
+        'String[] descendants = assets.list(inputPath);',
+        'try (InputStream input = assets.open(inputPath);',
     ]),
     (JAVA / "ui/fragments/mods/lockscreen/DepthWallpaperFragment.java", [
         'data == null || data.getData() == null || !isAdded()',

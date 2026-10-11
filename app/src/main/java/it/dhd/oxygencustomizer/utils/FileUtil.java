@@ -60,21 +60,25 @@ public class FileUtil {
     }
 
     private static void copyFileOrDirectory(Context context, String dirName, String outPath) throws IOException {
-        String[] srcFiles = context.getAssets().list(dirName);
-        if (srcFiles == null) return;
+        AssetManager assets = context.getAssets();
+        String[] children = assets.list(dirName);
+        if (children == null) throw new IOException("Cannot list assets: " + dirName);
 
-        for (String srcFileName : srcFiles) {
-            String outFileName = outPath + File.separator + srcFileName;
-            String inFileName = dirName + File.separator + srcFileName;
-            if (dirName.equals("")) {
-                inFileName = srcFileName;
-            }
-            try {
-                InputStream inputStream = context.getAssets().open(inFileName);
-                copyAndClose(inputStream, Files.newOutputStream(Paths.get(outFileName)));
-            } catch (IOException e) {
-                new File(outFileName).mkdir();
-                copyFileOrDirectory(context, inFileName, outFileName);
+        for (String childName : children) {
+            String inputPath = dirName.isEmpty() ? childName : dirName + "/" + childName;
+            File destination = new File(outPath, childName);
+            String[] descendants = assets.list(inputPath);
+            if (descendants != null && descendants.length > 0) {
+                if (!destination.isDirectory() && !destination.mkdirs()) {
+                    throw new IOException("Cannot create asset directory: " + destination);
+                }
+                copyFileOrDirectory(context, inputPath, destination.getAbsolutePath());
+            } else {
+                // A failure to write a real file must never be reinterpreted as a directory.
+                try (InputStream input = assets.open(inputPath);
+                     OutputStream output = Files.newOutputStream(destination.toPath())) {
+                    copy(input, output);
+                }
             }
         }
     }
