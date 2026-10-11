@@ -218,6 +218,7 @@ public class WeatherWork extends ListenableWorker {
 
     private void updateWeather(Location location, CallbackToFutureAdapter.Completer<Result> completer) {
         WeatherInfo w = null;
+        boolean updated = false;
         try {
             AbstractWeatherProvider provider = WeatherConfig.getProvider(mContext);
             boolean isMetric = WeatherConfig.isMetric(mContext);
@@ -236,6 +237,7 @@ public class WeatherWork extends ListenableWorker {
                     WeatherConfig.setWeatherData(w, mContext);
                     WeatherContentProvider.updateCachedWeatherInfo(mContext);
                     Log.d(TAG, "Weather updated updateCachedWeatherInfo");
+                    updated = true;
                     completer.set(Result.success());
                     return;
                 } else {
@@ -253,8 +255,10 @@ public class WeatherWork extends ListenableWorker {
                 }
                 i++;
             }
+        } catch (Throwable failure) {
+            Log.e(TAG, "Weather provider or cache update failed", failure);
         } finally {
-            if (w == null) {
+            if (!updated) {
                 Log.d(TAG, "error updating weather");
                 WeatherConfig.setUpdateError(mContext, true);
                 completer.set(Result.retry());
