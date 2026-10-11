@@ -60,6 +60,39 @@
 
     </it.dhd.oneplusui.preference.OplusPreferenceCategory>
 
+    <it.dhd.oneplusui.preference.OplusPreferenceCategory
+        android:key="qs_new_grid_category"
+        android:title="New Quick Settings interface"
+        app:iconSpaceReserved="false">
+        <it.dhd.oneplusui.preference.OplusSwitchPreference
+            android:key="quick_settings_new_grid_enabled"
+            android:defaultValue="false"
+            android:title="Customize new interface"
+            android:summary="Separate OPlus grid layout settings"
+            app:iconSpaceReserved="false" />
+        <it.dhd.oneplusui.preference.OplusSectionSeekbarPreference
+            android:key="quick_settings_new_grid_rows"
+            android:title="Portrait rows"
+            android:defaultValue="3"
+            android:min="1"
+            android:max="8"
+            app:iconSpaceReserved="false" />
+        <it.dhd.oneplusui.preference.OplusSectionSeekbarPreference
+            android:key="quick_settings_new_grid_columns"
+            android:title="Portrait columns"
+            android:defaultValue="4"
+            android:min="1"
+            android:max="8"
+            app:iconSpaceReserved="false" />
+        <it.dhd.oneplusui.preference.OplusSectionSeekbarPreference
+            android:key="quick_settings_new_grid_landscape_columns"
+            android:title="Landscape columns"
+            android:defaultValue="5"
+            android:min="1"
+            android:max="8"
+            app:iconSpaceReserved="false" />
+    </it.dhd.oneplusui.preference.OplusPreferenceCategory>
+
     <!-- <it.dhd.oneplusui.preference.OplusSwitchPreference
         android:defaultValue="false"
         android:key="quick_settings_disable_lockscreen"
