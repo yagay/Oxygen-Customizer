@@ -19,8 +19,10 @@ import androidx.core.graphics.drawable.RoundedBitmapDrawableFactory;
 import java.io.File;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -32,7 +34,13 @@ public class OtaCard extends XposedMods {
     private static final String listenPackage = SETTINGS;
 
     private boolean mCustomStyle = false;
-    private View mOtaCard;
+    private static final ScheduledExecutorService IMAGE_WORKER =
+            Executors.newSingleThreadScheduledExecutor(work -> {
+                Thread thread = new Thread(work, "OC-OtaCardImage");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private ScheduledFuture<?> currentImageTask;
 
     public OtaCard(Context context) {
         super(context);
@@ -55,56 +63,49 @@ public class OtaCard extends XposedMods {
                     Object preferenceHolder = param.args[0];
                     View iView = (View) getObjectField(preferenceHolder, "itemView");
 
-                    mOtaCard = iView;
+                    if (iView == null) return;
                     try {
                         ImageView iv = iView.findViewById(mContext.getResources().getIdentifier("about_device_top_bg", "id", SETTINGS));
-                        iv.setVisibility(View.GONE);
+                        if (iv != null) iv.setVisibility(View.GONE);
                     } catch (Throwable t) {
                         log(t);
                     }
-                    setCustomImage();
+                    setCustomImage(iView);
                 });
     }
 
-    private void setCustomImage() {
-        if (mOtaCard == null) return;
-
-        try {
-            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-            AtomicInteger attempts = new AtomicInteger(0);
-            executor.scheduleWithFixedDelay(() -> {
-                int attempt = attempts.incrementAndGet();
+    private synchronized void setCustomImage(View target) {
+        if (currentImageTask != null) currentImageTask.cancel(false);
+        AtomicInteger attempts = new AtomicInteger();
+        AtomicReference<ScheduledFuture<?>> ownTask = new AtomicReference<>();
+        Runnable load = () -> {
+            int attempt = attempts.incrementAndGet();
+            boolean finished = attempt >= 12;
+            try {
                 File androidDir = new File(Environment.getExternalStorageDirectory(), "Android");
-
-                if (!androidDir.isDirectory()) {
-                    if (attempt >= 12) {
-                        executor.shutdownNow();
-                    }
-                    return;
-                }
-
-                try {
-                    File imageFile = new File(
-                            Environment.getExternalStorageDirectory(),
-                            ".oxygen_customizer/settings_ota_card.png"
-                    );
-                    if (!imageFile.isFile()) return;
-
+                File imageFile = new File(Environment.getExternalStorageDirectory(),
+                        ".oxygen_customizer/settings_ota_card.png");
+                if (androidDir.isDirectory() && imageFile.isFile()) {
                     ImageDecoder.Source source = ImageDecoder.createSource(imageFile);
-                    RoundedBitmapDrawable otaImage = RoundedBitmapDrawableFactory.create(
-                            mContext.getResources(),
-                            ImageDecoder.decodeBitmap(source)
-                    );
-                    otaImage.setCornerRadius(dp2px(mContext, 12));
-                    mOtaCard.post(() -> mOtaCard.setBackground(otaImage));
-                } catch (Throwable ignored) {
-                } finally {
-                    executor.shutdownNow();
+                    RoundedBitmapDrawable image = RoundedBitmapDrawableFactory.create(
+                            mContext.getResources(), ImageDecoder.decodeBitmap(source));
+                    image.setCornerRadius(dp2px(mContext, 12));
+                    target.post(() -> {
+                        if (target.isAttachedToWindow()) target.setBackground(image);
+                    });
+                    finished = true;
                 }
-            }, 0, 5, TimeUnit.SECONDS);
-
-        } catch (Throwable ignored) {
-        }
+            } catch (Throwable failure) {
+                log(failure);
+            } finally {
+                if (finished) {
+                    ScheduledFuture<?> future = ownTask.get();
+                    if (future != null) future.cancel(false);
+                }
+            }
+        };
+        ownTask.set(IMAGE_WORKER.scheduleWithFixedDelay(load, 0, 5, TimeUnit.SECONDS));
+        currentImageTask = ownTask.get();
     }
 
     @Override
