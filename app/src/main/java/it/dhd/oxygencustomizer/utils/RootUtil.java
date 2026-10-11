@@ -22,7 +22,7 @@ public class RootUtil {
     }
 
     public static boolean isApatchInstalled() {
-        return Shell.cmd("apd --help").exec().isSuccess();
+        return Shell.cmd("command -v apd >/dev/null 2>&1 || test -x /data/adb/apd").exec().isSuccess();
     }
 
     public static boolean moduleExists(String moduleId) {
