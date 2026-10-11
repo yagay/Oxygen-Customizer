@@ -97,6 +97,7 @@ public class UpdateFragment extends BaseFragment {
 
     private Flavor mCurrentFlavor = Flavor.ALL;
     private boolean mNightlyDownloaded = false;
+    private it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver.PendingInstall mReadyToInstall;
     static boolean betaUpdate = BuildConfig.VERSION_NAME.toLowerCase().contains("beta");
     static boolean nightlyUpdate = BuildConfig.VERSION_NAME.toLowerCase().contains("nightly");
     HashMap<String, Object> latestVersion = null;
@@ -309,6 +310,8 @@ public class UpdateFragment extends BaseFragment {
         }
 
         @SuppressLint("NonConstantResourceId") RadioGroup.OnCheckedChangeListener onCheckChangedListener = (radioGroup, i) -> {
+            // Explicitly choosing a channel switches back to the normal download flow.
+            mReadyToInstall = null;
             mCurrentFlavor = switch (i) {
                 case R.id.stableID -> Flavor.STABLE;
                 case R.id.betaID -> Flavor.BETA;
@@ -409,6 +412,10 @@ public class UpdateFragment extends BaseFragment {
                         if (!rebootPending && !hasDownloadSource(mCurrentFlavor, result)) {
                             enable = false;
                         }
+                        if (mReadyToInstall != null) {
+                            enable = true;
+                            BtnText = R.string.update_notification_text;
+                        }
                         view.findViewById(R.id.updateBtn).setEnabled(enable);
                         ((Button) view.findViewById(R.id.updateBtn)).setText(BtnText);
                     });
@@ -418,6 +425,15 @@ public class UpdateFragment extends BaseFragment {
         binding.updateChannelRadioGroup.setOnCheckedChangeListener(onCheckChangedListener);
 
         binding.updateBtn.setOnClickListener(view1 -> {
+            if (mReadyToInstall != null) {
+                if (mReadyToInstall.nightly) {
+                    mLoadingDialog.show(getString(R.string.loading_dialog_wait));
+                    installNightly(mReadyToInstall.path);
+                } else {
+                    installApk(mReadyToInstall.path);
+                }
+                return;
+            }
             if (rebootPending) {
                 Shell.cmd("reboot").submit(result -> {
                     if (!result.isSuccess()) {
@@ -468,6 +484,15 @@ public class UpdateFragment extends BaseFragment {
         } else {
             mCurrentFlavor = Flavor.STABLE;
             ((RadioButton) view.findViewById(R.id.stableID)).setChecked(true);
+        }
+
+        if (getArguments() == null || !getArguments().getBoolean("updateTapped", false)) {
+            mReadyToInstall = it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver
+                    .getPendingInstall(requireContext());
+            if (mReadyToInstall != null) {
+                binding.updateBtn.setEnabled(true);
+                binding.updateBtn.setText(R.string.update_notification_text);
+            }
         }
     }
 

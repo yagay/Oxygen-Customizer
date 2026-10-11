@@ -341,6 +341,31 @@ checks.extend([
     ]),
 ])
 
+checks.extend([
+    (JAVA / "weather/providers/METNorwayProvider.java", [
+        "while (whileIndex < count",
+        "double temp_max = -Double.MAX_VALUE;",
+        'throw new JSONException("No temperature samples',
+    ]),
+    (JAVA / "utils/ModuleUtil.java", [
+        "OverlayUtil.getEnabledOverlayListChecked()",
+        "BackupRestore.restoreFiles();",
+        "Skipping malformed saved fabricated overlay",
+    ]),
+    (JAVA / "ui/base/AppFragmentBase.java", [
+        "public LoadAppsTask bindTo(LifecycleOwner owner)",
+        "if (taskCompletedListener != null && isViewAlive())",
+    ]),
+    (JAVA / "receivers/UpdateDownloadReceiver.java", [
+        "READY_PREFIX + id",
+        "getPendingInstall(Context context)",
+        "Cannot persist ready-to-install update",
+    ]),
+    (JAVA / "ui/fragments/UpdateFragment.java", [
+        "mReadyToInstall = it.dhd.oxygencustomizer.receivers.UpdateDownloadReceiver",
+        "if (mReadyToInstall != null)",
+    ]),
+])
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")

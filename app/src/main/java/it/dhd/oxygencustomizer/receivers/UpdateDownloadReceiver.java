@@ -51,6 +51,47 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
     private static final String TAG = "OC-UpdateDownload";
     private static final String JOB_STORE = "oc_update_download_jobs";
     private static final String JOB_PREFIX = "job_";
+    private static final String READY_PREFIX = "ready_";
+
+    /** Retained so a completed update remains installable when notifications are denied. */
+    public static final class PendingInstall {
+        public final long id;
+        public final String path;
+        public final boolean nightly;
+
+        private PendingInstall(long id, String path, boolean nightly) {
+            this.id = id;
+            this.path = path;
+            this.nightly = nightly;
+        }
+    }
+
+    public static PendingInstall getPendingInstall(Context context) {
+        PendingInstall newest = null;
+        SharedPreferences store = jobs(context);
+        for (String key : store.getAll().keySet()) {
+            if (!key.startsWith(READY_PREFIX)) continue;
+            try {
+                long id = Long.parseLong(key.substring(READY_PREFIX.length()));
+                JSONObject saved = new JSONObject(store.getString(key, ""));
+                File file = new File(saved.getString("path")).getCanonicalFile();
+                File downloads = Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_DOWNLOADS).getCanonicalFile();
+                if (!file.isFile() || !file.getPath().startsWith(downloads.getPath() + File.separator)) {
+                    store.edit().remove(key).apply();
+                    continue;
+                }
+                if (newest == null || id > newest.id) {
+                    newest = new PendingInstall(id, file.getAbsolutePath(),
+                            saved.optBoolean("nightly", false));
+                }
+            } catch (Exception badRecord) {
+                Log.w(TAG, "Dropping invalid ready-to-install record", badRecord);
+                store.edit().remove(key).apply();
+            }
+        }
+        return newest;
+    }
     private static final String INPUT_ID = "downloadId";
 
     private static SharedPreferences jobs(Context context) {
@@ -229,6 +270,18 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
         }
 
         private static void notifyInstall(Context context, long id, File file, boolean nightly) {
+            // Save a durable install entry BEFORE attempting the notification.
+            // POST_NOTIFICATIONS can be denied or the notification channel blocked.
+            JSONObject ready = new JSONObject();
+            try {
+                ready.put("path", file.getCanonicalPath());
+                ready.put("nightly", nightly);
+            } catch (Exception badPath) {
+                throw new IllegalStateException("Cannot preserve downloaded update", badPath);
+            }
+            if (!jobs(context).edit().putString(READY_PREFIX + id, ready.toString()).commit()) {
+                throw new IllegalStateException("Cannot persist ready-to-install update");
+            }
             String token = UUID.randomUUID().toString();
             Prefs.putString("pending_update_token_" + id, token);
             Intent launch = new Intent(context, MainActivity.class)
@@ -260,7 +313,10 @@ public final class UpdateDownloadReceiver extends BroadcastReceiver {
         @SuppressLint("MissingPermission")
         private static void post(Context context, long id, NotificationCompat.Builder notification) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
-                    context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
+                    context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Log.i(TAG, "Notification permission denied; update remains available in Update screen");
+                return;
+            }
             NotificationManager manager = (NotificationManager) context.getSystemService(
                     Context.NOTIFICATION_SERVICE);
             if (manager == null) return;
