@@ -90,7 +90,7 @@ public class StatusbarNotification extends XposedMods {
         removeDevMode = Xprefs.getBoolean("remove_dev_mode", false);
         removeFlashlightNotification = Xprefs.getBoolean("remove_flashlight_notification", false);
         removeLowBattery = Xprefs.getBoolean("remove_low_battery_notification", false);
-        notificationDefaultExpansion = Integer.parseInt(Xprefs.getString("notificationDefaultExpansion", "0"));
+        notificationDefaultExpansion = Xprefs.getIntFromString("notificationDefaultExpansion", "0");
         mShowButtons = Xprefs.getBoolean(NOTIFICATIONS_SHOW_BUTTONS, false);
         customizeClearButton = Xprefs.getBoolean(CUSTOMIZE_CLEAR_BUTTON, false);
         linkBackgroundAccent = Xprefs.getBoolean(CLEAR_BUTTON_BG_LINK_ACCENT, true);
