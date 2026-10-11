@@ -99,10 +99,15 @@ public class ModuleUtil {
         Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc").exec();
         Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/extension").exec();
         Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/permissions").exec();
-        Shell.cmd("cp -a /my_product/etc/extension/com.oplus.oplus-feature.xml " + MY_PRODUCT_EXTENSION_DIR + "/").exec();
-        Shell.cmd("cp -a /my_product/etc/extension/com.oplus.oplus-feature.xml " + MY_PRODUCT_EXTENSION_DIR + "/com.oplus.oplus-feature.xml.bak").exec();
-        Shell.cmd("cp -a /my_product/etc/permissions/oplus.product.display_features.xml " + MY_PRODUCT_PERMISSIONS_DIR + "/").exec();
-        Shell.cmd("cp -a /my_product/etc/permissions/oplus.product.display_features.xml " + MY_PRODUCT_PERMISSIONS_DIR + "/oplus.product.display_features.xml.bak").exec();
+        // The module cannot be safely activated without both firmware XML files.
+        copyRequiredSystemFile("/my_product/etc/extension/com.oplus.oplus-feature.xml",
+                MY_PRODUCT_EXTENSION_DIR + "/");
+        copyRequiredSystemFile("/my_product/etc/extension/com.oplus.oplus-feature.xml",
+                MY_PRODUCT_EXTENSION_DIR + "/com.oplus.oplus-feature.xml.bak");
+        copyRequiredSystemFile("/my_product/etc/permissions/oplus.product.display_features.xml",
+                MY_PRODUCT_PERMISSIONS_DIR + "/");
+        copyRequiredSystemFile("/my_product/etc/permissions/oplus.product.display_features.xml",
+                MY_PRODUCT_PERMISSIONS_DIR + "/oplus.product.display_features.xml.bak");
 
         createMETAINF();
 
@@ -344,6 +349,15 @@ public class ModuleUtil {
         ).exec();
         if (!result.isSuccess()) {
             Log.e(TAG, "Failed to write XML: " + destinationPath);
+        }
+    }
+
+    private static void copyRequiredSystemFile(String source, String destination) {
+        Shell.Result result = Shell.cmd("cp -a " + shellQuote(source) + " " + shellQuote(destination)).exec();
+        if (!result.isSuccess()) {
+            Log.e(TAG, "Required OPlus firmware file unavailable: " + source
+                    + ", stderr=" + result.getErr());
+            throw new IllegalStateException("Unable to prepare OPlus system module: " + source);
         }
     }
 
