@@ -111,7 +111,7 @@ public class LockscreenWidgets extends XposedMods {
         mWeatherEnabled = Xprefs.getBoolean(LOCKSCREEN_WEATHER_SWITCH, false);
         mWidgetsEnabled = Xprefs.getBoolean(LOCKSCREEN_WIDGETS_ENABLED, false);
         mDeviceWidgetEnabled = Xprefs.getBoolean(LOCKSCREEN_WIDGETS_DEVICE_WIDGET, false);
-        mDeviceWidgetStyle = Integer.parseInt(Xprefs.getString(LOCKSCREEN_WIDGETS_DEVICE_WIDGET_STYLE, "0"));
+        mDeviceWidgetStyle = Xprefs.getIntFromString(LOCKSCREEN_WIDGETS_DEVICE_WIDGET_STYLE, "0");
         mMainWidgets = Xprefs.getString(LOCKSCREEN_WIDGETS, "");
         mExtraWidgets = Xprefs.getString(LOCKSCREEN_WIDGETS_EXTRAS, "");
         mDeviceCustomColor = Xprefs.getBoolean(LOCKSCREEN_WIDGETS_DEVICE_WIDGET_CUSTOM_COLOR_SWITCH, false);
@@ -129,7 +129,7 @@ public class LockscreenWidgets extends XposedMods {
         mSmallIconActiveColor = Xprefs.getInt(LOCKSCREEN_WIDGETS_SMALL_ICON_ACTIVE, Color.BLACK);
         mSmallIconInactiveColor = Xprefs.getInt(LOCKSCREEN_WIDGETS_SMALL_ICON_INACTIVE, Color.WHITE);
         mWidgetsScale = Xprefs.getSliderFloat(LOCKSCREEN_WIDGETS_SCALE, 1.0f);
-        mWidgetsStyle = Integer.parseInt(Xprefs.getString(LOCKSCREEN_WIDGETS_STYLE, "0"));
+        mWidgetsStyle = Xprefs.getIntFromString(LOCKSCREEN_WIDGETS_STYLE, "0");
         mCustomWidgets = Xprefs.getString(LOCKSCREEN_WIDGETS_CUSTOM_DEVICE, "[]");
         mTopMargin = Xprefs.getSliderInt(LOCKSCREEN_WIDGETS_TOP_MARGIN, 0);
 
