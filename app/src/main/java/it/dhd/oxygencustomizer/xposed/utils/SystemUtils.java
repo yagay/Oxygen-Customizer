@@ -478,6 +478,7 @@ public class SystemUtils {
 
     /**
      * Toggles flash
+     *
      * @return boolean flash state
      */
     public static boolean toggleFlash() {
@@ -600,6 +601,7 @@ public class SystemUtils {
     /**
      * Toggles ringer mode between Normal, Vibrate, Silent
      * Issues the capsule special notifications
+     *
      * @return current mode integer (coincidentally, also the number of tickles in Buttons.java)
      */
     public static int toggleRingerMode() {
@@ -660,7 +662,7 @@ public class SystemUtils {
         sendInternalBroadcast(ringer);
     }
 
-    public static void sendFlashIntent(boolean onOff){
+    public static void sendFlashIntent(boolean onOff) {
         Intent flashIntent = new Intent(ACTION_INTENT_FLASHLIGHT_TIP);
         flashIntent.setPackage(SYSTEM_UI);
         flashIntent.putExtra(FLASHLIGHT_TIP_STATE, onOff ? 1 : 2);
@@ -670,6 +672,7 @@ public class SystemUtils {
 
     /**
      * Toggles Dnd
+     *
      * @return Dnd state on/off
      */
     public static boolean toggleDnd() {
@@ -739,6 +742,23 @@ public class SystemUtils {
 
     public static boolean isScreenOff() {
         return !isInteractive();
+    }
+
+    public static int idOf(String name) {
+        return resourceIdOf(name, "id");
+    }
+
+    public static int dimenIdOf(String name) {
+        return resourceIdOf(name, "dimen");
+    }
+
+    public static int resourceIdOf(String name, String type) {
+        return instance.resourceIdOfInternal(name, type);
+    }
+
+    @SuppressLint("DiscouragedApi")
+    private int resourceIdOfInternal(String name, String type) {
+        return mContext.getResources().getIdentifier(name, type, mContext.getPackageName());
     }
 
 }

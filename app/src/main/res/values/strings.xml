@@ -49,6 +49,11 @@
     <string name="installation_failed_desc">Logs have been saved in documents folder.</string>
     <string name="logs">Logs</string>
     <string name="toast_skipped_installation">Installation skipped. Some features may not function properly.</string>
+    <string name="installation_mode_title">Installation mode</string>
+    <string name="installation_full_title">Full installation</string>
+    <string name="installation_xposed_title">Xposed Only</string>
+    <string name="installation_full_summary">Install the overlay module.\nSuggested</string>
+    <string name="installation_xposed_summary">Avoid the installation of the module and use only Xposed tweaks and customizations.\nLimited features in theming.</string>
 
     <!-- Buttons -->
     <string name="btn_select">Select</string>
@@ -66,6 +71,7 @@
 
     <!-- Dialogs -->
     <string name="installing">Installing</string>
+    <string name="uninstalling">Uninstalling</string>
     <string name="loading_dialog_wait">Please Wait</string>
     <string name="optimizing">Optimizing</string>
 
@@ -383,6 +389,7 @@
     <string name="battery_text_attach_to_batterybar">Attach to Battery Bar</string>
     <string name="battery_text_attach_to_batterybar_summary">Attach text color to Battery Bar colors</string>
     <string name="battery_text_enable_bb_first">Enable Battery Bar first</string>
+    <string name="battery_remove_percentage">Remove % symbol in percentage text</string>
 
     <!-- Battery Icon Styles -->
     <string name="battery_default">Default</string>
@@ -776,6 +783,8 @@
     <string name="searchbar_open_keyboard_summary">Open the keyboard on swiping up on your home screen to search</string>
     <string name="searchbar_enter_to_open_title">Enter to open</string>
     <string name="searchbar_enter_to_open_summary">Press Enter to open the first item in search</string>
+    <string name="auto_close_folder_title">Auto close folders</string>
+    <string name="auto_close_folder_summary">Automatically close folders after opening an app</string>
 
     <!-- NavBar Strings -->
     <string name="navbar_title">Navigation Bar</string>
@@ -848,6 +857,8 @@
     <string name="plusKey_double_press_button_title_screenoff">Double Press</string>
     <string name="plusKey_triple_press_button_title_screenoff">Triple Press</string>
     <string name="plusKey_long_press_button_title_screenoff">Long Press</string>
+    <string name="cameraKey_button_category_title">Camera Button</string>
+    <string name="cameraKey_button_category_title_screenoff">Camera Button - Screen Off</string>
     <string name="plusKey_action_dnd">Do Not Disturb</string>
     <string name="plusKey_action_recorder">Audio Recorder</string>
     <string name="plusKey_action_browser">Browser</string>
@@ -1240,6 +1251,8 @@
     <string name="import_failed">Import failed</string>
     <string name="more_logging_title">More logging</string>
     <string name="more_logging_summary">Enable more logging.\nThis can help when sending Bug Reports.</string>
+    <string name="handle_installation">Handle installation</string>
+    <string name="handle_installation_summary">Restart the app and handle module installation.</string>
     <string name="settings_about_section_title">About</string>
     <string name="github_repo_title">GitHub repository</string>
     <string name="github_repo_summary" translatable="false">DHD22800/OxygenCustomizer</string>
@@ -1672,5 +1685,26 @@
     <string name="qs_separate_rows">Rows</string>
     <string name="width">Width</string>
     <string name="height">Height</string>
+
+    <!-- Icon Packs -->
+    <string name="shrug" translatable="false">¯\\_(シ)_/¯</string>
+    <!-- Icon Packs -->
+    <string name="icon_packs_title">Icon packs</string>
+    <string name="icon_pack_selection_title">Select pack</string>
+    <string name="icon_pack_customization_title">Customize icons</string>
+    <string name="menu_more_info">More info</string>
+    <string name="menu_show_icons">Show icons</string>
+    <string name="select_replacement_icon">Select replacement icon</string>
+    <string name="icon_default">Default</string>
+    <string name="partially_enabled">(Partially enabled)</string>
+    <string name="icon_pack_icon_disabled">Disabled</string>
+    <string name="icon_pack_author">by %s</string>
+    <string name="icon_pack_unknown_author">by unknown author</string>
+    <string name="icon_pack_unknown_name">Unknown icon pack</string>
+    <string name="icon_pack_pack_reset">Reset icons</string>
+    <string name="icon_pack_info">Icon pack info</string>
+    <string name="no_icon_pack_installed">No icon pack installed</string>
+    <string name="icon_pack_disclaimer_title">Disclaimer</string>
+    <string name="icon_pack_disclaimer_desc">Icon packs are not developed or distributed by OxygenCustomizer. As such, the OxygenCustomizer team is unable to provide support for icon packs. Support regarding how OxygenCustomizer handles icon packs will only be provided to the respective pack developers.\n\nFor instructions on how to compile an icon pack, please refer to the guide here: %s</string>
 
 </resources>
