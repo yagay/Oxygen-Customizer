@@ -47,12 +47,16 @@ public class RootProviderProxy extends Service {
             try {
                 ensureEnvironment();
 
-                List<String> result = Shell.cmd(command).exec().getOut();
-                return result.toArray(new String[0]);
-            }
-            catch (Throwable t)
-            {
-                return new String[0];
+                Shell.Result result = Shell.cmd(command).exec();
+                if (!result.isSuccess()) {
+                    Log.w(TAG, "Root command exited unsuccessfully: " + result.getErr());
+                }
+                return result.getOut().toArray(new String[0]);
+            } catch (RemoteException e) {
+                throw e;
+            } catch (Throwable t) {
+                Log.e(TAG, "Root IPC command failed", t);
+                throw new RemoteException("Root command execution failed");
             }
         }
 
@@ -65,10 +69,16 @@ public class RootProviderProxy extends Service {
             }
 
             try {
-                Shell.cmd("cmd overlay enable --user current " + theme,
-                        "cmd overlay set-priority " + theme + " highest").submit();
+                Shell.Result result = Shell.cmd("cmd overlay enable --user current " + theme,
+                        "cmd overlay set-priority " + theme + " highest").exec();
+                if (!result.isSuccess()) {
+                    throw new RemoteException("Overlay manager rejected theme activation");
+                }
+            } catch (RemoteException e) {
+                throw e;
             } catch (Throwable t) {
                 Log.e(TAG, "applyTheme: ", t);
+                throw new RemoteException("Unable to apply selected theme");
             }
         }
 
