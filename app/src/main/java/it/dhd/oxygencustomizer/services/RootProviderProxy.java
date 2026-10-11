@@ -101,13 +101,16 @@ public class RootProviderProxy extends Service {
                 new BitmapSubjectSegmenter(getApplicationContext()).segmentSubject(input, new BitmapSubjectSegmenter.SegmentResultListener() {
                     @Override
                     public void onSuccess(Bitmap result) {
+                        File tempFile = null;
                         try {
-                            File tempFile = File.createTempFile("lswt", ".png");
+                            tempFile = File.createTempFile("lswt", ".png");
 
                             Log.d(TAG,"DepthWallpaper extractSubject: " + tempFile.getAbsolutePath() + " -> " + resultPath);
 
                             try (FileOutputStream outputStream = new FileOutputStream(tempFile)) {
-                                result.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
+                                if (!result.compress(Bitmap.CompressFormat.PNG, 100, outputStream)) {
+                                    throw new IllegalStateException("Subject bitmap encoding failed");
+                                }
                             } finally {
                                 result.recycle();
                             }
@@ -120,11 +123,13 @@ public class RootProviderProxy extends Service {
                                 throw new IllegalStateException("Subject image copy failed: "
                                         + copyResult.getErr());
                             }
-                            //noinspection ResultOfMethodCallIgnored
-                            tempFile.delete();
                             Log.d(TAG, "DepthWallpaper onSuccess: BitmapSubjectSegmenter " + resultPath);
                         } catch (Throwable t) {
                             Log.e(TAG, "onSuccess: BitmapSubjectSegmenter", t);
+                        } finally {
+                            if (tempFile != null && !tempFile.delete()) {
+                                Log.w(TAG, "Cannot clean up subject temporary file: " + tempFile);
+                            }
                         }
                     }
 

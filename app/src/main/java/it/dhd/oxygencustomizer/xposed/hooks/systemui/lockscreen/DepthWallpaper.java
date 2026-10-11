@@ -157,6 +157,7 @@ public class DepthWallpaper extends XposedMods {
         if (!mPluginBroadcastRegistered) {
             IntentFilter filter = new IntentFilter();
             filter.addAction(ACTION_EXTRACT_SUCCESS);
+            filter.addAction(ACTION_EXTRACT_FAILURE);
             mContext.registerReceiver(mPluginReceiver, filter, RECEIVER_EXPORTED);
             mPluginBroadcastRegistered = true;
         }
