@@ -97,8 +97,8 @@ public class LockscreenPeekDisplay extends XposedMods {
     public void updatePrefs(String... Key) {
 
         mPeekEnabled = Xprefs.getBoolean(LOCKSCREEN_PEEK_NOTIFICATIONS_ENABLED, false);
-        mPeekLocation = Integer.parseInt(Xprefs.getString(LOCKSCREEN_PEEK_NOTIFICATIONS_LOCATION, "0"));
-        mPeekStyle = Integer.parseInt(Xprefs.getString(LOCKSCREEN_PEEK_NOTIFICATIONS_STYLE, "0"));
+        mPeekLocation = Xprefs.getIntFromString(LOCKSCREEN_PEEK_NOTIFICATIONS_LOCATION, "0");
+        mPeekStyle = Xprefs.getIntFromString(LOCKSCREEN_PEEK_NOTIFICATIONS_STYLE, "0");
         mPeekCardTitleColor = Xprefs.getInt(LOCKSCREEN_PEEK_CARD_TITLE_COLOR, PeekDisplayView.getPrimaryColor(mContext));
         mPeekCardSummaryColor = Xprefs.getInt(LOCKSCREEN_PEEK_CARD_SUMMARY_COLOR, PeekDisplayView.getSecondaryColor(mContext));
         mPeekCardBgColor = Xprefs.getInt(LOCKSCREEN_PEEK_CARD_BG_COLOR, PeekDisplayView.getSurfaceColor(mContext));
@@ -107,7 +107,7 @@ public class LockscreenPeekDisplay extends XposedMods {
         mPeekIgnoreSecurity = Xprefs.getBoolean(LOCKSCREEN_PEEK_IGNORE_SECURITY, false);
         // Icon Style
         mPeekIconBgColor = Xprefs.getInt(LOCKSCREEN_PEEK_ICON_BG_COLOR, PeekDisplayView.getSurfaceColor(mContext));
-        mPeekIconStyle = Integer.parseInt(Xprefs.getString(LOCKSCREEN_PEEK_ICON_STYLE, "0"));
+        mPeekIconStyle = Xprefs.getIntFromString(LOCKSCREEN_PEEK_ICON_STYLE, "0");
         mPeekIconSize = Xprefs.getInt(LOCKSCREEN_PEEK_ICON_SIZE, modRes.getDimensionPixelSize(R.dimen.peek_display_notification_icon_size));
         mPeekIconMargin = Xprefs.getInt(LOCKSCREEN_PEEK_ICON_MARGIN, modRes.getDimensionPixelSize(R.dimen.peek_display_notification_icon_margin_end));
         mPeekIconPadding = Xprefs.getInt(LOCKSCREEN_PEEK_ICON_PADDING, 0);
@@ -121,7 +121,7 @@ public class LockscreenPeekDisplay extends XposedMods {
 
         mPeekCardButtonsColor = Xprefs.getInt(LOCKSCREEN_PEEK_CARD_BUTTONS_COLOR, PeekDisplayView.getPrimaryColor(mContext));
 
-        mClearAllMode = Integer.parseInt(Xprefs.getString(LOCKSCREEN_PEEK_CLEAR_ALL_MODE, "1"));
+        mClearAllMode = Xprefs.getIntFromString(LOCKSCREEN_PEEK_CLEAR_ALL_MODE, "1");
         mClearAllCount = Xprefs.getInt(LOCKSCREEN_PEEK_CLEAR_ALL_COUNT, 4);
 
         if (Key.length > 0) {
