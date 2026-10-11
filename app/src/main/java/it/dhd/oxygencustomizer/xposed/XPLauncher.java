@@ -356,9 +356,10 @@ public class XPLauncher implements ServiceConnection {
 
     @Override
     public void onServiceDisconnected(ComponentName name) {
-        rootProxyIPC = null;
-        bindInProgress.set(false);
-        forceConnectRootService();
+        // Android normally keeps a disconnected binding alive for auto-rebind.
+        // Release it explicitly before starting a new binding, or repeated
+        // retries can accumulate registrations for the same connection.
+        releaseDeadRootBinding();
     }
 
     @Override
@@ -395,7 +396,7 @@ public class XPLauncher implements ServiceConnection {
                 // Do not blindly replay root operations: some may have executed
                 // before the binder died, so duplicate execution is unsafe.
                 rootProxyIPC = null;
-                if (instance != null) instance.forceConnectRootService();
+                if (instance != null) instance.releaseDeadRootBinding();
             } catch (Throwable failure) {
                 log("[ Oxygen Customizer ] Root IPC callback failed: " + failure);
             }
