@@ -52,6 +52,7 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
     private boolean cachedMemcEnabled;
     private boolean cachedSdr2hdrEnabled;
     private String cachedMemcMode = "";
+    private volatile boolean secureSettingsLoaded;
     private LoadingDialog mLoadingDialog;
 
     private boolean mIsFeatureOn = false;
@@ -145,11 +146,13 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
         }
 
         if (mMemcEnabled != null) {
-            mMemcEnabled.setSummary(getSpannedSummary(getMemcEnableFromSettings()));
+            mMemcEnabled.setSummary(secureSettingsLoaded
+                    ? getSpannedSummary(getMemcEnableFromSettings()) : getString(R.string.toast_error));
         }
 
         if (mSdr2hdrEnabled != null) {
-            mSdr2hdrEnabled.setSummary(getSpannedSummary(getSdr2hdrEnableFromSettings()));
+            mSdr2hdrEnabled.setSummary(secureSettingsLoaded
+                    ? getSpannedSummary(getSdr2hdrEnableFromSettings()) : getString(R.string.toast_error));
         }
 
         if (mVideoOsieSupported != null) {
@@ -157,7 +160,8 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
         }
 
         if (mMemcMode != null) {
-            mMemcMode.setSummary(getMemcModeFromSettings());
+            mMemcMode.setSummary(secureSettingsLoaded
+                    ? getMemcModeFromSettings() : getString(R.string.toast_error));
         }
 
     }
@@ -173,23 +177,35 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
     }
 
     private String getSecureSetting(String key, String defaultValue) {
-        List<String> output = Shell.cmd("settings get secure " + key).exec().getOut();
-        return output.isEmpty() ? defaultValue : output.get(0);
+        Shell.Result response = Shell.cmd("settings get secure " + key).exec();
+        if (!response.isSuccess() || response.getOut().isEmpty()) return null;
+        String value = response.getOut().get(0).trim();
+        return "null".equals(value) || value.isEmpty() ? null : value;
     }
 
     private void refreshSecureSettingsAsync() {
         final int request = settingsGeneration.incrementAndGet();
         SETTINGS_WORKER.execute(() -> {
-            boolean enabled = "1".equals(getSecureSetting(
-                    SETTINGS_SECURE_OSIE_MOTION_FLUENCY_SWITCH, "0"));
-            boolean hdr = "1".equals(getSecureSetting(
-                    SETTINGS_SECURE_OSIE_VIDEO_SWITCH, "0"));
-            String mode = getSecureSetting(SETTINGS_SECURE_OSIE_MOTION_VALUE, "");
+            String memc = null, hdr = null, mode = null;
+            try {
+                memc = getSecureSetting(SETTINGS_SECURE_OSIE_MOTION_FLUENCY_SWITCH, "0");
+                hdr = getSecureSetting(SETTINGS_SECURE_OSIE_VIDEO_SWITCH, "0");
+                mode = getSecureSetting(SETTINGS_SECURE_OSIE_MOTION_VALUE, "");
+            } catch (Throwable failure) {
+                Log.e("MemcFragment", "Unable to read MEMC secure settings", failure);
+            }
+            final boolean available = memc != null && hdr != null && mode != null;
+            final boolean enabled = "1".equals(memc);
+            final boolean hdrEnabled = "1".equals(hdr);
+            final String reportedMode = mode;
             mainHandler.post(() -> {
                 if (request != settingsGeneration.get() || !isAdded() || getView() == null) return;
-                cachedMemcEnabled = enabled;
-                cachedSdr2hdrEnabled = hdr;
-                cachedMemcMode = mode;
+                secureSettingsLoaded = available;
+                if (available) {
+                    cachedMemcEnabled = enabled;
+                    cachedSdr2hdrEnabled = hdrEnabled;
+                    cachedMemcMode = reportedMode;
+                }
                 setPrefs();
             });
         });
@@ -220,6 +236,7 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
         if (key == null) return;
 
         if ("force_memc_enabled".equals(key)) {
+            if (featureUpdateInProgress.get()) return;
             enableMemc();
             return;
         }
@@ -246,16 +263,22 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
                 Log.e("MemcFragment", "Unable to update MEMC module features", failure);
             }
             final boolean success = applied;
-            new Handler(Looper.getMainLooper()).post(() -> {
+            mainHandler.post(() -> {
+                if (!success) {
+                    // The preference switch is optimistic. Restore its previous value
+                    // while the in-progress guard prevents a second firmware write.
+                    mPreferences.edit().putBoolean("force_memc_enabled", !enabled).apply();
+                }
                 featureUpdateInProgress.set(false);
+                if (!isAdded() || getView() == null || mLoadingDialog == null) return;
                 mLoadingDialog.hide();
-                if (!isAdded()) return;
                 if (success) {
-                    Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED);
+                    Intent broadcast = new Intent(Constants.ACTION_SETTINGS_CHANGED).setPackage(FRAMEWORK);
                     broadcast.putExtra("packageName", FRAMEWORK);
                     broadcast.putExtra("class", MemcEnhancer.class.getSimpleName());
                     OCPreferences.addInternalBroadcastToken(broadcast);
                     requireContext().sendBroadcast(broadcast);
+                    refreshSecureSettingsAsync();
                 }
                 Toast.makeText(requireContext(), success ? R.string.toast_applied
                         : R.string.toast_error, Toast.LENGTH_SHORT).show();
@@ -276,6 +299,7 @@ public class MemcFragment extends ControlledPreferenceFragmentCompat {
             mReceiverRegistered = false;
         }
         if (mLoadingDialog != null) mLoadingDialog.dismiss();
+        mLoadingDialog = null;
         super.onDestroy();
     }
 
