@@ -45,13 +45,11 @@ public class MemcAppAdapter extends RecyclerView.Adapter<MemcAppAdapter.ViewHold
 
     public void addItem(MemcAppModel item) {
         itemList.add(item);
-        notifyDataSetChanged();
         filter(filterText);
     }
 
     public void removeItem(MemcAppModel item) {
         itemList.remove(item);
-        notifyDataSetChanged();
         filter(filterText);
     }
 
@@ -64,7 +62,7 @@ public class MemcAppAdapter extends RecyclerView.Adapter<MemcAppAdapter.ViewHold
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        MemcAppModel model = filteredApps.get(holder.getBindingAdapterPosition());
+        MemcAppModel model = filteredApps.get(position);
         boolean shouldDrawDivider = getItemCount() > 1 && position < getItemCount() - 1;
         holder.setDrawDivider(shouldDrawDivider);
         if (position == 0) {
@@ -110,7 +108,7 @@ public class MemcAppAdapter extends RecyclerView.Adapter<MemcAppAdapter.ViewHold
         for (MemcAppModel app : itemList) {
             boolean matchesText = TextUtils.isEmpty(filterText) || app.getAppName().toLowerCase().contains(filterText.toLowerCase()) || app.getPackageName().toLowerCase().contains(filterText.toLowerCase());
 
-            if ((matchesText) || app.isEnabled()) {
+            if (matchesText) {
                 filteredApps.add(app);
             }
         }

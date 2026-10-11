@@ -63,10 +63,8 @@ public class MemcApplicationsFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        new Thread(() -> {
-            mPackageManager = requireActivity().getPackageManager();
-            mPackageAdapter = new PackageListAdapter(requireActivity());
-        }).start();
+        mPackageManager = requireActivity().getPackageManager();
+        mPackageAdapter = new PackageListAdapter(requireActivity());
 
         mMemcDialog = new MemcDialog(requireActivity());
         mMemcDialog.setTitle(R.string.custom_memc_config_title);
@@ -96,7 +94,8 @@ public class MemcApplicationsFragment extends Fragment {
             if (item.contains("|")) {
                 List<String> arr = new ArrayList<>(Arrays.asList(item.split("\\|")));
                 if (arr.size() < 2 || arr.get(1).isBlank()) {
-                    arr.set(1, "120$267-3-1");
+                    if (arr.size() < 2) arr.add("120$267-3-1");
+                    else arr.set(1, "120$267-3-1");
                 }
                 mEnabledApps.put(arr.get(0), arr.get(1));
                 mAlreadyAddedApps.add(arr.get(0));
@@ -106,14 +105,16 @@ public class MemcApplicationsFragment extends Fragment {
             }
         }
 
-        mPackageAdapter.setExcludedPackages((HashSet<String>) mAlreadyAddedApps);
+        mPackageAdapter.setExcludedPackages(new HashSet<>(mAlreadyAddedApps));
 
         new LoadAppsTask(
                 mPackageManager,
                 mEnabledApps, () -> {
+            if (!isAdded() || binding == null) return;
             binding.searchView.setEnabled(false);
             binding.progress.setVisibility(View.VISIBLE);
         }, appList -> {
+            if (!isAdded() || binding == null) return;
             binding.recyclerView.addItemDecoration(new OplusRecyclerView.OplusRecyclerViewItemDecoration(requireContext()));
             binding.recyclerView.setLayoutManager(new LinearLayoutManager(getAppContext()));
             binding.recyclerView.setAdapter(new MemcAppAdapter(appList,
@@ -154,7 +155,7 @@ public class MemcApplicationsFragment extends Fragment {
                                 newModel);
                         binding.recyclerView.getAdapter().notifyDataSetChanged();
                         mAlreadyAddedApps.add(info.packageName);
-                        mPackageAdapter.setExcludedPackages((HashSet<String>) mAlreadyAddedApps);
+                        mPackageAdapter.setExcludedPackages(new HashSet<>(mAlreadyAddedApps));
                         savePrefs();
                     },
                     null
@@ -179,7 +180,7 @@ public class MemcApplicationsFragment extends Fragment {
                     mAlreadyAddedApps.remove(model.getPackageName());
                     ((MemcAppAdapter) binding.recyclerView.getAdapter()).removeItem(model);
                     binding.recyclerView.getAdapter().notifyDataSetChanged();
-                    mPackageAdapter.setExcludedPackages((HashSet<String>) mAlreadyAddedApps);
+                    mPackageAdapter.setExcludedPackages(new HashSet<>(mAlreadyAddedApps));
                     savePrefs();
                 }
         );
@@ -201,6 +202,12 @@ public class MemcApplicationsFragment extends Fragment {
             getContext().sendBroadcast(broadcast);
     }
 
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        binding = null;
+    }
+
     public static class LoadAppsTask {
         private Map<String, String> mEnabledApps;
         private final PackageManager mPackageManager;
@@ -220,7 +227,7 @@ public class MemcApplicationsFragment extends Fragment {
                             LoadAppsTask.OnPreTaskExecution preExecutionListener,
                             LoadAppsTask.OnTaskCompleted taskCompleted) {
             this.mPackageManager = packageManager;
-            this.mEnabledApps = enabledApps;
+            this.mEnabledApps = new java.util.HashMap<>(enabledApps);
             this.preExecutionListener = preExecutionListener;
             this.taskCompletedListener = taskCompleted;
         }
@@ -240,10 +247,15 @@ public class MemcApplicationsFragment extends Fragment {
                     String values = entry.getValue();
                     int refreshRate = 120;
                     String memcConfig = "267-3-1";
-                    if (values.contains("$")) {
-                        String[] arr = values.split("\\$");
-                        refreshRate = Integer.parseInt(arr[0]);
-                        memcConfig = arr[1];
+                    int delimiter = values.indexOf('$');
+                    if (delimiter > 0 && delimiter < values.length() - 1) {
+                        try {
+                            refreshRate = Integer.parseInt(values.substring(0, delimiter));
+                            if (refreshRate <= 0) refreshRate = 120;
+                        } catch (NumberFormatException ignored) {
+                            refreshRate = 120;
+                        }
+                        memcConfig = values.substring(delimiter + 1);
                     }
                     try {
                         ApplicationInfo appInfo = mPackageManager.getApplicationInfo(pkg, 0);
@@ -260,8 +272,8 @@ public class MemcApplicationsFragment extends Fragment {
                                         refreshRate,
                                         memcConfig));
 
-                    } catch (PackageManager.NameNotFoundException e) {
-                        mEnabledApps.remove(pkg);
+                    } catch (PackageManager.NameNotFoundException ignored) {
+                        // Do not mutate source preferences from the worker thread.
                     }
                 }
 
@@ -282,6 +294,7 @@ public class MemcApplicationsFragment extends Fragment {
                     Log.e(this.getClass().getName(), "Executor error", e);
                 }
             });
+            executor.shutdown();
         }
     }
 

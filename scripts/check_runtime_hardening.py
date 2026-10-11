@@ -41,6 +41,19 @@ checks = [
         "!input.equals(mQueryString)",
         "mLocationBrowseList.addAll(results)",
     ]),
+    (JAVA / "ui/fragments/mods/misc/memc/MemcApplicationsFragment.java", [
+        "new java.util.HashMap<>(enabledApps)",
+        "executor.shutdown();",
+        "new HashSet<>(mAlreadyAddedApps)",
+    ]),
+    (JAVA / "ui/fragments/mods/misc/memc/MemcActivitiesFragment.java", [
+        "delimiter <= 0 || delimiter >= pkg.length() - 1",
+        "executor.shutdown();",
+    ]),
+    (JAVA / "ui/adapters/MemcAppAdapter.java", [
+        "filteredApps.get(position)",
+        "if (matchesText)",
+    ]),
     (JAVA / "utils/PackageModeParser.java", [
         "public static Map<String, Integer> parse(Set<String> values, int maxMode)",
         "catch (NumberFormatException ignored)",
