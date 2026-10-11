@@ -54,6 +54,7 @@ public class ThemeAdapter extends RecyclerView.Adapter<ThemeAdapter.ViewHolder> 
         holder.style_name.setText(itemList.get(position).getThemeName());
         holder.desc.setVisibility(View.GONE);
         holder.icon_preview.setVisibility(View.GONE);
+        itemSelected(holder.container, itemList.get(position).isEnabled());
 
         refreshButton(holder);
 
@@ -70,7 +71,9 @@ public class ThemeAdapter extends RecyclerView.Adapter<ThemeAdapter.ViewHolder> 
     public void onViewAttachedToWindow(@NonNull ViewHolder holder) {
         super.onViewAttachedToWindow(holder);
 
-        itemSelected(holder.container, itemList.get(holder.getBindingAdapterPosition()).isEnabled());
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
+        itemSelected(holder.container, itemList.get(position).isEnabled());
         refreshButton(holder);
     }
 
@@ -78,89 +81,88 @@ public class ThemeAdapter extends RecyclerView.Adapter<ThemeAdapter.ViewHolder> 
     public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
         super.onAttachedToRecyclerView(recyclerView);
 
-        linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+        linearLayoutManager = (LinearLayoutManager)    private void enableOnClickListener(ViewHolder holder) {
+        holder.container.setOnClickListener(v -> {
+            int position = holder.getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION) return;
+            selectedItem = selectedItem == position ? -1 : position;
+            notifyDataSetChanged();
+        });
+        holder.btn_enable.setOnClickListener(v -> changeTheme(holder, true));
+        holder.btn_disable.setOnClickListener(v -> changeTheme(holder, false));
     }
 
-    // Function for onClick events
-    private void enableOnClickListener(ViewHolder holder) {
-        // Set onClick operation for each item
-        holder.container.setOnClickListener(v -> {
-            selectedItem = selectedItem == holder.getBindingAdapterPosition() ? -1 : holder.getBindingAdapterPosition();
-            refreshLayout(holder);
-
-            if (!itemList.get(holder.getBindingAdapterPosition()).isEnabled()) {
-                holder.btn_disable.setVisibility(View.GONE);
-                if (holder.btn_enable.getVisibility() == View.VISIBLE)
-                    holder.btn_enable.setVisibility(View.GONE);
-                else holder.btn_enable.setVisibility(View.VISIBLE);
-            } else {
-                holder.btn_enable.setVisibility(View.GONE);
-                if (holder.btn_disable.getVisibility() == View.VISIBLE)
-                    holder.btn_disable.setVisibility(View.GONE);
-                else holder.btn_disable.setVisibility(View.VISIBLE);
+    private void changeTheme(ViewHolder holder, boolean enable) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
+        if (!(context instanceof Activity activity) || activity.isFinishing() || activity.isDestroyed()) return;
+        String selectedPackage = itemList.get(position).getPkgName();
+        ArrayList<String> packages = new ArrayList<>();
+        for (ThemeModel theme : itemList) packages.add(theme.getPkgName());
+        String commonPackage = "OxygenCustomizerComponentCOMMONSUITH.overlay";
+        loadingDialog.show(context.getString(R.string.loading_dialog_wait));
+        new Thread(() -> {
+            boolean success = true;
+            ArrayList<String> previouslyEnabled = new ArrayList<>();
+            OverlayUtil.OPERATION_LOCK.lock();
+            try {
+                for (String pkg : packages) {
+                    if (OverlayUtil.isOverlayEnabled(pkg)) previouslyEnabled.add(pkg);
+                }
+                boolean commonEnabled = OverlayUtil.isOverlayEnabled(commonPackage);
+                if (enable) {
+                    success = OverlayUtil.applyOverlayStateNow(selectedPackage, true, false);
+                    for (String pkg : packages) {
+                        if (!success) break;
+                        if (!pkg.equals(selectedPackage) && OverlayUtil.isOverlayEnabled(pkg)) {
+                            success = OverlayUtil.applyOverlayStateNow(pkg, false, false);
+                        }
+                    }
+                    if (success && OverlayUtil.overlayExist("COMMONSUITH")) {
+                        success = OverlayUtil.applyOverlayStateNow(commonPackage, true, false);
+                    }
+                } else {
+                    success = OverlayUtil.applyOverlayStateNow(selectedPackage, false, false);
+                    if (success && commonEnabled) {
+                        success = OverlayUtil.applyOverlayStateNow(commonPackage, false, false);
+                    }
+                }
+                if (!success) {
+                    for (String pkg : packages) {
+                        boolean shouldEnable = previouslyEnabled.contains(pkg);
+                        if (OverlayUtil.isOverlayEnabled(pkg) != shouldEnable) {
+                            OverlayUtil.applyOverlayStateNow(pkg, shouldEnable, false);
+                        }
+                    }
+                    if (OverlayUtil.isOverlayEnabled(commonPackage) != commonEnabled) {
+                        OverlayUtil.applyOverlayStateNow(commonPackage, commonEnabled, false);
+                    }
+                }
+            } catch (Throwable failure) {
+                android.util.Log.e("OC-ThemeAdapter", "Theme change failed", failure);
+                success = false;
+            } finally {
+                OverlayUtil.OPERATION_LOCK.unlock();
             }
-        });
-
-        // Set onClick operation for Enable button
-        holder.btn_enable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-
-            @SuppressLint("SetTextI18n") Runnable runnable = () -> {
-                for (int i = 0; i <= itemList.size()-1; i++) {
-                    if (itemList.get(i).isEnabled()) enabledItem = i;
-                    itemList.get(i).setEnabled(i == holder.getBindingAdapterPosition());
-                    OverlayUtil.disableOverlay(itemList.get(i).getPkgName());
+            boolean completed = success;
+            activity.runOnUiThread(() -> {
+                loadingDialog.hide();
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+                if (completed) {
+                    for (int i = 0; i < itemList.size(); i++) {
+                        if (enable) itemList.get(i).setEnabled(i == position);
+                        else if (i == position) itemList.get(i).setEnabled(false);
+                    }
+                    notifyDataSetChanged();
                 }
-                OverlayUtil.enableOverlay(itemList.get(holder.getBindingAdapterPosition()).getPkgName());
-                if (OverlayUtil.overlayExist("COMMONSUITH")) {
-                    OverlayUtil.enableOverlay("OxygenCustomizerComponentCOMMONSUITH.overlay");
-                }
+                Toast.makeText(context, completed
+                        ? (enable ? R.string.toast_applied : R.string.toast_disabled)
+                        : R.string.toast_error, Toast.LENGTH_SHORT).show();
+            });
+        }, "OC-ThemeSelection").start();
+    }
 
-                ((Activity) context).runOnUiThread(() -> new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    // Hide loading dialog
-                    loadingDialog.hide();
-
-                    // Change button visibility
-                    holder.btn_enable.setVisibility(View.GONE);
-                    holder.btn_disable.setVisibility(View.VISIBLE);
-                    refreshBackground(holder);
-                    notifyItemChanged(enabledItem);
-                    enabledItem = -1;
-
-                    Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                }, 3000));
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        });
-
-        // Set onClick operation for Disable button
-        holder.btn_disable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-
-            Runnable runnable = () -> {
-                OverlayUtil.disableOverlay(itemList.get(holder.getBindingAdapterPosition()).getPkgName());
-                if (OverlayUtil.overlayExist("COMMONSUITH")) {
-                    OverlayUtil.disableOverlay("OxygenCustomizerComponentCOMMONSUITH.overlay");
-                }
-
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        // Change button visibility
-                        holder.btn_disable.setVisibility(View.GONE);
-                        holder.btn_enable.setVisibility(View.VISIBLE);
-                        refreshBackground(holder);
-
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_disabled), Toast.LENGTH_SHORT).show();
-                    }, 3000);
-                });
-            };
-            Thread thread = new Thread(runnable);
+read = new Thread(runnable);
             thread.start();
         });
     }
@@ -204,11 +206,13 @@ public class ThemeAdapter extends RecyclerView.Adapter<ThemeAdapter.ViewHolder> 
     }
 
     private void refreshButton(ViewHolder holder) {
-        if (holder.getBindingAdapterPosition() != selectedItem) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
+        if (position != selectedItem) {
             holder.btn_enable.setVisibility(View.GONE);
             holder.btn_disable.setVisibility(View.GONE);
         } else {
-            if (itemList.get(holder.getBindingAdapterPosition()).isEnabled()) {
+            if (itemList.get(position).isEnabled()) {
                 holder.btn_enable.setVisibility(View.GONE);
                 holder.btn_disable.setVisibility(View.VISIBLE);
             } else {

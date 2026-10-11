@@ -88,7 +88,9 @@ public class NavbarAdapter extends RecyclerView.Adapter<NavbarAdapter.ViewHolder
     public void onViewAttachedToWindow(@NonNull ViewHolder holder) {
         super.onViewAttachedToWindow(holder);
 
-        if (Prefs.getBoolean(NAVBAR_KEY.get(holder.getBindingAdapterPosition()))) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= NAVBAR_KEY.size()) return;
+        if (Prefs.getBoolean(NAVBAR_KEY.get(position))) {
             holder.style_name.setTextColor(context.getResources().getColor(R.color.colorAccent, context.getTheme()));
             holder.container.findViewById(R.id.icon_selected).setVisibility(View.VISIBLE);
         } else {
@@ -108,94 +110,67 @@ public class NavbarAdapter extends RecyclerView.Adapter<NavbarAdapter.ViewHolder
 
     // Function for onClick events
     private void enableOnClickListener(ViewHolder holder) {
-        // Set onClick operation for each item
         holder.container.setOnClickListener(v -> {
-            selectedItem = selectedItem == holder.getBindingAdapterPosition() ? -1 : holder.getBindingAdapterPosition();
-            int oldExp = expandedItem;
-            expandedItem = holder.getBindingAdapterPosition();
-            notifyItemChanged(oldExp);
-            refreshLayout(holder);
+            int position = holder.getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION) return;
+            selectedItem = selectedItem == position ? -1 : position;
+            expandedItem = selectedItem;
+            notifyDataSetChanged();
+        });
+        holder.btn_enable.setOnClickListener(v -> changeNavbar(holder, true));
+        holder.btn_disable.setOnClickListener(v -> changeNavbar(holder, false));
+    }
 
-            if (!Prefs.getBoolean(NAVBAR_KEY.get(holder.getBindingAdapterPosition()))) {
-                holder.btn_disable.setVisibility(View.GONE);
-                if (holder.btn_enable.getVisibility() == View.VISIBLE) {
-                    holder.btn_enable.setVisibility(View.GONE);
-                    //holder.ic_collapse_expand.setForeground(ContextCompat.getDrawable(context, R.drawable.ic_expand_arrow));
-                } else {
-                    holder.btn_enable.setVisibility(View.VISIBLE);
-                    //holder.ic_collapse_expand.setForeground(ContextCompat.getDrawable(context, R.drawable.ic_collapse_arrow));
+    private void changeNavbar(ViewHolder holder, boolean enable) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= NAVBAR_KEY.size()) return;
+        if (!(context instanceof Activity activity) || activity.isFinishing() || activity.isDestroyed()) return;
+        String selectedPackage = NAVBAR_KEY.get(position);
+        ArrayList<String> packages = new ArrayList<>(NAVBAR_KEY);
+        loadingDialog.show(context.getString(R.string.loading_dialog_wait));
+        new Thread(() -> {
+            boolean success = true;
+            ArrayList<String> previouslyEnabled = new ArrayList<>();
+            OverlayUtil.OPERATION_LOCK.lock();
+            try {
+                for (String pkg : packages) {
+                    if (OverlayUtil.isOverlayEnabled(pkg)) previouslyEnabled.add(pkg);
                 }
-            } else {
-                holder.btn_enable.setVisibility(View.GONE);
-                if (holder.btn_disable.getVisibility() == View.VISIBLE) {
-                    holder.btn_disable.setVisibility(View.GONE);
-                    //holder.ic_collapse_expand.setForeground(ContextCompat.getDrawable(context, R.drawable.ic_expand_arrow));
+                if (enable) {
+                    success = OverlayUtil.applyOverlayStateNow(selectedPackage, true, false);
+                    for (String pkg : packages) {
+                        if (!success) break;
+                        if (!pkg.equals(selectedPackage) && OverlayUtil.isOverlayEnabled(pkg)) {
+                            success = OverlayUtil.applyOverlayStateNow(pkg, false, false);
+                        }
+                    }
                 } else {
-                    holder.btn_disable.setVisibility(View.VISIBLE);
-                    //holder.ic_collapse_expand.setForeground(ContextCompat.getDrawable(context, R.drawable.ic_collapse_arrow));
+                    success = OverlayUtil.applyOverlayStateNow(selectedPackage, false, false);
                 }
+                if (!success) {
+                    for (String pkg : packages) {
+                        boolean shouldEnable = previouslyEnabled.contains(pkg);
+                        if (OverlayUtil.isOverlayEnabled(pkg) != shouldEnable) {
+                            OverlayUtil.applyOverlayStateNow(pkg, shouldEnable, false);
+                        }
+                    }
+                }
+            } catch (Throwable failure) {
+                Log.e("OC-NavbarAdapter", "Navbar change failed", failure);
+                success = false;
+            } finally {
+                OverlayUtil.OPERATION_LOCK.unlock();
             }
-        });
-
-        // Set onClick operation for Enable button
-        holder.btn_enable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-            @SuppressLint("SetTextI18n") Runnable runnable = () -> {
-                for (int i = 1; i <= TOTAL_NAVBAR; i++) {
-                    Prefs.putBoolean("OxygenCustomizerComponentNB" + i + ".overlay", i == holder.getBindingAdapterPosition() + 1);
-                    OverlayUtil.disableOverlay("OxygenCustomizerComponentNB" + i + ".overlay");
-                }
-                OverlayUtil.enableOverlay("OxygenCustomizerComponentNB" + (holder.getBindingAdapterPosition() + 1) + ".overlay");
-
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        holder.style_name.setTextColor(context.getResources().getColor(R.color.colorAccent, context.getTheme()));
-                        holder.container.findViewById(R.id.icon_selected).setVisibility(View.VISIBLE);
-
-                        // Change button visibility
-                        holder.btn_enable.setVisibility(View.GONE);
-                        holder.btn_disable.setVisibility(View.VISIBLE);
-                        refreshName(holder);
-
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                    }, 1000);
-                });
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        });
-
-        // Set onClick operation for Disable button
-        holder.btn_disable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-
-            Runnable runnable = () -> {
-                OverlayUtil.disableOverlay("OxygenCustomizerComponentNB" + (holder.getBindingAdapterPosition() + 1) + ".overlay");
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        holder.style_name.setTextColor(context.getResources().getColor(R.color.textColorPrimary, context.getTheme()));
-                        holder.container.findViewById(R.id.icon_selected).setVisibility(View.INVISIBLE);
-
-                        // Change button visibility
-                        holder.btn_disable.setVisibility(View.GONE);
-                        holder.btn_enable.setVisibility(View.VISIBLE);
-                        refreshName(holder);
-
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_disabled), Toast.LENGTH_SHORT).show();
-                    }, 1000);
-                });
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        });
+            boolean completed = success;
+            activity.runOnUiThread(() -> {
+                loadingDialog.hide();
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+                notifyDataSetChanged();
+                Toast.makeText(context, completed
+                        ? (enable ? R.string.toast_applied : R.string.toast_disabled)
+                        : R.string.toast_error, Toast.LENGTH_SHORT).show();
+            });
+        }, "OC-NavbarSelection").start();
     }
 
     // Function to check for layout changes
@@ -254,12 +229,14 @@ public class NavbarAdapter extends RecyclerView.Adapter<NavbarAdapter.ViewHolder
     }
 
     private void refreshButton(ViewHolder holder) {
-        if (holder.getBindingAdapterPosition() != selectedItem) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= NAVBAR_KEY.size()) return;
+        if (position != selectedItem) {
             holder.btn_enable.setVisibility(View.GONE);
             holder.btn_disable.setVisibility(View.GONE);
             //holder.ic_collapse_expand.setForeground(ContextCompat.getDrawable(context, R.drawable.ic_expand_arrow));
         } else {
-            if (Prefs.getBoolean(NAVBAR_KEY.get(selectedItem))) {
+            if (Prefs.getBoolean(NAVBAR_KEY.get(position))) {
                 holder.btn_enable.setVisibility(View.GONE);
                 holder.btn_disable.setVisibility(View.VISIBLE);
                 ///holder.ic_collapse_expand.setForeground(ContextCompat.getDrawable(context, R.drawable.ic_expand_arrow));

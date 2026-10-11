@@ -106,6 +106,7 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
         else
             holder.icon4.setVisibility(View.GONE);
 
+        itemSelected(holder.container, itemList.get(position).isEnabled());
         refreshButton(holder);
 
         enableOnClickListener(holder);
@@ -121,7 +122,9 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
     public void onViewAttachedToWindow(@NonNull ViewHolder holder) {
         super.onViewAttachedToWindow(holder);
 
-        itemSelected(holder.container, itemList.get(holder.getBindingAdapterPosition()).isEnabled());
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
+        itemSelected(holder.container, itemList.get(position).isEnabled());
         refreshButton(holder);
     }
 
@@ -129,102 +132,96 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
     public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
         super.onAttachedToRecyclerView(recyclerView);
 
-        linearLayoutManager = (LinearLayoutManager) recyclerView.getLayoutManager();
+        linearLayoutManager = (LinearLayoutManager)    private void enableOnClickListener(ViewHolder holder) {
+        holder.container.setOnClickListener(v -> {
+            int position = holder.getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION) return;
+            selectedItem = selectedItem == position ? -1 : position;
+            notifyDataSetChanged();
+        });
+        holder.btn_enable.setOnClickListener(v -> changeIcons(holder, true));
+        holder.btn_disable.setOnClickListener(v -> changeIcons(holder, false));
     }
 
-    // Function for onClick events
-    private void enableOnClickListener(ViewHolder holder) {
-        // Set onClick operation for each item
-        holder.container.setOnClickListener(v -> {
-            selectedItem = selectedItem == holder.getBindingAdapterPosition() ? -1 : holder.getBindingAdapterPosition();
-            refreshLayout(holder);
-
-            if (!itemList.get(holder.getBindingAdapterPosition()).isEnabled()) {
-                holder.btn_disable.setVisibility(View.GONE);
-                if (holder.btn_enable.getVisibility() == View.VISIBLE)
-                    holder.btn_enable.setVisibility(View.GONE);
-                else holder.btn_enable.setVisibility(View.VISIBLE);
-            } else {
-                holder.btn_enable.setVisibility(View.GONE);
-                if (holder.btn_disable.getVisibility() == View.VISIBLE)
-                    holder.btn_disable.setVisibility(View.GONE);
-                else holder.btn_disable.setVisibility(View.VISIBLE);
-            }
-        });
-
-        // Set onClick operation for Enable button
-        holder.btn_enable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-
-            @SuppressLint("SetTextI18n") Runnable runnable = () -> {
-
-                for (int i = 0; i <= itemList.size()-1; i++) {
-                    itemList.get(i).setEnabled(i == holder.getBindingAdapterPosition());
-                }
-
+    private void changeIcons(ViewHolder holder, boolean enable) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
+        if (!(context instanceof Activity activity) || activity.isFinishing() || activity.isDestroyed()) return;
+        IconModel selectedModel = itemList.get(position);
+        String selectedPackage = selectedModel.getPackageName();
+        ArrayList<String> packages = new ArrayList<>();
+        for (IconModel model : itemList) packages.add(model.getPackageName());
+        String extraPackage = TextUtils.isEmpty(mAdditionalComponent) ? null
+                : "OxygenCustomizerComponent" + mAdditionalComponent + ".overlay";
+        loadingDialog.show(context.getString(R.string.loading_dialog_wait));
+        new Thread(() -> {
+            boolean success = true;
+            OverlayUtil.OPERATION_LOCK.lock();
+            try {
                 if (mOnButtonClick != null) {
-                    mOnButtonClick.onEnableClick(holder.getBindingAdapterPosition(), itemList.get(holder.getBindingAdapterPosition()));
+                    if (enable) mOnButtonClick.onEnableClick(position, selectedModel);
+                    else mOnButtonClick.onDisableClick(position, selectedModel);
                 } else {
-                    for (int i = 0; i <= itemList.size()-1; i++) {
-                        OverlayUtil.disableOverlay(itemList.get(i).getPackageName());
+                    ArrayList<String> previouslyEnabled = new ArrayList<>();
+                    for (String pkg : packages) {
+                        if (OverlayUtil.isOverlayEnabled(pkg)) previouslyEnabled.add(pkg);
                     }
-                    if (!TextUtils.isEmpty(mAdditionalComponent))
-                        OverlayUtil.enableOverlay("OxygenCustomizerComponent" + mAdditionalComponent + ".overlay");
-                    OverlayUtil.enableOverlay(itemList.get(holder.getBindingAdapterPosition()).getPackageName());
+                    boolean extraEnabled = extraPackage != null && OverlayUtil.isOverlayEnabled(extraPackage);
+                    if (enable) {
+                        success = OverlayUtil.applyOverlayStateNow(selectedPackage, true, false);
+                        for (String pkg : packages) {
+                            if (!success) break;
+                            if (!pkg.equals(selectedPackage) && OverlayUtil.isOverlayEnabled(pkg)) {
+                                success = OverlayUtil.applyOverlayStateNow(pkg, false, false);
+                            }
+                        }
+                        if (success && extraPackage != null) {
+                            success = OverlayUtil.applyOverlayStateNow(extraPackage, true, false);
+                        }
+                    } else {
+                        success = OverlayUtil.applyOverlayStateNow(selectedPackage, false, false);
+                        if (success && extraEnabled) {
+                            success = OverlayUtil.applyOverlayStateNow(extraPackage, false, false);
+                        }
+                    }
+                    if (!success) {
+                        for (String pkg : packages) {
+                            boolean shouldEnable = previouslyEnabled.contains(pkg);
+                            if (OverlayUtil.isOverlayEnabled(pkg) != shouldEnable) {
+                                OverlayUtil.applyOverlayStateNow(pkg, shouldEnable, false);
+                            }
+                        }
+                        if (extraPackage != null && OverlayUtil.isOverlayEnabled(extraPackage) != extraEnabled) {
+                            OverlayUtil.applyOverlayStateNow(extraPackage, extraEnabled, false);
+                        }
+                    }
                 }
-
-
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        // Change button visibility
-                        holder.btn_enable.setVisibility(View.GONE);
-                        holder.btn_disable.setVisibility(View.VISIBLE);
-                        refreshBackground(holder);
-                        if (needSystemUIRestart) AppUtils.restartScope("systemui");
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_applied), Toast.LENGTH_SHORT).show();
-                    }, 3000);
-                });
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        });
-
-        // Set onClick operation for Disable button
-        holder.btn_disable.setOnClickListener(v -> {
-            // Show loading dialog
-            loadingDialog.show(context.getResources().getString(R.string.loading_dialog_wait));
-
-            itemList.get(holder.getBindingAdapterPosition()).setEnabled(false);
-
-            Runnable runnable = () -> {
-                if (mOnButtonClick != null) {
-                    mOnButtonClick.onDisableClick(holder.getBindingAdapterPosition(), itemList.get(holder.getBindingAdapterPosition()));
-                } else {
-                    if (!TextUtils.isEmpty(mAdditionalComponent))
-                        OverlayUtil.disableOverlay("OxygenCustomizerComponent" + mAdditionalComponent + ".overlay");
-                    itemList.get(holder.getBindingAdapterPosition()).setEnabled(false);
-                    OverlayUtil.disableOverlay(itemList.get(holder.getBindingAdapterPosition()).getPackageName());
+            } catch (Throwable failure) {
+                Log.e("OC-IconsAdapter", "Icon selection failed", failure);
+                success = false;
+            } finally {
+                OverlayUtil.OPERATION_LOCK.unlock();
+            }
+            boolean completed = success;
+            activity.runOnUiThread(() -> {
+                loadingDialog.hide();
+                if (activity.isFinishing() || activity.isDestroyed()) return;
+                if (completed) {
+                    for (int i = 0; i < itemList.size(); i++) {
+                        if (enable) itemList.get(i).setEnabled(i == position);
+                        else if (i == position) itemList.get(i).setEnabled(false);
+                    }
+                    notifyDataSetChanged();
+                    if (needSystemUIRestart) AppUtils.restartScope("systemui");
                 }
+                Toast.makeText(context, completed
+                        ? (enable ? R.string.toast_applied : R.string.toast_disabled)
+                        : R.string.toast_error, Toast.LENGTH_SHORT).show();
+            });
+        }, "OC-IconSelection").start();
+    }
 
-                ((Activity) context).runOnUiThread(() -> {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Hide loading dialog
-                        loadingDialog.hide();
-
-                        // Change button visibility
-                        holder.btn_disable.setVisibility(View.GONE);
-                        holder.btn_enable.setVisibility(View.VISIBLE);
-                        refreshBackground(holder);
-                        if (needSystemUIRestart) AppUtils.restartScope("systemui");
-                        Toast.makeText(OxygenCustomizer.getAppContext(), context.getResources().getString(R.string.toast_disabled), Toast.LENGTH_SHORT).show();
-                    }, 3000);
-                });
-            };
-            Thread thread = new Thread(runnable);
+read = new Thread(runnable);
             thread.start();
         });
     }
@@ -269,11 +266,13 @@ public class IconsAdapter extends RecyclerView.Adapter<IconsAdapter.ViewHolder> 
     }
 
     private void refreshButton(ViewHolder holder) {
-        if (holder.getBindingAdapterPosition() != selectedItem) {
+        int position = holder.getBindingAdapterPosition();
+        if (position == RecyclerView.NO_POSITION || position >= itemList.size()) return;
+        if (position != selectedItem) {
             holder.btn_enable.setVisibility(View.GONE);
             holder.btn_disable.setVisibility(View.GONE);
         } else {
-            if (itemList.get(holder.getBindingAdapterPosition()).isEnabled()) {
+            if (itemList.get(position).isEnabled()) {
                 holder.btn_enable.setVisibility(View.GONE);
                 holder.btn_disable.setVisibility(View.VISIBLE);
             } else {
