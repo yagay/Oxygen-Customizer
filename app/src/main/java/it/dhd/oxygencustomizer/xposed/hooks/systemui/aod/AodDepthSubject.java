@@ -123,6 +123,10 @@ public class AodDepthSubject extends XposedMods {
         Class<?> AodRecord = findClassInArray(lpparam,
                 "com.oplus.systemui.aod.AodRecord",
                 "com.oplusos.systemui.aod.AodRecord");
+        if (AodRecord == null) {
+            log("AOD depth Hook unavailable: AodRecord not found");
+            return;
+        }
         hookAllMethods(AodRecord, "createAndInitRootView", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
