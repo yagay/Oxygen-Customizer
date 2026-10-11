@@ -403,6 +403,77 @@ lag_fix_hook = (BASE / JAVA / "xposed/hooks/framework/OplusStartingWindowManager
 if "XPLauncher.enqueueProxyCommand" in lag_fix_hook or "proxy.runCommand" in lag_fix_hook:
     raise SystemExit("Lag Fix Hook must not execute Root shell commands for window events")
 
+# Full-source audit regressions: no silent Root success, untrusted broadcasts,
+# view callbacks to recycled SystemUI controls or duplicate tile observers.
+checks.extend([
+    (JAVA / "utils/PrefManager.java", [
+        "MAX_BACKUP_BYTES",
+        "if (Constants.Preferences.General.PREF_INTERNAL_BROADCAST_TOKEN.equals(key)) continue;",
+        "if (!editor.commit()) return false;",
+        "applyRestoredOverlays(overlaysToApply);",
+    ]),
+    (JAVA / "utils/ModuleUtil.java", [
+        '"Pocket Studio feature XML is unavailable"',
+        '"Pocket Studio XML closing tag is unavailable"',
+        'throw new IllegalStateException(operation + " module is not installed");',
+    ]),
+    (JAVA / "services/tiles/SleepOnSurfaceTileService.java", [
+        "unregisterOnSharedPreferenceChangeListener(listener)",
+        "if (!listening)",
+        "if (tile == null) return;",
+    ]),
+    (JAVA / "ui/fragments/mods/ColorsFragment.java", [
+        "COLOR_WORKER.execute(() ->",
+        "if (!result.isSuccess())",
+        "saveSecureSettings(selectedColor)",
+        "onDestroyView()",
+    ]),
+    (JAVA / "xposed/hooks/systemui/statusbar/BatteryStyleManager.java", [
+        "if (batteryPercentOutView != null)",
+        "if (v != null) v.addOnAttachStateChangeListener(listener);",
+    ]),
+    (JAVA / "xposed/hooks/systemui/advancedreboot/AdvancedReboot.java", [
+        "iconId == 0 ? null",
+        "colorId == 0 ? Color.DKGRAY",
+        "radiusId == 0 ?",
+    ]),
+    (JAVA / "xposed/hooks/systemui/aod/AodDepthSubject.java", [
+        "if (AodRecord == null)",
+        "XPrefs.isTrustedInternalBroadcast(intent)",
+    ]),
+    (JAVA / "xposed/hooks/systemui/lockscreen/DepthWallpaper.java", [
+        "XPrefs.isTrustedInternalBroadcast(intent)",
+        "XPrefs.addInternalBroadcastToken(intent)",
+    ]),
+    (JAVA / "xposed/hooks/systemui/CaffeineTile.java", [
+        "trustedTileRemoval",
+        "XPrefs.isTrustedInternalBroadcast(intent)",
+    ]),
+    (JAVA / "services/tiles/CaffeineTileService.java", [
+        "OCPreferences.addInternalBroadcastToken(notification)",
+    ]),
+    (JAVA / "xposed/hooks/settings/OtaCard.java", [
+        "ScheduledFuture<?> currentImageTask",
+        "currentImageTask.cancel(false)",
+        "attempt >= 12",
+    ]),
+    (JAVA / "xposed/hooks/systemui/statusbar/QsMenuItems.java", [
+        "if (itemLayoutId == 0) break;",
+        "if (separateItemLayoutId == 0) break;",
+    ]),
+    (JAVA / "xposed/hooks/systemui/FluidMusic.java", [
+        "private volatile List<String> mFluidAppsList",
+        "param.setResult(snapshot);",
+    ]),
+    (JAVA / "weather/providers/OpenMeteoProvider.java", [
+        "timeJson.getString(startIndex).compareTo(currentDay)",
+        "timeJson.getString(startIndex).compareTo(currentHour)",
+    ]),
+    (Path("app/src/main/assets/Module/OxygenCustomizerCompanion/post-fs-data.sh"), [
+        'MODDIR="${0%/*}"',
+        '[ -d "$MODDIR" ] || exit 0',
+    ]),
+])
 failures = []
 for filename, needles in checks:
     content = (BASE / filename).read_text(encoding="utf-8")
