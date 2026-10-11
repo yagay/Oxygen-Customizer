@@ -26,8 +26,16 @@ public class OverlayUtil {
 
     /** Read installed Oxygen Customizer overlays from the same user-scoped snapshot. */
     private static List<String> queryOverlayPackages(Boolean enabled) {
+        return queryOverlayPackages(enabled, false);
+    }
+
+    private static List<String> queryOverlayPackages(Boolean enabled, boolean failOnError) {
         Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
         if (!result.isSuccess()) {
+            if (failOnError) {
+                throw new IllegalStateException("Cannot query enabled overlays safely: "
+                        + result.getErr());
+            }
             Log.w("OverlayUtil", "Unable to list overlays: " + result.getErr());
             return Collections.emptyList();
         }
@@ -51,6 +59,11 @@ public class OverlayUtil {
 
     public static List<String> getEnabledOverlayList() {
         return queryOverlayPackages(true);
+    }
+
+    /** Destructive transactions must fail closed if the overlay service cannot be queried. */
+    public static List<String> getEnabledOverlayListChecked() {
+        return queryOverlayPackages(true, true);
     }
 
     public static List<String> getDisabledOverlayList() {

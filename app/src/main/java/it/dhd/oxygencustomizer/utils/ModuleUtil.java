@@ -59,7 +59,7 @@ public class ModuleUtil {
         java.util.List<String> previous = java.util.Collections.emptyList();
         try {
             if (moduleExists()) {
-                previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayList());
+                previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayListChecked());
                 for (String pkg : previous) {
                     if (!OverlayUtil.applyOverlayStateNow(pkg, false, false)) {
                         throw new IllegalStateException("Unable to disable overlay before uninstall: " + pkg);
@@ -145,6 +145,9 @@ public class ModuleUtil {
         requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system").exec(), "Prepare root module files");
         requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system/product").exec(), "Prepare root module files");
         requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/system/product/overlay").exec(), "Prepare root module files");
+        // Preserve the existing CR1 customization while rebuilding a new module.
+        // restoreFiles removes the backup only after its copy succeeds.
+        BackupRestore.restoreFiles();
         requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product").exec(), "Prepare root module files");
         requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc").exec(), "Prepare root module files");
         requireModuleCommand(Shell.cmd("mkdir -p " + ModuleConstants.TEMP_MODULE_DIR + "/my_product/etc/extension").exec(), "Prepare root module files");
@@ -191,9 +194,21 @@ public class ModuleUtil {
         Map<String, ?> map = prefs.getAll();
         for (Map.Entry<String, ?> item : map.entrySet()) {
             if (item.getValue() instanceof Boolean && ((Boolean) item.getValue()) && item.getKey().startsWith("fabricated")) {
-                String name = item.getKey().replace("fabricated", "");
-                List<String> commands = FabricatedUtil.buildCommands(Prefs.getString("FOCMDtarget" + name), Prefs.getString("FOCMDname" + name), Prefs.getString("FOCMDtype" + name), Prefs.getString("FOCMDresourceName" + name), Prefs.getString("FOCMDval" + name));
-                post_exec.append(commands.get(0)).append('\n').append(commands.get(1)).append('\n');
+                String name = item.getKey().substring("fabricated".length());
+                try {
+                    List<String> commands = FabricatedUtil.buildCommands(
+                            Prefs.getString("FOCMDtarget" + name),
+                            Prefs.getString("FOCMDname" + name),
+                            Prefs.getString("FOCMDtype" + name),
+                            Prefs.getString("FOCMDresourceName" + name),
+                            Prefs.getString("FOCMDval" + name));
+                    if (commands.size() != 2) {
+                        throw new IllegalArgumentException("Unexpected fabricated command count");
+                    }
+                    post_exec.append(commands.get(0)).append('\n').append(commands.get(1)).append('\n');
+                } catch (IllegalArgumentException badRule) {
+                    Log.w(TAG, "Skipping malformed saved fabricated overlay: " + name, badRule);
+                }
 
             }
         }
