@@ -311,8 +311,8 @@ checks.extend([
         "if (!result.isSuccess())",
     ]),
     (JAVA / "utils/overlay/OverlayUtil.java", [
-        'trimmed.equals("[x] " + exact)',
-        'getOverlayList().contains(pkgName)',
+        'matchesComponentOverlay(packageName, componentName)',
+        'suffix.matches("[0-9]+")',
     ]),
     (JAVA / "utils/ModuleUtil.java", [
         "previous = new java.util.ArrayList<>(OverlayUtil.getEnabledOverlayList())",

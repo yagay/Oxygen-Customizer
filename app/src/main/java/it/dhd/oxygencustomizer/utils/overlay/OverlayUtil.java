@@ -61,11 +61,12 @@ public class OverlayUtil {
         if (!isSafeIdentifier(componentName)) return Collections.emptyList();
         Shell.Result result = Shell.cmd("cmd overlay list --user current").exec();
         if (!result.isSuccess()) return Collections.emptyList();
-        String exact = "OxygenCustomizerComponent" + componentName + ".overlay";
         java.util.ArrayList<String> matches = new java.util.ArrayList<>();
         for (String line : result.getOut()) {
             String trimmed = line.trim();
-            if (trimmed.equals("[x] " + exact) || trimmed.equals("[ ] " + exact)) matches.add(line);
+            if (!trimmed.startsWith("[x] ") && !trimmed.startsWith("[ ] ")) continue;
+            String packageName = trimmed.substring(4);
+            if (matchesComponentOverlay(packageName, componentName)) matches.add(line);
         }
         return matches;
     }
@@ -105,11 +106,27 @@ public class OverlayUtil {
         return Boolean.FALSE.equals(queryOverlayState(pkgName));
     }
 
+    /**
+     * "TH" and "IPSUI" are numbered overlay families, but "TH1" is an
+     * individual component and must never accidentally select "TH10".
+     */
+    private static boolean matchesComponentOverlay(String packageName, String componentName) {
+        String prefix = "OxygenCustomizerComponent" + componentName;
+        if (!packageName.startsWith(prefix) || !packageName.endsWith(".overlay")) return false;
+        String suffix = packageName.substring(prefix.length(),
+                packageName.length() - ".overlay".length());
+        if (suffix.isEmpty()) return true;
+        if (Character.isDigit(componentName.charAt(componentName.length() - 1))) return false;
+        return suffix.matches("[0-9]+");
+    }
+
     public static void checkOverlayEnabledAndEnable(String componentName) {
         if (!isSafeIdentifier(componentName)) return;
-        String pkgName = "OxygenCustomizerComponent" + componentName + ".overlay";
-        if (getOverlayList().contains(pkgName) && isOverlayDisabled(pkgName)) {
-            enableOverlay(pkgName);
+        for (String pkgName : getOverlayList()) {
+            if (matchesComponentOverlay(pkgName, componentName) && isOverlayDisabled(pkgName)) {
+                enableOverlay(pkgName);
+                return;
+            }
         }
     }
 
