@@ -144,9 +144,9 @@ public class CustomNavGestures extends XposedMods {
 		swipeUpPercentage = Xprefs.getSliderFloat( "swipeUpPercentage", 25f) / 100f;
 		mCircleToSearch = Xprefs.getBoolean("circleToSearchEnabled", false);
 		mOverrideBack = Xprefs.getBoolean("gesture_override_holdback", false);
-		overrideMode = Integer.parseInt(Xprefs.getString("gesture_override_holdback_mode", "0"));
-		overrideLeft = Integer.parseInt(Xprefs.getString("gesture_override_holdback_left", "0"));
-		overrideRight = Integer.parseInt(Xprefs.getString("gesture_override_holdback_right", "0"));
+		overrideMode = Xprefs.getIntFromString("gesture_override_holdback_mode", "0");
+		overrideLeft = Xprefs.getIntFromString("gesture_override_holdback_left", "0");
+		overrideRight = Xprefs.getIntFromString("gesture_override_holdback_right", "0");
 	}
 
 	private static int readAction(SharedPreferences xprefs, String prefName) {

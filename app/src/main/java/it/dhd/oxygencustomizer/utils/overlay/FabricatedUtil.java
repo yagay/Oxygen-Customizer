@@ -8,6 +8,9 @@ import com.topjohnwu.superuser.Shell;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
 import it.dhd.oxygencustomizer.utils.Prefs;
@@ -27,58 +30,98 @@ public class FabricatedUtil {
         return Shell.cmd("cmd overlay list |  grep -E '. ..com.android.shell:OxygenCustomizerComponent' | sed -E 's/^. ..com.android.shell:OxygenCustomizerComponent//'").exec().getOut();
     }
 
-    public static void buildAndEnableOverlay(String target, String name, String type, String resourceName, String val) {
-        if (target == null || name == null || type == null || resourceName == null || val == null) {
-            throw new IllegalArgumentException("One or more arguments are null" + "\n" + "target: " + target + "\n" + "name: " + name + "\n" + "type: " + type + "\n" + "resourceName: " + resourceName + "\n" + "val: " + val);
-        }
+    private static final ExecutorService OVERLAY_WRITER = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "OC-FabricatedOverlayWorker");
+        thread.setDaemon(true);
+        return thread;
+    });
 
-        if (Build.VERSION.SDK_INT >= 34 && type.equals("dimen")) {
-            throw new IllegalArgumentException("Android 14+ does not support dimen fabricated overlays.");
-        }
-
+    public static void buildAndEnableOverlay(String target, String name, String type,
+                                             String resourceName, String val) {
         List<String> commands = buildCommands(target, name, type, resourceName, val);
-
-        Prefs.putBoolean("fabricated" + name, true);
-        Prefs.putString("FOCMDtarget" + name, target);
-        Prefs.putString("FOCMDname" + name, name);
-        Prefs.putString("FOCMDtype" + name, type);
-        Prefs.putString("FOCMDresourceName" + name, resourceName);
-        Prefs.putString("FOCMDval" + name, val);
-
-        Shell.cmd("mv " + ModuleConstants.MODULE_DIR + "/post-exec.sh " + ModuleConstants.MODULE_DIR + "/post-exec.txt; grep -v \"OxygenCustomizerComponent" + name + "\" " + ModuleConstants.MODULE_DIR + "/post-exec.txt > " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp && mv " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp " + ModuleConstants.MODULE_DIR + "/post-exec.sh; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp").submit();
-        Shell.cmd("echo -e \"" + commands.get(0) + "\n" + commands.get(1) + "\" >> " + ModuleConstants.MODULE_DIR + "/post-exec.sh").submit();
-
-        Shell.cmd(commands.get(0), commands.get(1)).submit();
+        OVERLAY_WRITER.execute(() -> applyOverlay(target, name, type, resourceName, val, commands));
     }
 
     public static void buildAndEnableOverlays(Object[]... args) {
-        List<String> commands = new ArrayList<>();
-        List<String> module = new ArrayList<>();
+        List<String[]> entries = new ArrayList<>();
+        List<List<String>> commands = new ArrayList<>();
+        for (Object[] argsSet : args) {
+            if (argsSet == null || argsSet.length != 5) {
+                throw new IllegalArgumentException("Fabricated overlay requires five parameters");
+            }
+            String[] entry = new String[5];
+            for (int i = 0; i < 5; i++) {
+                if (!(argsSet[i] instanceof String)) {
+                    throw new IllegalArgumentException("Invalid fabricated overlay parameter");
+                }
+                entry[i] = (String) argsSet[i];
+            }
+            commands.add(buildCommands(entry[0], entry[1], entry[2], entry[3], entry[4]));
+            entries.add(entry);
+        }
+        OVERLAY_WRITER.execute(() -> {
+            for (int i = 0; i < entries.size(); i++) {
+                String[] value = entries.get(i);
+                applyOverlay(value[0], value[1], value[2], value[3], value[4], commands.get(i));
+            }
+        });
+    }
 
-        for (Object[] arg : args) {
-            if (arg == null || arg.length != 5) {
-                throw new IllegalArgumentException("Each fabricated overlay entry must contain exactly 5 values.");
+    private static void applyOverlay(String target, String name, String type,
+                                     String resourceName, String val, List<String> commands) {
+        try {
+            Shell.Result fabricate = Shell.cmd(commands.get(0)).exec();
+            if (!fabricate.isSuccess()) {
+                Log.e("FabricatedUtil", "Fabricate failed: " + name + " " + fabricate.getErr());
+                return;
+            }
+            Shell.Result enabled = Shell.cmd(commands.get(1)).exec();
+            if (!enabled.isSuccess()) {
+                Log.e("FabricatedUtil", "Enable failed: " + name + " " + enabled.getErr());
+                return;
+            }
+            Prefs.putString("FOCMDtarget" + name, target);
+            Prefs.putString("FOCMDname" + name, name);
+            Prefs.putString("FOCMDtype" + name, type);
+            Prefs.putString("FOCMDresourceName" + name, resourceName);
+            Prefs.putString("FOCMDval" + name, val);
+            Prefs.putBoolean("fabricated" + name, true);
+            refreshPostExecScript();
+        } catch (Throwable e) {
+            Log.e("FabricatedUtil", "Fabricated overlay failed: " + name, e);
+        }
+    }
+
+    private static void refreshPostExecScript() {
+        StringBuilder script = new StringBuilder();
+        for (Map.Entry<String, ?> entry : Prefs.prefs.getAll().entrySet()) {
+            if (!entry.getKey().startsWith("fabricated") || !Boolean.TRUE.equals(entry.getValue())) {
+                continue;
+            }
+            String name = entry.getKey().substring("fabricated".length());
+            try {
+                List<String> commands = buildCommands(
+                        Prefs.getString("FOCMDtarget" + name, ""),
+                        Prefs.getString("FOCMDname" + name, ""),
+                        Prefs.getString("FOCMDtype" + name, ""),
+                        Prefs.getString("FOCMDresourceName" + name, ""),
+                        Prefs.getString("FOCMDval" + name, ""));
+                script.append(commands.get(0)).append('\n').append(commands.get(1)).append('\n');
+            } catch (IllegalArgumentException badSetting) {
+                Log.e("FabricatedUtil", "Skipping invalid saved overlay: " + name, badSetting);
             }
         }
-
-        for (Object[] arg : args) {
-            List<String> tempCommands = buildCommands((String) arg[0], (String) arg[1], (String) arg[2], (String) arg[3], (String) arg[4]);
-
-            Prefs.putBoolean("fabricated" + arg[1], true);
-            Prefs.putString("FOCMDtarget" + arg[1], (String) arg[0]);
-            Prefs.putString("FOCMDname" + arg[1], (String) arg[1]);
-            Prefs.putString("FOCMDtype" + arg[1], (String) arg[2]);
-            Prefs.putString("FOCMDresourceName" + arg[1], (String) arg[3]);
-            Prefs.putString("FOCMDval" + arg[1], (String) arg[4]);
-
-            module.add("mv " + ModuleConstants.MODULE_DIR + "/post-exec.sh " + ModuleConstants.MODULE_DIR + "/post-exec.txt; grep -v \"OxygenCustomizerComponent" + arg[1] + "\" " + ModuleConstants.MODULE_DIR + "/post-exec.txt > " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp && mv " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp " + ModuleConstants.MODULE_DIR + "/post-exec.sh; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp");
-            module.add("echo -e \"" + tempCommands.get(0) + "\n" + tempCommands.get(1) + "\" >> " + ModuleConstants.MODULE_DIR + "/post-exec.sh");
-
-            commands.add(tempCommands.get(0));
-            commands.add(tempCommands.get(1));
+        String path = ModuleConstants.MODULE_DIR + "/post-exec.sh";
+        Shell.Result written = Shell.cmd("printf %s " + shellQuote(script.toString())
+                + " > " + shellQuote(path + ".tmp")
+                + " && mv -f " + shellQuote(path + ".tmp") + " " + shellQuote(path)).exec();
+        if (!written.isSuccess()) {
+            Log.e("FabricatedUtil", "Unable to persist reboot overlay script: " + written.getErr());
         }
+    }
 
-        Shell.cmd(String.join("; ", module), String.join("; ", commands)).submit();
+    private static String shellQuote(String value) {
+        return "'" + value.replace("'", "'\\''") + "'";
     }
 
     private static void validateOverlayArguments(
@@ -168,44 +211,22 @@ public class FabricatedUtil {
 
     public static void disableOverlay(String name) {
         if (name == null || !name.matches("[A-Za-z0-9._-]+")) return;
-        Prefs.putBoolean("fabricated" + name, false);
-        Prefs.clearPrefs(
-                "FOCMDtarget" + name,
-                "FOCMDname" + name,
-                "FOCMDtype" + name,
-                "FOCMDresourceName" + name,
-                "FOCMDval" + name
-        );
-
-        String disable_cmd = "cmd overlay disable --user current com.android.shell:OxygenCustomizerComponent" + name;
-
-        Shell.cmd("mv " + ModuleConstants.MODULE_DIR + "/post-exec.sh " + ModuleConstants.MODULE_DIR + "/post-exec.txt; grep -v \"OxygenCustomizerComponent" + name + "\" " + ModuleConstants.MODULE_DIR + "/post-exec.txt > " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp && mv " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp " + ModuleConstants.MODULE_DIR + "/post-exec.sh; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp").submit();
-
-        Shell.cmd(disable_cmd).submit();
+        OVERLAY_WRITER.execute(() -> {
+            Shell.Result result = Shell.cmd(
+                    "cmd overlay disable --user current com.android.shell:OxygenCustomizerComponent" + name).exec();
+            if (!result.isSuccess()) {
+                Log.e("FabricatedUtil", "Disable failed: " + name + " " + result.getErr());
+                return;
+            }
+            Prefs.putBoolean("fabricated" + name, false);
+            Prefs.clearPrefs("FOCMDtarget" + name, "FOCMDname" + name,
+                    "FOCMDtype" + name, "FOCMDresourceName" + name, "FOCMDval" + name);
+            refreshPostExecScript();
+        });
     }
 
     public static void disableOverlays(String... names) {
-        StringBuilder command = new StringBuilder();
-
-        for (String name : names) {
-            if (name == null || !name.matches("[A-Za-z0-9._-]+")) continue;
-            Prefs.putBoolean("fabricated" + name, false);
-            Prefs.clearPrefs(
-                    "FOCMDtarget" + name,
-                    "FOCMDname" + name,
-                    "FOCMDtype" + name,
-                    "FOCMDresourceName" + name,
-                    "FOCMDval" + name
-            );
-
-            command.append("cmd overlay disable --user current com.android.shell:OxygenCustomizerComponent").append(name).append("; ");
-
-            Shell.cmd("mv " + ModuleConstants.MODULE_DIR + "/post-exec.sh " + ModuleConstants.MODULE_DIR + "/post-exec.txt; grep -v \"OxygenCustomizerComponent" + name + "\" " + ModuleConstants.MODULE_DIR + "/post-exec.txt > " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp && mv " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp " + ModuleConstants.MODULE_DIR + "/post-exec.sh; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt; rm -rf " + ModuleConstants.MODULE_DIR + "/post-exec.txt.tmp").submit();
-        }
-
-        if (!command.isEmpty()) {
-            Shell.cmd(command.toString().trim()).submit();
-        }
+        for (String name : names) disableOverlay(name);
     }
 
     public static boolean isOverlayEnabled(String name) {

@@ -12,6 +12,8 @@ import android.graphics.drawable.Drawable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.callbacks.XC_LoadPackage;
@@ -24,7 +26,12 @@ import it.dhd.oxygencustomizer.xposed.utils.ThemePackMapping.OverlayIDName;
 
 public class IconPacks extends XposedMods {
 
-    static IDMapping drawableMapping = new IDMapping();
+    private static volatile IDMapping drawableMapping = new IDMapping();
+    private final ExecutorService mappingUpdater = Executors.newSingleThreadExecutor(r -> {
+        Thread worker = new Thread(r, "OC-IconMapping");
+        worker.setDaemon(true);
+        return worker;
+    });
     private final android.content.pm.PackageManager mPackageManager;
     private final List<XC_MethodHook.Unhook> hooks = new ArrayList<>();
     private boolean mPackageLoaded = false;
@@ -39,7 +46,7 @@ public class IconPacks extends XposedMods {
         updateMapping();
     }
 
-    private void hookAll() {
+    private synchronized void hookAll() {
         if (hooks.isEmpty() && mPackageLoaded && !drawableMapping.isEmpty()) {
             hooks.add(findAndHookMethod(Resources.class, "getDrawable", int.class, Resources.Theme.class, new XC_MethodHook() {
                 @Override
@@ -84,7 +91,7 @@ public class IconPacks extends XposedMods {
         }
     }
 
-    private void unhookAll() {
+    private synchronized void unhookAll() {
         for (XC_MethodHook.Unhook hook : hooks) {
             hook.unhook();
         }
@@ -92,14 +99,19 @@ public class IconPacks extends XposedMods {
     }
 
     private void updateMapping() {
-        new Thread(() -> {
-            drawableMapping = getIDMapping(TYPE_DRAWABLE, "drawable");
-            if (drawableMapping.isEmpty()) {
-                unhookAll();
-            } else {
-                hookAll();
+        mappingUpdater.execute(() -> {
+            try {
+                IDMapping latest = getIDMapping(TYPE_DRAWABLE, "drawable");
+                drawableMapping = latest;
+                if (latest.isEmpty()) {
+                    unhookAll();
+                } else {
+                    hookAll();
+                }
+            } catch (Throwable error) {
+                log(error);
             }
-        }).start();
+        });
     }
 
     /**

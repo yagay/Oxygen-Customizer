@@ -106,7 +106,7 @@ public class Lockscreen extends XposedMods {
         removeSOS = Xprefs.getBoolean(LOCKSCREEN_REMOVE_SOS, false);
         hideFingerprint = Xprefs.getBoolean(LOCKSCREEN_HIDE_FINGERPRINT, false);
         customFingerprint = Xprefs.getBoolean(LOCKSCREEN_CUSTOM_FINGERPRINT, false);
-        fingerprintStyle = Integer.parseInt(Xprefs.getString(LOCKSCREEN_FINGERPRINT_STYLE, "0"));
+        fingerprintStyle = Xprefs.getIntFromString(LOCKSCREEN_FINGERPRINT_STYLE, "0");
         mFpScale = Xprefs.getSliderFloat(LOCKSCREEN_FINGERPRINT_SCALING, 1.0f);
         removeLockIcon = Xprefs.getBoolean(LOCKSCREEN_REMOVE_LOCK, false);
         removeLeftAffordance = Xprefs.getBoolean(LOCKSCREEN_REMOVE_LEFT_AFFORDANCE, false);

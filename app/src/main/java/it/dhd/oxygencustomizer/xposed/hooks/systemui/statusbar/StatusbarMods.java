@@ -143,7 +143,7 @@ public class StatusbarMods extends XposedMods {
         // Quick Pulldown
         oneFingerPulldownEnabled = Xprefs.getBoolean("quick_pulldown", false);
         oneFingerPullupEnabled = Xprefs.getBoolean("quick_collapse", false);
-        pullDownSide = Integer.parseInt(Xprefs.getString("quick_pulldown_side", "1"));
+        pullDownSide = Xprefs.getIntFromString("quick_pulldown_side", "1");
         statusbarPortion = Xprefs.getSliderFloat("quick_pulldown_length", 25f) / 100f;
 
         // Double Tap to Sleep

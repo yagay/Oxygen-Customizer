@@ -84,13 +84,13 @@ public class PulseViewHook extends XposedMods {
         mAmbientPulse = Xprefs.getBoolean(PULSE_AMBIENT, false);
 
         // Render Mode
-        mPulseStyle = Integer.parseInt(Xprefs.getString(PULSE_RENDER_STYLE, "0"));
+        mPulseStyle = Xprefs.getIntFromString(PULSE_RENDER_STYLE, "0");
 
         // Pulse Smoothing
         mPulseSmoothing = Xprefs.getBoolean(PULSE_SMOOTHING, false);
 
         // Pulse Color
-        mPulseColorMode = Integer.parseInt(Xprefs.getString(PULSE_COLOR_MODE, "2"));
+        mPulseColorMode = Xprefs.getIntFromString(PULSE_COLOR_MODE, "2");
         mPulseColor = Xprefs.getInt(PULSE_COLOR_USER, 0x92FFFFFF);
 
         // Pulse Style
@@ -112,7 +112,7 @@ public class PulseViewHook extends XposedMods {
         // Pulse Mirror and Gravity
         mCenterMirrored = Xprefs.getBoolean(PULSE_CENTER_MIRRORED, false);
         mVerticalMirror = Xprefs.getBoolean(PULSE_VERTICAL_MIRROR, false);
-        mGravity = Integer.parseInt(Xprefs.getString(PULSE_GRAVITY, "0"));
+        mGravity = Xprefs.getIntFromString(PULSE_GRAVITY, "0");
 
         // Line Renderer
         mShowFlash = Xprefs.getBoolean(PULSE_LINE_SHOW_FLASH, true);

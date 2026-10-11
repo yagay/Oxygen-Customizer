@@ -15,11 +15,14 @@ import android.util.Log;
 import com.topjohnwu.superuser.Shell;
 
 import java.io.IOException;
+
+import it.dhd.oxygencustomizer.utils.overlay.compiler.OverlayCompileCoordinator;
 import java.util.ArrayList;
 import java.util.List;
 
 import it.dhd.oxygencustomizer.BuildConfig;
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
+import it.dhd.oxygencustomizer.utils.overlay.OverlayUtil;
 
 public class SettingsIconsCompiler {
 
@@ -34,6 +37,8 @@ public class SettingsIconsCompiler {
     }};
 
     public static boolean buildOverlay(int iconSet, String resources, boolean force) throws IOException {
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
         mIconSet = iconSet;
         mForce = force;
 
@@ -91,6 +96,9 @@ public class SettingsIconsCompiler {
 
         postExecute(false);
         return false;
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
+        }
     }
 
     private static void preExecute() throws IOException {
@@ -121,8 +129,8 @@ public class SettingsIconsCompiler {
         if (!mForce) {
             Shell.cmd("mkdir -p " + ModuleConstants.BACKUP_DIR).exec();
         } else {
-            disableOverlay("OxygenCustomizerComponentSIP1.overlay");
-            disableOverlay("OxygenCustomizerComponentSIP2.overlay");
+            OverlayUtil.applyOverlayStateNow("OxygenCustomizerComponentSIP1.overlay", false, false);
+            OverlayUtil.applyOverlayStateNow("OxygenCustomizerComponentSIP2.overlay", false, false);
         }
     }
 
@@ -195,7 +203,11 @@ public class SettingsIconsCompiler {
                     overlayNames[i - 1] = "OxygenCustomizerComponentSIP" + i + ".overlay";
                 }
 
-                enableOverlays(overlayNames);
+                for (String overlay : overlayNames) {
+                    if (!OverlayUtil.applyOverlayStateNow(overlay, true, false)) {
+                        Log.e(TAG, "Failed to enable compiled overlay " + overlay);
+                    }
+                }
             } else {
                 for (int i = 1; i <= mPackages.size(); i++) {
                     Shell.cmd(

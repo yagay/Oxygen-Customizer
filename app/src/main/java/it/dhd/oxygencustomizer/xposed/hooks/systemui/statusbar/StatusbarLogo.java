@@ -96,8 +96,8 @@ public class StatusbarLogo extends XposedMods {
     public void updatePrefs(String... Key) {
 
         mStatusbarLogo = Xprefs.getBoolean(STATUSBAR_LOGO_SWITCH, false);
-        mLogoStyle = Integer.parseInt(Xprefs.getString(STATUSBAR_LOGO_STYLE, "0"));
-        mLogoPosition = Integer.parseInt(Xprefs.getString(STATUSBAR_LOGO_POSITION, "0"));
+        mLogoStyle = Xprefs.getIntFromString(STATUSBAR_LOGO_STYLE, "0");
+        mLogoPosition = Xprefs.getIntFromString(STATUSBAR_LOGO_POSITION, "0");
         mLogoSize = Xprefs.getSliderInt(STATUSBAR_LOGO_SIZE, 18);
         mTintLogo = Xprefs.getBoolean(STATUSBAR_LOGO_APPLY_TINT, false);
 

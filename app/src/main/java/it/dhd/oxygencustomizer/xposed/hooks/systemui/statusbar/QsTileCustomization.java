@@ -336,19 +336,19 @@ public class QsTileCustomization extends XposedMods {
         // Media QS
         mQsWidgetsEnabled = Xprefs.getBoolean(QS_WIDGETS_SWITCH, false);
         showMediaArtMediaQs = Xprefs.getBoolean(QS_MEDIA_SHOW_ALBUM_ART, false);
-        mMediaQsArtFilter = Integer.parseInt(Xprefs.getString(QS_MEDIA_ART_FILTER, "0"));
+        mMediaQsArtFilter = Xprefs.getIntFromString(QS_MEDIA_ART_FILTER, "0");
         mMediaQsArtBlurAmount = (Xprefs.getSliderInt(QS_MEDIA_ART_BLUR_AMOUNT, 30) / 100f) * 25f;
         mMediaQsTintColor = Xprefs.getInt(QS_MEDIA_ART_TINT_COLOR, Color.WHITE);
         mMediaQsTintAmount = Xprefs.getSliderInt(QS_MEDIA_ART_TINT_AMOUNT, 20);
 
         // Brightness Slider
         qsBrightnessSliderCustomize = Xprefs.getBoolean(QS_BRIGHTNESS_SLIDER_CUSTOMIZE, false);
-        qsBrightnessSliderColorMode = Integer.parseInt(Xprefs.getString(QS_BRIGHTNESS_SLIDER_COLOR_MODE, "0"));
+        qsBrightnessSliderColorMode = Xprefs.getIntFromString(QS_BRIGHTNESS_SLIDER_COLOR_MODE, "0");
         qsBrightnessSliderColor = Xprefs.getInt(QS_BRIGHTNESS_SLIDER_COLOR, getPrimaryColor(mContext));
         qsBrightnessBackgroundCustomize = Xprefs.getBoolean(QS_BRIGHTNESS_SLIDER_BACKGROUND_ENABLED, false);
         qsBrightnessBackgroundColor = Xprefs.getInt(QS_BRIGHTNESS_SLIDER_BACKGROUND_COLOR, Color.TRANSPARENT);
         sliderRemoveBlur = Xprefs.getBoolean(QS_SLIDERS_REMOVE_BLUR, false);
-        sliderBlendColor = Integer.parseInt(Xprefs.getString(QS_SLIDERS_BLEND_COLOR, "0"));
+        sliderBlendColor = Xprefs.getIntFromString(QS_SLIDERS_BLEND_COLOR, "0");
         qsBrightnessSliderDark = Xprefs.getBoolean(QS_BRIGHTNESS_DARK_ICON, false);
         qsSlidersRoundness = Xprefs.getBoolean(QS_SLIDERS_RADIUS_SWITCH, false);
         qsSlidersRoundnessValue = Xprefs.getSliderFloat(QS_SLIDERS_RADIUS, 40f);
@@ -359,11 +359,11 @@ public class QsTileCustomization extends XposedMods {
         qsLabelsColor = Xprefs.getInt(QS_TILE_LABELS_CUSTOM_COLOR, Color.WHITE);
 
         // Qs Animations
-        mAnimStyle = Integer.parseInt(Xprefs.getString(QS_TILE_ANIMATION_STYLE, "0"));
-        mInterpolatorType = Integer.parseInt(Xprefs.getString(QS_TILE_ANIMATION_INTERPOLATOR, "0"));
+        mAnimStyle = Xprefs.getIntFromString(QS_TILE_ANIMATION_STYLE, "0");
+        mInterpolatorType = Xprefs.getIntFromString(QS_TILE_ANIMATION_INTERPOLATOR, "0");
         mAnimDuration = Xprefs.getSliderInt(QS_TILE_ANIMATION_DURATION, 1);
         mTrasformationsEnabled = Xprefs.getBoolean(QS_TILE_ANIMATION_TRANSFORMATIONS_SWITCH, false);
-        mTrasformations = Integer.parseInt(Xprefs.getString(QS_TILE_ANIMATION_TRANSFORMATIONS, "1"));
+        mTrasformations = Xprefs.getIntFromString(QS_TILE_ANIMATION_TRANSFORMATIONS, "1");
 
         if (Key.length > 0) {
             for (String k : QS_UPDATE_PREFS) {

@@ -113,7 +113,7 @@ public class XPLauncher implements ServiceConnection {
 
                             XPrefs.init(mContext);
 
-                            waitForXprefsLoad(lpparam);
+                            loadPrefsWithoutBlockingHost(lpparam);
                         }
                     } catch (Throwable t) {
                         // Context is null
@@ -164,6 +164,22 @@ public class XPLauncher implements ServiceConnection {
                 log(T);
             }
         }
+    }
+
+    private void loadPrefsWithoutBlockingHost(XC_LoadPackage.LoadPackageParam lpparam) {
+        try {
+            if (Xprefs != null) {
+                Xprefs.getBoolean("LoadTestBooleanValue", false);
+                onXPrefsReady(lpparam);
+                return;
+            }
+        } catch (Throwable unavailable) {
+            log("[ Oxygen Customizer ] Preferences not ready, deferring Hook load for "
+                    + lpparam.processName);
+        }
+        // newApplication runs on the host's startup thread. Never perform
+        // multi-second retry sleeps on that thread.
+        CompletableFuture.runAsync(() -> waitForXprefsLoad(lpparam));
     }
 
     private void waitForXprefsLoad(XC_LoadPackage.LoadPackageParam lpparam) {

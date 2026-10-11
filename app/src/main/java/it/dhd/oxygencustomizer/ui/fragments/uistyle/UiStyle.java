@@ -1,6 +1,5 @@
 package it.dhd.oxygencustomizer.ui.fragments.uistyle;
 
-import static it.dhd.oxygencustomizer.utils.Dynamic.TOTAL_ANDROID_THEMES;
 import static it.dhd.oxygencustomizer.utils.PreferenceHelper.getModulePrefs;
 import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getOverlayForComponent;
 import static it.dhd.oxygencustomizer.utils.overlay.OverlayUtil.getStringFromOverlay;
@@ -59,7 +58,7 @@ public class UiStyle extends BaseFragment {
                     ));
         }
         if (getModulePrefs() != null) {
-            getModulePrefs().edit().putInt("UiStylesThemes", TOTAL_ANDROID_THEMES).apply();
+            getModulePrefs().edit().putInt("UiStylesThemes", pack.size()).apply();
         }
         mThemeNames.sort(Comparator.comparing(ThemeModel::getThemeName));
         return new ThemeAdapter(requireContext(), mThemeNames, loadingDialog);

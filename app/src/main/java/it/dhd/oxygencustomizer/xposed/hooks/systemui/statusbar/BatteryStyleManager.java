@@ -239,7 +239,7 @@ public class BatteryStyleManager extends XposedMods {
     @Override
     public void updatePrefs(String... Key) {
 
-        BatteryStyle = Integer.parseInt(Xprefs.getString(CUSTOM_BATTERY_STYLE, String.valueOf(BATTERY_STYLE_CUSTOM_RLANDSCAPE)));
+        BatteryStyle = Xprefs.getIntFromString(CUSTOM_BATTERY_STYLE, String.valueOf(BATTERY_STYLE_CUSTOM_RLANDSCAPE));
         boolean hidePercentage = Xprefs.getBoolean(CUSTOM_BATTERY_HIDE_PERCENTAGE, false);
         boolean defaultInsidePercentage = BatteryStyle == BATTERY_STYLE_LANDSCAPE_IOS_16 ||
                 BatteryStyle == BATTERY_STYLE_LANDSCAPE_BATTERYL ||
@@ -280,7 +280,7 @@ public class BatteryStyleManager extends XposedMods {
         mCustomPowerSaveFillColor = Xprefs.getInt(CUSTOM_BATTERY_POWERSAVE_FILL_COLOR, Color.BLACK);
         mSwapPercentage = Xprefs.getBoolean(CUSTOM_BATTERY_SWAP_PERCENTAGE, false);
         mChargingIconSwitch = Xprefs.getBoolean(CUSTOM_BATTERY_CHARGING_ICON_SWITCH, false);
-        mChargingIconStyle = Integer.parseInt(Xprefs.getString(CUSTOM_BATTERY_CHARGING_ICON_STYLE, "0"));
+        mChargingIconStyle = Xprefs.getIntFromString(CUSTOM_BATTERY_CHARGING_ICON_STYLE, "0");
         mChargingIconML = Xprefs.getSliderInt(CUSTOM_BATTERY_CHARGING_ICON_MARGIN_LEFT, 1);
         mChargingIconMR = Xprefs.getSliderInt(CUSTOM_BATTERY_CHARGING_ICON_MARGIN_RIGHT, 0);
         mChargingIconWH = Xprefs.getSliderInt(CUSTOM_BATTERY_CHARGING_ICON_WIDTH_HEIGHT, 14);

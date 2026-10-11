@@ -35,13 +35,13 @@ public class ReflectedMethod {
     }
 
     public Collection<? extends XC_MethodHook.Unhook> beforeThat(ReflectedClass.ReflectionConsumer consumer) {
-        return ReflectedClass.of(method.getClass())
+        return ReflectedClass.of(method.getDeclaringClass())
                 .before(method)
                 .run(consumer);
     }
 
     public Set<XC_MethodHook.Unhook> afterThat(ReflectedClass.ReflectionConsumer consumer) {
-        return ReflectedClass.of(method.getClass())
+        return ReflectedClass.of(method.getDeclaringClass())
                 .after(method)
                 .run(consumer);
     }
