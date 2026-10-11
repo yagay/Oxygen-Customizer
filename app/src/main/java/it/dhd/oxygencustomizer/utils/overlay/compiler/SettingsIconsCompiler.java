@@ -157,10 +157,10 @@ public class SettingsIconsCompiler {
     }
 
     private static boolean writeResources(String source, String resources) {
-        Shell.Result result = OverlayCompileCoordinator.runChecked(
+        Shell.Result result = Shell.cmd(
                 "rm -rf " + source + "/res/values/OxygenCustomizer.xml",
                 "printf '" + resources + "' > " + source + "/res/values/OxygenCustomizer.xml;"
-        , "Prepare overlay staging");
+        ).exec();
 
         if (result.isSuccess()) {
             Log.i(TAG + " - WriteResources", "Successfully written resources for SettingsIcons");
