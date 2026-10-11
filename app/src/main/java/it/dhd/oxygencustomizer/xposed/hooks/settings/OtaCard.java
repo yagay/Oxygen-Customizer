@@ -41,6 +41,7 @@ public class OtaCard extends XposedMods {
                 return thread;
             });
     private ScheduledFuture<?> currentImageTask;
+    private final AtomicInteger imageRequestGeneration = new AtomicInteger();
 
     public OtaCard(Context context) {
         super(context);
@@ -49,6 +50,13 @@ public class OtaCard extends XposedMods {
     @Override
     public void updatePrefs(String... Key) {
         mCustomStyle = Xprefs.getBoolean("custom_ota_card", true);
+        if (!mCustomStyle) {
+            imageRequestGeneration.incrementAndGet();
+            synchronized (this) {
+                if (currentImageTask != null) currentImageTask.cancel(false);
+                currentImageTask = null;
+            }
+        }
     }
 
     @Override
@@ -76,9 +84,11 @@ public class OtaCard extends XposedMods {
 
     private synchronized void setCustomImage(View target) {
         if (currentImageTask != null) currentImageTask.cancel(false);
+        final int requestId = imageRequestGeneration.incrementAndGet();
         AtomicInteger attempts = new AtomicInteger();
         AtomicReference<ScheduledFuture<?>> ownTask = new AtomicReference<>();
         Runnable load = () -> {
+            if (requestId != imageRequestGeneration.get()) return;
             int attempt = attempts.incrementAndGet();
             boolean finished = attempt >= 12;
             try {
@@ -91,7 +101,10 @@ public class OtaCard extends XposedMods {
                             mContext.getResources(), ImageDecoder.decodeBitmap(source));
                     image.setCornerRadius(dp2px(mContext, 12));
                     target.post(() -> {
-                        if (target.isAttachedToWindow()) target.setBackground(image);
+                        if (requestId == imageRequestGeneration.get()
+                                && mCustomStyle && target.isAttachedToWindow()) {
+                            target.setBackground(image);
+                        }
                     });
                     finished = true;
                 }
@@ -104,7 +117,8 @@ public class OtaCard extends XposedMods {
                 }
             }
         };
-        ownTask.set(IMAGE_WORKER.scheduleWithFixedDelay(load, 0, 5, TimeUnit.SECONDS));
+        // Defer the first execution so the task handle is set before it can cancel itself.
+        ownTask.set(IMAGE_WORKER.scheduleWithFixedDelay(load, 100, 5000, TimeUnit.MILLISECONDS));
         currentImageTask = ownTask.get();
     }
 
