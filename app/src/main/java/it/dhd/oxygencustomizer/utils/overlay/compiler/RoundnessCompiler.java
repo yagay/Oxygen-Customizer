@@ -10,6 +10,8 @@ import com.topjohnwu.superuser.Shell;
 
 import java.io.IOException;
 
+import it.dhd.oxygencustomizer.utils.overlay.compiler.OverlayCompileCoordinator;
+
 import it.dhd.oxygencustomizer.utils.FileUtil;
 import it.dhd.oxygencustomizer.utils.ModuleConstants;
 import it.dhd.oxygencustomizer.utils.RootUtil;
@@ -25,6 +27,8 @@ public class RoundnessCompiler {
     private static boolean mForce = false;
 
     public static boolean buildOverlay(String[] resources, boolean force) throws IOException {
+        OverlayCompileCoordinator.LOCK.lock();
+        try {
         mForce = force;
 
         preExecute();
@@ -68,6 +72,9 @@ public class RoundnessCompiler {
 
         postExecute(false);
         return false;
+        } finally {
+            OverlayCompileCoordinator.LOCK.unlock();
+        }
     }
 
     private static void preExecute() throws IOException {
